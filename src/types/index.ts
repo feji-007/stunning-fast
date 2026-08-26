@@ -1,0 +1,65 @@
+export type FeatureId =
+  | 'video'
+  | 'library'
+  | 'custom'
+  | 'image'
+  | 'audio'
+  | 'chat'
+
+export interface Feature {
+  id: FeatureId
+  name: string
+  icon: string
+  desc: string
+  /** Whether shown in the default row of the main panel. */
+  pinned: boolean
+}
+
+export interface ProviderModel {
+  id: string
+  name: string
+  provider: ProviderId
+  type: 'video' | 'image' | 'audio' | 'text'
+  desc: string
+  /** 是否支持图生视频（image-to-video） */
+  supportsI2V?: boolean
+}
+
+export type ProviderId =
+  | 'alibaba'
+  | 'openai'
+  | 'volcengine'
+  | 'kling'
+  | 'minimax'
+  | 'runway'
+  | 'pika'
+  | 'luma'
+  | 'zhipu'
+
+export interface Provider {
+  id: ProviderId
+  name: string
+  /** Key prefix used to detect a valid-looking key, e.g. "sk-". */
+  keyHint: string
+  /** 供应商官网地址，用于资源库卡片跳转 */
+  url: string
+  models: ProviderModel[]
+}
+
+export interface ApiKeyEntry {
+  provider: ProviderId
+  key: string
+}
+
+export interface UserState {
+  loggedIn: boolean
+  username: string
+  token: string
+}
+
+// 主面板布局调整相关类型
+export type LayoutColumns = 2 | 3 | 4
+/** 卡片内容样式：仅图标 / 图标+名称 / 图标+名称+描述 */
+export type CardStyle = 'icon' | 'icon-name' | 'icon-name-desc'
+/** 卡片密度：紧凑 / 标准 / 宽松 */
+export type CardSize = 'compact' | 'standard' | 'loose'
