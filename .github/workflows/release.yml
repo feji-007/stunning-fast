@@ -1,0 +1,58 @@
+name: release
+
+# 触发：推送 v* 标签自动发布；或手动 workflow_dispatch
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 用于创建 GitHub Release 备份
+
+jobs:
+  release:
+    runs-on: windows-latest   # 打包 Windows 安装包；扩展全平台时改 matrix
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & package (electron-builder)
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installers to R2 + purge CDN
+        run: npm run upload:release
+
+      - name: Build site
+        working-directory: site
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload site to R2
+        run: npm run upload:site
+
+      - name: Create GitHub Release (backup)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
+          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

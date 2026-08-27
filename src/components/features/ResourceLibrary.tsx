@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react'
-import { PROVIDERS, ALL_MODELS } from '../../data/models'
+import { useStore } from '../../store/useStore'
 import type { ProviderModel } from '../../types'
 
 // 资源库：罗列主流常用模型，帮用户搜索更适配的资源。
+// 供应商/模型来自后端 bootstrap（运行时 store.providers），不再使用硬编码。
 export default function ResourceLibrary() {
+  const providers = useStore((s) => s.providers)
   const [q, setQ] = useState('')
   const [type, setType] = useState<'all' | 'video' | 'image' | 'audio' | 'text'>('all')
 
+  const allModels = useMemo(() => providers.flatMap((p) => p.models), [providers])
+
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase()
-    return ALL_MODELS.filter((m) => {
+    return allModels.filter((m) => {
       if (type !== 'all' && m.type !== type) return false
       if (!kw) return true
       return (
@@ -18,14 +22,14 @@ export default function ResourceLibrary() {
         m.provider.toLowerCase().includes(kw)
       )
     })
-  }, [q, type])
+  }, [allModels, q, type])
 
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
         <h2 className="text-sm font-semibold text-gray-800">模型资源库</h2>
         <p className="mt-0.5 text-[11px] text-gray-400">
-          收录 {ALL_MODELS.length} 个主流模型 · 来自 {PROVIDERS.length} 家供应商
+          收录 {allModels.length} 个主流模型 · 来自 {providers.length} 家供应商
         </p>
       </div>
 
@@ -64,7 +68,8 @@ export default function ResourceLibrary() {
 }
 
 function ModelCard({ model }: { model: ProviderModel }) {
-  const provider = PROVIDERS.find((p) => p.id === model.provider)
+  const providers = useStore((s) => s.providers)
+  const provider = providers.find((p) => p.id === model.provider)
   const typeLabel: Record<ProviderModel['type'], string> = {
     video: '视频',
     image: '图像',

@@ -3,3 +3,20 @@ dist/
 dist-electron/
 *.log
 .DS_Store
+
+# 打包/构建产物
+release/
+site/.vitepress/dist
+site/.vitepress/cache
+server/dist
+
+# 环境变量（含密钥，绝不提交；.env.example 保留作模板）
+.env
+!.env.example
+
+# 系统/编辑器
+*.local
+Thumbs.db
+
+# TypeScript 增量构建缓存
+*.tsbuildinfo

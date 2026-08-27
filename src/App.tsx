@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from './store/useStore'
+import { authApi } from './api/client'
 import FloatingWindow from './components/FloatingWindow'
 import MainPanel from './components/MainPanel'
 import LoginModal from './components/LoginModal'
@@ -49,6 +50,26 @@ export default function App() {
     return () => {
       offCollapsed?.()
       offExpanded?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 启动：拉取后端系统配置；若本地仍保留登录态，校验 token 并恢复用户私有配置
+  useEffect(() => {
+    void useStore.getState().bootstrap()
+    if (useStore.getState().user.loggedIn) {
+      authApi
+        .me()
+        .then((r) => {
+          useStore.setState((s) => ({
+            user: { ...s.user, userId: r.user.id, username: r.user.username }
+          }))
+          void useStore.getState().pullUserConfig()
+        })
+        .catch(() => {
+          // token 失效：清理登录态
+          useStore.getState().logout()
+        })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

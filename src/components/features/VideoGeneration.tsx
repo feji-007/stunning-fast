@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore, availableModels, availableProviders } from '../../store/useStore'
+import { tasksApi } from '../../api/client'
 import type { ProviderModel } from '../../types'
 
 // 自动匹配优先级
@@ -55,9 +56,12 @@ export default function VideoGeneration() {
   const keys = useStore((s) => s.keys)
   const setModal = useStore((s) => s.setModal)
   const user = useStore((s) => s.user)
+  // 供应商/模型/视频参数选项均来自后端 bootstrap（运行时 store），不再硬编码
+  const allProviders = useStore((s) => s.providers)
+  const videoConfig = useStore((s) => s.videoConfig)
 
-  const videoModels = availableModels(keys).filter((m) => m.type === 'video')
-  const providers = availableProviders(keys)
+  const videoModels = availableModels(allProviders, keys).filter((m) => m.type === 'video')
+  const providers = availableProviders(allProviders, keys)
 
   const [mode, setMode] = useState<'auto' | 'manual'>('auto')
   const [autoPriority, setAutoPriority] = useState<AutoPriority>('quality')
@@ -122,6 +126,9 @@ export default function VideoGeneration() {
     }
 
     setBusy(true)
+    let status: 'success' | 'fail' = 'fail'
+    let videoUrlOut = ''
+    let errMsgOut = ''
     try {
       if (
         chosen.provider === 'alibaba' ||
@@ -131,6 +138,7 @@ export default function VideoGeneration() {
         const apiKey = findKey(chosen.provider)
         if (!apiKey) {
           setError('未找到该供应商 API 密钥，请在设置中配置。')
+          errMsgOut = '未找到该供应商 API 密钥'
           return
         }
         const result = await window.api.generateVideo({
@@ -145,16 +153,38 @@ export default function VideoGeneration() {
         })
         setVideoUrl(result.videoUrl)
         setProgress('生成完成')
+        status = 'success'
+        videoUrlOut = result.videoUrl ?? ''
       } else {
         setProgress('演示生成中…（该供应商暂未接入真实 API）')
         await new Promise((r) => setTimeout(r, 1200))
         setVideoUrl(null)
         setError(`【${chosen.name}】演示完成。目前「通义万相」「火山引擎 Seedance」「快手可灵」已接入真实生成，可在设置中配置密钥后选用对应模型。`)
+        status = 'success'
       }
     } catch (e: any) {
       setError(e?.message ?? '生成失败')
+      status = 'fail'
+      errMsgOut = e?.message ?? '生成失败'
     } finally {
       setBusy(false)
+      // 静默记录任务到后台（不阻塞 UI，失败不影响用户体验）
+      if (chosen) {
+        void tasksApi
+          .record({
+            providerId: chosen.provider,
+            modelId: chosen.id,
+            genMode,
+            status,
+            resolution,
+            ratio,
+            duration,
+            prompt,
+            videoUrl: videoUrlOut,
+            errorMessage: errMsgOut
+          })
+          .catch(() => {})
+      }
     }
   }
 
@@ -318,8 +348,11 @@ export default function VideoGeneration() {
                 onChange={(e) => setResolution(e.target.value)}
                 className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-brand-400"
               >
-                <option value="720P">720P</option>
-                <option value="1080P">1080P</option>
+                {(videoConfig.resolution ?? []).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex items-center gap-1.5 text-[11px] text-gray-500">
@@ -329,11 +362,11 @@ export default function VideoGeneration() {
                 onChange={(e) => setRatio(e.target.value)}
                 className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-brand-400"
               >
-                <option value="16:9">16:9 横屏</option>
-                <option value="9:16">9:16 竖屏</option>
-                <option value="1:1">1:1 方形</option>
-                <option value="4:3">4:3</option>
-                <option value="3:4">3:4</option>
+                {(videoConfig.ratio ?? []).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex items-center gap-1.5 text-[11px] text-gray-500">
@@ -343,11 +376,11 @@ export default function VideoGeneration() {
                 onChange={(e) => setDuration(e.target.value)}
                 className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-brand-400"
               >
-                <option value="2">2s</option>
-                <option value="5">5s</option>
-                <option value="10">10s</option>
-                <option value="15">15s</option>
-                <option value="30">30s</option>
+                {(videoConfig.duration ?? []).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </label>
           </div>

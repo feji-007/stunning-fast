@@ -1,157 +1,147 @@
 # 绝色 · Stunning Fast
 
-> AI 视频生成桌面助手 —— 绝色巴黎香槟主题，悬浮窗模式，多供应商模型自由切换。
+> AI 视频生成桌面助手 —— 悬浮窗模式 · 多模型聚合 · 后台统一管理 · 自动更新。
 
-**绝色**（取 *Stunning* 的中文意「惊艳 / 绝色」，寓意「惊艳绝伦」）是一个基于 Electron 的轻量桌面应用。程序启动后仅以迷你悬浮窗驻留桌面，悬停即展开主功能面板，离开 5 秒自动折叠。内置视频生成、资源库、自定义三大核心功能，并已接入通义万相、火山引擎 Seedance、快手可灵三家真实视频生成 API，用户可在模型列表中自由切换。整体采用「绝色巴黎香槟」暖金主题，象牙白底配香槟金与古金，暖调奢华。
+**绝色**是基于 Electron 的轻量桌面应用，启动后以迷你悬浮窗驻留桌面，悬停展开主面板，离开自动折叠。内置视频生成、资源库、自定义三大功能，已接入通义万相 / 火山 Seedance / 快手可灵等多家视频生成 API。配套 **Node 后端 + MySQL** 统一管理供应商/模型/用户/密钥/视频参数，并提供 **VitePress 官网** 与 **Cloudflare R2+CDN 发布链路**。
 
 ## 功能特性
 
-- **悬浮窗交互**：默认仅显示迷你悬浮触点，鼠标悬停展开主面板，离开 5 秒自动折叠；悬浮窗可自由拖动并记忆位置，重启后恢复。
-- **主面板布局**：横向并列的核心功能入口，超出数量收纳于右侧「···」展开；点击入口展开独立功能页，原入口收纳为顶部标签，一键返回。
-- **免登录启动**：默认不要求登录，右上角显示「未登录」；点击登录或使用受限功能时弹出登录/注册页。
-- **视频生成**：自动匹配 API 或手动切换模型；清晰度（720P/1080P）与宽高比（16:9/9:16/1:1/4:3/3:4）可选；生成进度实时回显，完成后内嵌预览并可下载。
-- **资源库**：罗列主流 AI 模型，支持搜索与类型筛选，帮助用户挑选更适配的资源。
-- **自定义**：可调整功能展示位（常用上移、不常用隐藏）、悬浮窗置顶、开机自启（默认关闭）。
-- **多供应商共存**：通义万相 / 火山 Seedance / 快手可灵三家真实接入，协议差异由主进程自动归一化，用户无感切换。
+### 客户端
+- 悬浮窗交互：迷你触点，悬停展开，离开自动折叠，可拖动并记忆位置
+- 免登录启动，受限功能才弹登录/注册
+- 视频生成：模型/清晰度/宽高比可选，进度回显，内嵌预览下载
+- 资源库 + 自定义（功能排序、置顶、开机自启）
+- 多供应商共存，协议差异由主进程归一化
+
+### 后台管理
+- 供应商/模型/功能/视频参数 全部后台维护，告别硬编码
+- 用户配置隔离：系统配置全局共享，个人密钥与布局按用户隔离
+- 浏览器访问 Web 后台（`/admin`），角色权限（admin/user）
+- 数据库表与种子数据服务启动自动建（存在则跳过）
 
 ## 技术栈
 
 | 层 | 技术 |
 | --- | --- |
-| 桌面运行时 | Electron 31 |
-| 渲染层 | React 18 + TypeScript |
-| 构建工具 | Vite 5 |
-| 样式 | TailwindCSS 3 |
-| 状态管理 | Zustand（localStorage 持久化）|
-| 本地存储 | electron-store（窗口位置、开机自启等）|
-| 网络 | 主进程 Node `fetch`（规避渲染层 CORS），可灵 JWT 用 Node `crypto` 签发 |
+| 桌面运行时 | Electron 31 + electron-updater（自动更新） |
+| 渲染层 | React 18 + TypeScript + Vite 5 + TailwindCSS 3 |
+| 状态 | Zustand（持久化）+ electron-store |
+| 后端 | Node.js + Express + JWT + bcryptjs |
+| 数据库 | MySQL 8.x |
+| 管理后台 | React + Vite + Tailwind（托管于后端 `/admin`） |
+| 官网/文档 | VitePress（`site/`） |
+| 发布 | electron-builder（nsis-web）+ Cloudflare R2+CDN |
+| CI/CD | GitHub Actions |
 
-## 主题色：绝色巴黎香槟
+## 系统架构
 
-整体采用暖调香槟金主题，定义于 `tailwind.config.js` 的 `brand` 色阶，全站 `brand-*` 用法自动跟随：
-
-| 色阶 | 色值 | 用途 |
+| 端 | 位置 | 职责 |
 | --- | --- | --- |
-| `brand-50` | `#FBF5EA` | 象牙香槟底 |
-| `brand-100` | `#F4E8CF` | 奶油 / 进度条底 |
-| `brand-300` | `#DDB874` | 柔金 |
-| `brand-400` | `#CDA050` | 亮香槟金（悬浮气泡、徽标，配深色文字）|
-| `brand-500` | `#946C29` | 古金（主按钮，白字，对比 ≥4.5:1）|
-| `brand-600/700` | `#78571F` / `#5E4419` | hover / pressed |
+| 客户端 | 桌面（Electron） | UI + 视频生成（本地调模型 API） |
+| 后端 | 应用服务器 | Express API + MySQL + 管理后台 |
+| 官网/文档 | R2+CDN | VitePress 静态站 |
+| 发布链路 | R2+CDN | web installer + 7z + latest.yml |
 
-## 环境要求
-
-- Node.js ≥ 18（推荐 20+，主进程使用原生 `fetch`）
-- npm ≥ 9
-- Windows 10/11（已适配主流分辨率与缩放比例）
-
-## 安装
-
-```bash
-# 1. 克隆 / 进入项目目录
-cd stunning-fast
-
-# 2. 安装依赖（首次安装会下载 Electron 二进制，请保持网络通畅）
-npm install
-```
-
-> 若 Electron 二进制下载缓慢或失败，可设置镜像：
-> ```bash
-> set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
-> npm install
-> ```
-
-## 启动
-
-### 开发模式（热重载）
-
-```bash
-npm run dev
-```
-
-并行启动 Vite 开发服务器（`http://localhost:5173`）与 Electron 主进程，渲染层改动即时生效。
-
-### 生产构建
-
-```bash
-npm run build
-```
-
-依次执行：Vite 打包渲染层到 `dist/`，`tsc` 编译 Electron 主进程到 `dist-electron/`。
-
-### 运行已构建产物
-
-```bash
-npm start
-```
-
-以生产模式启动应用，加载 `dist/` 与 `dist-electron/` 产物。
+应用服务器只扛 API，下载/官网/更新全走 R2+CDN，带宽需求极低。
 
 ## 项目结构
 
 ```
 stunning-fast/
-├── electron/                # 主进程
-│   ├── main.ts               # 窗口/托盘/位置记忆/开机自启/IPC 注册
-│   ├── preload.ts            # contextBridge 桥接
-│   ├── video.ts              # 多供应商视频生成客户端（DashScope/Seedance/可灵）
-│   └── shared/ipc.ts         # 跨进程共享类型与 IPC 通道
-├── src/
-│   ├── App.tsx               # 悬停展开/折叠编排
-│   ├── components/
-│   │   ├── FloatingWindow.tsx     # 迷你悬浮触点（可拖拽）
-│   │   ├── MainPanel.tsx          # 主面板（横向入口 + 顶部标签）
-│   │   ├── LoginModal.tsx         # 登录/注册
-│   │   ├── SettingsModal.tsx      # 密钥管理
-│   │   └── features/              # 各功能独立页
-│   │       ├── VideoGeneration.tsx
-│   │       ├── ResourceLibrary.tsx
-│   │       ├── Customize.tsx
-│   │       └── PlaceholderFeature.tsx
-│   ├── data/models.ts       # 供应商与模型资源库数据
-│   ├── store/useStore.ts     # Zustand 状态（持久化）
-│   └── types/index.ts       # 类型定义
-├── package.json
-├── vite.config.ts
-├── tailwind.config.js
-└── tsconfig.json
+├── electron/          # 主进程（窗口/托盘/IPC/视频生成/自动更新）
+├── src/                # 渲染层（React 组件 + 状态 + API 客户端）
+├── server/             # 后端（Express + MySQL + 管理后台 + SQL）
+│   ├── src/            #   routes / db / middleware / config
+│   ├── admin/          #   管理后台源码
+│   └── sql/init.sql    #   建表脚本
+├── site/               # VitePress 官网/文档
+├── scripts/            # R2 上传脚本（upload-release / upload-site / r2-client）
+├── .github/workflows/  # CI/CD 自动发布
+├── electron-builder.yml
+├── DEPLOY.md           # 部署文档
+├── SETUP.md            # 启动文档
+└── package.json
 ```
+
+## 环境要求
+
+- Node.js ≥ 18（推荐 20+）
+- MySQL 8.x
+- Windows 10/11（客户端）；Linux（后端服务器）
+
+## 快速开始
+
+```bash
+# 1. 建库
+mysql -u root -p < server/sql/init.sql
+
+# 2. 配置后端环境变量
+cp server/.env.example server/.env   # 按需改数据库密码
+
+# 3. 启动后端（自动建表 + 种子 + 托管 /admin）
+cd server && npm install && npm run admin:build && npm run dev
+
+# 4. 启动客户端（项目根目录）
+cd .. && npm install && npm run dev
+```
+
+管理后台：`http://localhost:4178/admin`（账号 `admin/admin123`）
+详细启动步骤见 [SETUP.md](./SETUP.md)。
+
+## 配置
+
+| 文件 | 用途 | 必填 |
+| --- | --- | --- |
+| `server/.env` | 后端（数据库/JWT/管理员） | 启动后端必需 |
+| `scripts/.env` | R2 上传凭证 | 发布前必需 |
+
+模板见各目录 `.env.example`（`.env` 已被 git 忽略，含密钥勿提交）。
+
+## 打包与发布
+
+```bash
+# 打包（生成 web installer + 7z + latest.yml）
+npm run dist
+
+# 上传到 R2（需先配 scripts/.env）
+npm run upload:release   # 上传安装包 + 清单 + 刷新 CDN
+npm run upload:site      # 上传官网
+```
+
+- Windows 产物：`release/nsis-web/juese-{version}-setup.exe`（约 676 KB web installer）+ `.nsis.7z`（完整包）
+- CI 自动发布：`git tag v1.2.3 && git push origin v1.2.3`（见 `.github/workflows/release.yml`）
+- 详见 [DEPLOY.md](./DEPLOY.md) 与 [site/guide/cloudflare-setup.md](./site/guide/cloudflare-setup.md)
+
+## 自动更新
+
+客户端内置 electron-updater，启动后从 `https://cdn.juese.app/releases/latest.yml` 检测更新，有新版静默下载、退出时安装。仅打包后生效（开发模式跳过）。
+
+## 主题色：绝色巴黎香槟
+
+| 色阶 | 色值 | 用途 |
+| --- | --- | --- |
+| `brand-50` | `#FBF5EA` | 象牙香槟底 |
+| `brand-400` | `#CDA050` | 亮香槟金 |
+| `brand-500` | `#946C29` | 古金（主按钮） |
+
+完整色阶见 `tailwind.config.js` 的 `brand` 色阶，全站 `brand-*` 自动跟随。
 
 ## 已接入视频生成供应商
 
-三家均为「提交异步任务 → 轮询 → 取视频地址」流程，协议差异由主进程 `electron/video.ts` 的 `generateVideo` 路由器统一分发：
+| 供应商 | 鉴权 | 模型 |
+| --- | --- | --- |
+| 通义万相 (DashScope) | Bearer `sk-xxx` | wan2.7 / 2.6 / 2.2 / 2.1-turbo / 2.1-plus |
+| 火山 Seedance (Ark) | Bearer `volc-sk-xxx` | Seedance 2.5 / 2.0 / 2.0-fast / 1.5-pro / 1.0-pro-fast |
+| 快手可灵 (Kling) | JWT（AK:SK） | kling-v3 / v2-master / v2.5-turbo / v1.6 |
 
-| 供应商 | 鉴权 | 端点 | 可用模型 |
-| --- | --- | --- | --- |
-| 通义万相 (DashScope) | Bearer `sk-xxx` | `dashscope.aliyuncs.com` | wan2.7 / wan2.6 / wan2.2 / wan2.1-turbo / wan2.1-plus |
-| 火山引擎 Seedance (Ark) | Bearer `volc-sk-xxx` | `ark.cn-beijing.volces.com` | Seedance 2.5 / 2.0 / 2.0-fast / 1.5-pro / 1.0-pro-fast |
-| 快手可灵 (Kling) | JWT（AccessKey + SecretKey）| `api-beijing.klingai.com` | kling-v3 / v2-master / v2.5-turbo / v1.6 |
+> 供应商/模型现由后台管理维护，客户端启动拉取 `bootstrap` 配置聚合接口。
 
-> 其他供应商（MiniMax / Runway / Pika / Luma 等）已在资源库中列出，生成走演示分支，可在 `video.ts` 的 `generateVideo` 路由 `switch` 中扩展接入。
+## 文档
 
-## 配置 API 密钥
-
-1. 启动应用，点击头像 → **设置**。
-2. 找到对应供应商，粘贴密钥后保存。系统自动探测可接入的供应商，并在视频生成页展示可用模型列表。
-3. 密钥格式说明：
-   - **通义万相**：阿里云百炼控制台获取，以 `sk-` 开头。
-   - **火山引擎**：火山引擎 Ark 控制台获取的 API Key。
-   - **快手可灵**：可灵开放平台 `API 管理` 页获取，填入 **`AccessKey:SecretKey`**（中间一个英文冒号），程序据此签发 JWT。
-
-## 生成流程
-
-1. 主面板点击「视频生成」入口。
-2. 输入提示词，选择清晰度与宽高比。
-3. 自动匹配模式下默认选用首个可用视频模型；可切换为手动模式点选任意模型。
-4. 点击「生成视频」，进度依次显示「提交任务 → 排队中 → 生成中 → 完成」。
-5. 完成后页面内嵌预览视频，并提供下载/浏览器打开链接。
-
-## 常见问题
-
-- **生成失败提示 401 / 鉴权错误**：检查设置中对应供应商密钥是否正确、是否已开通模型调用权限与计费。
-- **可灵提示「access key not found」**：确认密钥格式为 `AccessKey:SecretKey`，且 AccessKey/SecretKey 均非空。
-- **悬浮窗位置丢失**：程序会记忆上次拖动位置并校正到屏幕可见区；若多显示器拔除导致越界，重启后会自动归位。
-- **Electron 安装失败**：使用上文镜像变量重试，或切换 npm 源。
+- [SETUP.md](./SETUP.md) — 启动指南
+- [DEPLOY.md](./DEPLOY.md) — 部署运维
+- [site/guide/](./site/guide/) — 安装 / 部署 / 服务器配置 / Cloudflare 配置
+- [site/](./site/) — VitePress 官网（`cd site && npm run dev` 本地预览）
 
 ## License
 

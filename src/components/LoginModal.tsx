@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 
-// 登录 / 注册弹窗（演示版，本地账号）。
+// 登录 / 注册弹窗：调用后端 /api/auth/login|register，返回真实 JWT。
 export default function LoginModal() {
   const setModal = useStore((s) => s.setModal)
   const login = useStore((s) => s.login)
@@ -11,8 +11,9 @@ export default function LoginModal() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const submit = () => {
+  const submit = async () => {
     setError('')
     if (username.trim().length < 2) {
       setError('用户名至少 2 个字符')
@@ -22,8 +23,15 @@ export default function LoginModal() {
       setError('密码至少 4 位')
       return
     }
-    if (tab === 'login') login(username.trim())
-    else register(username.trim())
+    setLoading(true)
+    try {
+      if (tab === 'login') await login(username.trim(), password)
+      else await register(username.trim(), password)
+    } catch (e: any) {
+      setError(e?.message ?? '登录失败')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -67,6 +75,7 @@ export default function LoginModal() {
             onChange={(e) => setUsername(e.target.value)}
             className="mt-1 w-full rounded-lg border border-black/10 px-3 py-1.5 text-xs outline-none focus:border-brand-400"
             placeholder="请输入用户名"
+            autoComplete="username"
           />
         </label>
         <label className="mb-2 block">
@@ -75,9 +84,10 @@ export default function LoginModal() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            onKeyDown={(e) => e.key === 'Enter' && !loading && submit()}
             className="mt-1 w-full rounded-lg border border-black/10 px-3 py-1.5 text-xs outline-none focus:border-brand-400"
             placeholder="请输入密码"
+            autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
           />
         </label>
 
@@ -85,12 +95,13 @@ export default function LoginModal() {
 
         <button
           onClick={submit}
-          className="w-full rounded-lg bg-brand-500 py-2 text-xs font-medium text-white hover:bg-brand-600"
+          disabled={loading}
+          className="w-full rounded-lg bg-brand-500 py-2 text-xs font-medium text-white hover:bg-brand-600 disabled:opacity-60"
         >
-          {tab === 'login' ? '登录' : '注册并登录'}
+          {loading ? '处理中…' : tab === 'login' ? '登录' : '注册并登录'}
         </button>
         <p className="mt-3 text-center text-[10px] text-gray-400">
-          演示版账号仅保存在本地，不会上传。
+          账号由后台统一管理，登录后可同步个人配置。
         </p>
       </div>
     </div>

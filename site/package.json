@@ -1,0 +1,15 @@
+{
+  "name": "stunning-fast-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "绝色 · 官网与文档站（VitePress 静态站，构建产物托管到 OSS+CDN）",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.3.4"
+  }
+}

@@ -53,6 +53,8 @@ export interface ApiKeyEntry {
 
 export interface UserState {
   loggedIn: boolean
+  /** 后端用户 id，未登录为 null */
+  userId: number | null
   username: string
   token: string
 }

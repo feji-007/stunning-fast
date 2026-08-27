@@ -4,6 +4,7 @@ import AutoLaunch from 'auto-launch'
 import Store from 'electron-store'
 import { IPC } from './shared/ipc'
 import { generateVideo } from './video'
+import { autoUpdater } from 'electron-updater'
 
 // Window dimension presets -------------------------------------------------
 const MINI = { width: 72, height: 72 }
@@ -420,6 +421,24 @@ app.whenReady().then(() => {
   // Restore auto-launch state preference silently.
   const wantAuto = (store.get('autoLaunch') as boolean | undefined) ?? false
   if (wantAuto) autoLauncher.enable().catch(() => {})
+
+  // 自动更新：仅打包后生效（开发模式跳过，避免缺 app-update.yml 报错）
+  if (!isDev && app.isPackaged) {
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.logger = {
+      info: (m: string) => console.log('[updater]', m),
+      warn: (m: string) => console.warn('[updater]', m),
+      error: (m: string) => console.error('[updater]', m)
+    }
+    autoUpdater.on('update-downloaded', () => {
+      // 已下载完成，用户下次退出应用时自动安装更新
+      console.log('[updater] 新版本已下载，退出时自动安装')
+    })
+    autoUpdater.checkForUpdatesAndNotify().catch((e) => {
+      console.error('[updater] 检查更新失败', e)
+    })
+  }
 })
 
 app.on('window-all-closed', () => {

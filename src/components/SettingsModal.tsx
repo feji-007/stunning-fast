@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { useStore, availableProviders } from '../store/useStore'
-import { PROVIDERS } from '../data/models'
 import type { ProviderId } from '../types'
 
 // 设置：统一管理自有密钥。保存 Key 后自动探测可接入供应商，并在生成页展示可用模型。
+// 供应商列表来自后端 bootstrap（运行时 store.providers），不再使用硬编码。
 export default function SettingsModal() {
   const setModal = useStore((s) => s.setModal)
   const keys = useStore((s) => s.keys)
   const saveKey = useStore((s) => s.saveKey)
   const removeKey = useStore((s) => s.removeKey)
+  const providers = useStore((s) => s.providers)
 
-  const connected = new Set(availableProviders(keys).map((p) => p.id))
+  const connected = new Set(availableProviders(providers, keys).map((p) => p.id))
 
   return (
     <div className="flex h-full w-full items-center justify-center bg-black/30">
@@ -27,14 +28,14 @@ export default function SettingsModal() {
 
         <div className="flex items-center justify-between px-5 py-2 text-[11px] text-gray-400">
           <span>
-            已接入 <b className="text-brand-600">{connected.size}</b> / {PROVIDERS.length} 家供应商
+            已接入 <b className="text-brand-600">{connected.size}</b> / {providers.length} 家供应商
           </span>
           <span>保存密钥后将自动探测，并在视频生成页展示可用模型</span>
         </div>
 
         <div className="flex-1 overflow-auto scroll-thin px-5 pb-5">
           <div className="space-y-2">
-            {PROVIDERS.map((p) => {
+            {providers.map((p) => {
               const existing = keys.find((k) => k.provider === p.id)
               return (
                 <ProviderRow

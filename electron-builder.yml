@@ -1,0 +1,57 @@
+# electron-builder 打包配置
+# 产物输出到 release/，含各平台安装包与 latest*.yml 自动更新清单
+# 将 release/ 下的安装包 + latest*.yml 上传到 OSS+CDN 的 releases/ 目录
+
+appId: com.juese.app
+productName: 绝色
+copyright: Copyright © 2026 绝色
+
+directories:
+  output: release
+  buildResources: build
+
+# 打包进安装包的文件：渲染层(vite 产物) + 主进程(tsc 产物) + 清单
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+
+# 代码签名与图标：暂缺，使用 Electron 默认图标。
+# 正式发布请在 build/ 放 icon.ico / icon.icns / icon.png(512x512)
+# win:
+#   icon: build/icon.ico
+# mac:
+#   icon: build/icon.icns
+# linux:
+#   icon: build/icon.png
+
+win:
+  target:
+    - target: nsis-web
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  artifactName: juese-${version}-setup.${ext}
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.video
+  artifactName: juese-${version}-${arch}.${ext}
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: AudioVideo
+  artifactName: juese-${version}.${ext}
+
+# 自动更新发布源：generic 指向 CDN 上的 releases/ 目录
+# electron-updater 会读取该目录下的 latest.yml / latest-mac.yml / latest-linux.yml
+publish:
+  provider: generic
+  url: https://cdn.juese.app/releases/
+  channel: latest

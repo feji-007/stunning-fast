@@ -7,12 +7,43 @@ import type {
   Feature,
   FeatureId,
   LayoutColumns,
+  Provider,
   ProviderId,
   UserState
 } from '../types'
 import { DEFAULT_FEATURES, PROVIDERS } from '../data/models'
+import {
+  authApi,
+  bootstrapApi,
+  clearToken,
+  setToken,
+  userApiKeysApi,
+  userConfigsApi
+} from '../api/client'
 
 type Modal = 'none' | 'login' | 'settings'
+
+// 视频生成参数默认选项（后端不可达时回退使用）
+const DEFAULT_VIDEO_CONFIG: Record<string, Array<{ value: string; label: string }>> = {
+  resolution: [
+    { value: '720P', label: '720P' },
+    { value: '1080P', label: '1080P' }
+  ],
+  ratio: [
+    { value: '16:9', label: '16:9 横屏' },
+    { value: '9:16', label: '9:16 竖屏' },
+    { value: '1:1', label: '1:1 方形' },
+    { value: '4:3', label: '4:3' },
+    { value: '3:4', label: '3:4' }
+  ],
+  duration: [
+    { value: '2', label: '2s' },
+    { value: '5', label: '5s' },
+    { value: '10', label: '10s' },
+    { value: '15', label: '15s' },
+    { value: '30', label: '30s' }
+  ]
+}
 
 interface AppState {
   // Layout / navigation
@@ -42,6 +73,12 @@ interface AppState {
   // Auto launch
   autoLaunch: boolean
 
+  // 后端运行时配置（启动 bootstrap 后从服务器拉取，替代硬编码）
+  providers: Provider[]
+  videoConfig: Record<string, Array<{ value: string; label: string }>>
+  bootstrapped: boolean
+  bootstrapError: string
+
   // Actions
   setExpanded: (v: boolean) => void
   resetToToolbar: () => void
@@ -57,14 +94,29 @@ interface AppState {
   setPanelSize: (w: number, h: number) => void
   setPanelOpacity: (v: number) => void
   toggleFeatureViewMode: () => void
-  login: (username: string) => void
+  login: (username: string, password: string) => Promise<void>
   logout: () => void
-  register: (username: string) => void
+  register: (username: string, password: string) => Promise<void>
   saveKey: (provider: ProviderId, key: string) => void
   removeKey: (provider: ProviderId) => void
   pinFeature: (id: FeatureId, pinned: boolean) => void
   reorderFeatures: (next: Feature[]) => void
   setAutoLaunch: (v: boolean) => void
+
+  // 后端同步
+  bootstrap: () => Promise<void>
+  pullUserConfig: () => Promise<void>
+  pushUserConfig: () => Promise<void>
+}
+
+// 布局配置同步防抖：拖拽调整时只在停止 800ms 后推送一次
+let pushTimer: number | null = null
+function schedulePush(get: () => AppState) {
+  if (pushTimer) clearTimeout(pushTimer)
+  pushTimer = window.setTimeout(() => {
+    pushTimer = null
+    void get().pushUserConfig()
+  }, 800)
 }
 
 export const useStore = create<AppState>()(
@@ -86,9 +138,14 @@ export const useStore = create<AppState>()(
       savedFeatureViewMode: false,
       ballSide: 'left',
       modal: 'none',
-      user: { loggedIn: false, username: '', token: '' },
+      user: { loggedIn: false, userId: null, username: '', token: '' },
       keys: [],
       autoLaunch: false,
+      // 运行时配置默认回退到硬编码（bootstrap 成功后被后端数据覆盖）
+      providers: PROVIDERS,
+      videoConfig: DEFAULT_VIDEO_CONFIG,
+      bootstrapped: false,
+      bootstrapError: '',
 
       setExpanded: (v) => set({ expanded: v }),
       resetToToolbar: () => {
@@ -149,17 +206,30 @@ export const useStore = create<AppState>()(
         set({ activeFeature: null, expanded: true })
       },
       setModal: (m) => set({ modal: m }),
-      setColumns: (c) => set({ columns: c }),
-      setCardStyle: (s) => set({ cardStyle: s }),
-      setCardSize: (s) => set({ cardSize: s }),
+      setColumns: (c) => {
+        set({ columns: c })
+        schedulePush(get)
+      },
+      setCardStyle: (s) => {
+        set({ cardStyle: s })
+        schedulePush(get)
+      },
+      setCardSize: (s) => {
+        set({ cardSize: s })
+        schedulePush(get)
+      },
       setPanelSize: (w, h) => {
         set({ panelWidth: w, panelHeight: h })
         // 同步到主进程 electron-store，下次启动时按此尺寸创建窗口
         try {
           ;(window as any).api?.setPanelSize?.({ width: w, height: h })
         } catch {}
+        schedulePush(get)
       },
-      setPanelOpacity: (v) => set({ panelOpacity: Math.max(0.3, Math.min(1, v)) }),
+      setPanelOpacity: (v) => {
+        set({ panelOpacity: Math.max(0.3, Math.min(1, v)) })
+        schedulePush(get)
+      },
       toggleFeatureViewMode: () => {
         const next = !get().featureViewMode
         if (next) {
@@ -176,42 +246,166 @@ export const useStore = create<AppState>()(
         set({ featureViewMode: next })
       },
 
-      login: (username) =>
+      login: async (username, password) => {
+        const res = await authApi.login(username, password)
+        setToken(res.token)
         set({
           user: {
             loggedIn: true,
-            username,
-            token: 'sim-' + Math.random().toString(36).slice(2)
+            userId: res.user.id,
+            username: res.user.username,
+            token: res.token
           },
           modal: 'none'
-        }),
-      logout: () =>
-        set({ user: { loggedIn: false, username: '', token: '' } }),
-      register: (username) =>
+        })
+        // 登录成功后拉取该用户的私有配置（密钥/布局）并合并
+        await get().pullUserConfig()
+      },
+      logout: () => {
+        clearToken()
+        set({ user: { loggedIn: false, userId: null, username: '', token: '' } })
+      },
+      register: async (username, password) => {
+        const res = await authApi.register(username, password)
+        setToken(res.token)
         set({
           user: {
             loggedIn: true,
-            username,
-            token: 'sim-' + Math.random().toString(36).slice(2)
+            userId: res.user.id,
+            username: res.user.username,
+            token: res.token
           },
           modal: 'none'
-        }),
+        })
+        await get().pullUserConfig()
+      },
 
-      saveKey: (provider, key) =>
+      saveKey: (provider, key) => {
         set((s) => {
           const rest = s.keys.filter((k) => k.provider !== provider)
           return { keys: [...rest, { provider, key }] }
-        }),
-      removeKey: (provider) =>
-        set((s) => ({ keys: s.keys.filter((k) => k.provider !== provider) })),
+        })
+        // 已登录则同步到后端（仅当前用户可见）
+        if (get().user.loggedIn) {
+          void userApiKeysApi.save(provider, key).catch(() => {})
+        }
+      },
+      removeKey: (provider) => {
+        set((s) => ({ keys: s.keys.filter((k) => k.provider !== provider) }))
+        if (get().user.loggedIn) {
+          void userApiKeysApi.remove(provider).catch(() => {})
+        }
+      },
 
-      pinFeature: (id, pinned) =>
+      pinFeature: (id, pinned) => {
         set((s) => ({
           features: s.features.map((f) => (f.id === id ? { ...f, pinned } : f))
-        })),
-      reorderFeatures: (next) => set({ features: next }),
+        }))
+        schedulePush(get)
+      },
+      reorderFeatures: (next) => {
+        set({ features: next })
+        schedulePush(get)
+      },
 
-      setAutoLaunch: (v) => set({ autoLaunch: v })
+      setAutoLaunch: (v) => set({ autoLaunch: v }),
+
+      // ===== 后端同步 =====
+      bootstrap: async () => {
+        try {
+          const data = await bootstrapApi.fetch()
+          // 映射后端 snake_case → 客户端类型；provider_id → provider，description → desc
+          const providers: Provider[] = (data.providers ?? []).map((p: any) => ({
+            id: p.id as ProviderId,
+            name: p.name,
+            keyHint: p.key_hint || '',
+            url: p.url || '',
+            models: (p.models ?? []).map((m: any) => ({
+              id: m.id,
+              name: m.name,
+              provider: p.id as ProviderId,
+              type: m.type ?? 'video',
+              desc: m.description || '',
+              supportsI2V: !!m.supports_i2v
+            }))
+          }))
+          const features: Feature[] = (data.features ?? []).map((f: any) => ({
+            id: f.id as FeatureId,
+            name: f.name,
+            icon: f.icon || '',
+            desc: f.description || '',
+            pinned: !!f.pinned
+          }))
+          // 后端缺失的配置项回退到默认
+          const videoConfig: Record<string, Array<{ value: string; label: string }>> = {
+            ...DEFAULT_VIDEO_CONFIG,
+            ...(data.videoConfig ?? {})
+          }
+          set({
+            providers: providers.length > 0 ? providers : PROVIDERS,
+            features: features.length > 0 ? features : get().features,
+            videoConfig,
+            bootstrapped: true,
+            bootstrapError: ''
+          })
+        } catch (e: any) {
+          // 后端不可达：保留硬编码默认值，UI 仍可用
+          set({ bootstrapped: true, bootstrapError: e?.message ?? '后台连接失败' })
+        }
+      },
+
+      pullUserConfig: async () => {
+        if (!get().user.loggedIn) return
+        try {
+          const [keysRes, cfgRes] = await Promise.all([userApiKeysApi.list(), userConfigsApi.list()])
+          // 合并密钥：后端记录覆盖本地同 provider
+          const remoteKeys: ApiKeyEntry[] = (keysRes.keys ?? []).map((k) => ({
+            provider: k.provider_id as ProviderId,
+            key: k.encrypted_key
+          }))
+          set((s) => {
+            const byProvider = new Map(s.keys.map((k) => [k.provider, k]))
+            for (const rk of remoteKeys) byProvider.set(rk.provider, rk)
+            return { keys: Array.from(byProvider.values()) }
+          })
+          // 应用用户布局配置
+          const cfg = cfgRes.configs ?? {}
+          const patch: Partial<AppState> = {}
+          if (cfg.columns) patch.columns = Number(cfg.columns.value) as LayoutColumns
+          if (cfg.cardStyle) patch.cardStyle = cfg.cardStyle.value as CardStyle
+          if (cfg.cardSize) patch.cardSize = cfg.cardSize.value as CardSize
+          if (cfg.panelWidth) patch.panelWidth = Number(cfg.panelWidth.value)
+          if (cfg.panelHeight) patch.panelHeight = Number(cfg.panelHeight.value)
+          if (cfg.panelOpacity) patch.panelOpacity = Number(cfg.panelOpacity.value)
+          if (cfg.features) {
+            try {
+              patch.features = JSON.parse(cfg.features.value) as Feature[]
+            } catch {}
+          }
+          set(patch)
+        } catch {
+          // 拉取失败静默：本地配置仍可用
+        }
+      },
+
+      pushUserConfig: async () => {
+        if (!get().user.loggedIn) return
+        const s = get()
+        const configs = [
+          { key: 'columns', value: String(s.columns), type: 'number' },
+          { key: 'cardStyle', value: s.cardStyle, type: 'string' },
+          { key: 'cardSize', value: s.cardSize, type: 'string' },
+          { key: 'panelWidth', value: String(s.panelWidth), type: 'number' },
+          { key: 'panelHeight', value: String(s.panelHeight), type: 'number' },
+          { key: 'panelOpacity', value: String(s.panelOpacity), type: 'number' },
+          { key: 'features', value: JSON.stringify(s.features), type: 'json' }
+        ]
+        try {
+          await userConfigsApi.save(configs)
+        } catch {
+          // 同步失败静默
+        }
+      }
     }),
     {
       name: 'stunning-fast-store',
@@ -231,16 +425,16 @@ export const useStore = create<AppState>()(
   )
 )
 
-// Derived helpers
-export function availableProviders(keys: ApiKeyEntry[]) {
+// Derived helpers：基于运行时 providers 计算已接入供应商/可用模型
+export function availableProviders(providers: Provider[], keys: ApiKeyEntry[]) {
   const ids = new Set(keys.filter((k) => k.key.trim().length > 0).map((k) => k.provider))
-  return PROVIDERS.filter((p) => ids.has(p.id))
+  return providers.filter((p) => ids.has(p.id))
 }
 
-export function availableModels(keys: ApiKeyEntry[]) {
-  return availableProviders(keys).flatMap((p) => p.models)
+export function availableModels(providers: Provider[], keys: ApiKeyEntry[]) {
+  return availableProviders(providers, keys).flatMap((p) => p.models)
 }
 
-export function hasVideoModel(keys: ApiKeyEntry[]) {
-  return availableModels(keys).some((m) => m.type === 'video')
+export function hasVideoModel(providers: Provider[], keys: ApiKeyEntry[]) {
+  return availableModels(providers, keys).some((m) => m.type === 'video')
 }
