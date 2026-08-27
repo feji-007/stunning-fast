@@ -2,6 +2,53 @@ import { useEffect, useRef, useState } from 'react'
 import { useStore, availableModels, availableProviders } from '../../store/useStore'
 import type { ProviderModel } from '../../types'
 
+// 自动匹配优先级
+type AutoPriority = 'quality' | 'speed' | 'price'
+
+// 模型元数据：用于自动匹配排序（res=分辨率高度，speed=预估生成秒数，price=1低/2中/3高）
+const MODEL_META: Record<string, { res: number; speed: number; price: number }> = {
+  // 火山引擎 Seedance
+  'doubao-seedance-2-5':              { res: 1080, speed: 60,  price: 3 },
+  'doubao-seedance-2-0-260128':       { res: 1080, speed: 45,  price: 2 },
+  'doubao-seedance-2-0-fast-260128':  { res: 720,  speed: 20,  price: 1 },
+  'doubao-seedance-1-5-pro-251215':   { res: 720,  speed: 30,  price: 2 },
+  'doubao-seedance-1-0-pro-fast-251015': { res: 720, speed: 15, price: 1 },
+  // 快手可灵
+  'kling-v3':          { res: 1080, speed: 120, price: 3 },
+  'kling-v2-master':   { res: 1080, speed: 90,  price: 3 },
+  'kling-v2-5-turbo':  { res: 720,  speed: 30,  price: 1 },
+  'kling-v1-6':         { res: 720,  speed: 60,  price: 2 },
+  // 通义万相
+  'wan2.7-t2v':           { res: 1080, speed: 120, price: 3 },
+  'wan2.7-t2v-2026-06-12': { res: 1080, speed: 120, price: 3 },
+  'wan2.6-t2v':           { res: 1080, speed: 100, price: 3 },
+  'wan2.2-t2v-plus':      { res: 1080, speed: 90,  price: 2 },
+  'wan2.1-t2v-turbo':     { res: 720,  speed: 30,  price: 1 },
+  'wan2.1-t2v-plus':      { res: 720,  speed: 60,  price: 2 },
+  // 其他
+  'video-01':      { res: 720,  speed: 60, price: 2 },
+  'gen-3-alpha':   { res: 1080, speed: 60, price: 3 },
+  'pika-1-5':      { res: 720,  speed: 30, price: 2 },
+  'dream-machine': { res: 720,  speed: 60, price: 2 },
+  'cogvideox':     { res: 720,  speed: 60, price: 1 },
+  'sora':          { res: 1080, speed: 60, price: 3 },
+}
+
+// 根据优先级自动选择最优模型
+function pickAutoModel(models: ProviderModel[], priority: AutoPriority): ProviderModel | null {
+  if (models.length === 0) return null
+  const sorted = [...models].sort((a, b) => {
+    const ma = MODEL_META[a.id] ?? { res: 720, speed: 60, price: 2 }
+    const mb = MODEL_META[b.id] ?? { res: 720, speed: 60, price: 2 }
+    switch (priority) {
+      case 'quality': return mb.res - ma.res || ma.speed - mb.speed
+      case 'speed':   return ma.speed - mb.speed || ma.price - mb.price
+      case 'price':   return ma.price - mb.price || ma.speed - mb.speed
+    }
+  })
+  return sorted[0]
+}
+
 // 视频生成：自动匹配或手动切换模型，支持文生/图生视频。
 // 通义万相 / 火山引擎 Seedance / 快手可灵已接入真实生成流程。
 export default function VideoGeneration() {
@@ -13,6 +60,7 @@ export default function VideoGeneration() {
   const providers = availableProviders(keys)
 
   const [mode, setMode] = useState<'auto' | 'manual'>('auto')
+  const [autoPriority, setAutoPriority] = useState<AutoPriority>('quality')
   const [selected, setSelected] = useState<string | null>(null)
   const [genMode, setGenMode] = useState<'t2v' | 'i2v'>('t2v')
   const [prompt, setPrompt] = useState('')
@@ -38,10 +86,10 @@ export default function VideoGeneration() {
     return () => off?.()
   }, [])
 
-  // 自动匹配：选择第一个可用的视频模型；手动：用用户选择的模型。
+  // 自动匹配：按优先级选择最优模型；手动：用用户选择的模型。
   const chosen =
     mode === 'auto'
-      ? videoModels[0] ?? null
+      ? pickAutoModel(videoModels, autoPriority)
       : videoModels.find((m) => m.id === selected) ?? null
 
   // 当前选中模型是否支持图生视频
@@ -141,6 +189,30 @@ export default function VideoGeneration() {
 
   return (
     <div className="flex h-full flex-col gap-3">
+      {/* 自动匹配优先级：仅在自动模式下显示 */}
+      {mode === 'auto' && (
+        <div className="flex items-center gap-1.5">
+          <div className="inline-flex rounded-lg border border-black/10 bg-gray-50 p-0.5 text-[11px]">
+            {([
+              { v: 'quality' as AutoPriority, label: '清晰度优先' },
+              { v: 'speed' as AutoPriority, label: '速度优先' },
+              { v: 'price' as AutoPriority, label: '价格优先' },
+            ]).map((o) => (
+              <button
+                key={o.v}
+                onClick={() => setAutoPriority(o.v)}
+                className={`rounded-md px-2.5 py-1 ${
+                  autoPriority === o.v
+                    ? 'bg-white font-medium text-brand-600 shadow-sm'
+                    : 'text-gray-500'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* 顶部栏 */}
       <div className="flex items-center gap-2">
         <ModeSwitch mode={mode} onChange={setMode} />
@@ -169,26 +241,27 @@ export default function VideoGeneration() {
           className="flex flex-col gap-3 overflow-auto scroll-thin pr-2"
           style={{ width: `${splitRatio * 100}%` }}
         >
-          {/* 可用模型列表 */}
+          {/* 可用模型下拉框 */}
           <div>
             <p className="mb-1.5 text-[11px] font-medium text-gray-500">可用模型</p>
-            <div className="flex flex-wrap gap-2">
-              {videoModels.length === 0 ? (
-                <span className="text-xs text-gray-400">暂无可用视频模型</span>
-              ) : (
-                videoModels.map((m) => (
-                  <ModelChip
-                    key={m.id}
-                    model={m}
-                    active={chosen?.id === m.id}
-                    onClick={() => {
-                      setMode('manual')
-                      setSelected(m.id)
-                    }}
-                  />
-                ))
-              )}
-            </div>
+            {videoModels.length === 0 ? (
+              <span className="text-xs text-gray-400">暂无可用视频模型</span>
+            ) : (
+              <select
+                value={chosen?.id ?? ''}
+                onChange={(e) => {
+                  setMode('manual')
+                  setSelected(e.target.value)
+                }}
+                className="w-full max-w-xs rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-gray-700 hover:border-brand-200 focus:border-brand-300 focus:outline-none"
+              >
+                {videoModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}{m.supportsI2V ? ' (图+文)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* 生成模式切换：仅在选中模型支持图生视频时显示 */}
@@ -404,30 +477,5 @@ function ModeSwitch({
         手动切换
       </button>
     </div>
-  )
-}
-
-function ModelChip({
-  model,
-  active,
-  onClick
-}: {
-  model: ProviderModel
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-[11px] transition-colors ${
-        active
-          ? 'border-brand-300 bg-brand-50 text-brand-600'
-          : 'border-black/10 bg-white text-gray-600 hover:border-brand-200'
-      }`}
-      title={model.desc}
-    >
-      {model.name}
-      {model.supportsI2V && <span className="ml-1 text-[9px] opacity-60">图+文</span>}
-    </button>
   )
 }
