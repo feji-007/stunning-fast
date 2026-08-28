@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- 绝色 · MySQL 建表脚本（与 server/src/db/schema.ts 保持同步）
 -- 幂等可重复执行：CREATE TABLE IF NOT EXISTS，表已存在则跳过，不重建不清空
 --
@@ -17,6 +17,14 @@ CREATE DATABASE IF NOT EXISTS stunning_fast
 
 USE stunning_fast;
 
+-- ========== 迁移版本跟踪表（用于 sql/migrations/ 目录下的升级脚本） ==========
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version      VARCHAR(32)  NOT NULL,
+  name         VARCHAR(128) NOT NULL,
+  applied_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ========== 系统配置表（全局共享，管理员维护） ==========
 
 -- 供应商
@@ -25,6 +33,7 @@ CREATE TABLE IF NOT EXISTS providers (
   name        VARCHAR(128) NOT NULL,
   key_hint    VARCHAR(64)  NOT NULL DEFAULT '',
   url         VARCHAR(256) NOT NULL DEFAULT '',
+  source      VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order  INT          NOT NULL DEFAULT 0,
   is_active   TINYINT(1)   NOT NULL DEFAULT 1,
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -39,10 +48,13 @@ CREATE TABLE IF NOT EXISTS models (
   name          VARCHAR(128) NOT NULL,
   type          VARCHAR(32)  NOT NULL DEFAULT 'video',
   description   TEXT         NOT NULL,
-  supports_i2v  TINYINT(1)   NOT NULL DEFAULT 0,
+  supports_i2v       TINYINT(1)   NOT NULL DEFAULT 0,
+  supports_first_last TINYINT(1)   NOT NULL DEFAULT 0,
+  supports_reference  TINYINT(1)   NOT NULL DEFAULT 0,
   resolution    INT          NOT NULL DEFAULT 720,
   speed         INT          NOT NULL DEFAULT 60,
   price         INT          NOT NULL DEFAULT 2,
+  source        VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order    INT          NOT NULL DEFAULT 0,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -50,6 +62,7 @@ CREATE TABLE IF NOT EXISTS models (
   PRIMARY KEY (id),
   INDEX idx_models_provider (provider_id),
   INDEX idx_models_type (type),
+  INDEX idx_models_source (source),
   CONSTRAINT fk_models_provider FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -140,8 +153,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   ratio         VARCHAR(16)  NOT NULL DEFAULT '',
   duration      VARCHAR(16)  NOT NULL DEFAULT '',
   prompt        TEXT         NOT NULL,
-  video_url     TEXT         NOT NULL DEFAULT '',
-  error_message TEXT         NOT NULL DEFAULT '',
+  image_url     LONGTEXT      NULL,
+  video_url     TEXT         NULL,
+  error_message TEXT         NULL,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   INDEX idx_tasks_user (user_id),
@@ -163,4 +177,12 @@ CREATE TABLE IF NOT EXISTS tasks (
 --  3. 如需完全重置：DROP DATABASE stunning_fast; 后重新执行本脚本。
 --  4. 建表依赖顺序：providers → models → users → user_api_keys/user_configs/tasks
 --     （外键要求被引用表先存在，本脚本已按此顺序排列）。
+--  5. 对于「老数据库 + 新增字段」的演进场景，请使用迁移脚本：
+--       # 方式 A（推荐）：  npm run migrate           # 通过项目连接池自动执行 sql/migrations/
+--       # 方式 B（手动）：  mysql -u root -p < server/sql/migrations/V001__*.sql
+--     迁移脚本使用 schema_migrations 表记录已执行版本，重复执行安全。
 -- ============================================================
+
+
+
+
