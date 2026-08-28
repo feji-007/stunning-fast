@@ -1,4 +1,4 @@
-import { pool } from './pool'
+﻿import { pool } from './pool'
 
 /**
  * 建表脚本：全部使用 CREATE TABLE IF NOT EXISTS，幂等可重复执行。
@@ -19,6 +19,7 @@ const SCHEMA_STATEMENTS: string[] = [
   name        VARCHAR(128) NOT NULL,
   key_hint    VARCHAR(64)  NOT NULL DEFAULT '',
   url         VARCHAR(256) NOT NULL DEFAULT '',
+  source      VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order  INT          NOT NULL DEFAULT 0,
   is_active   TINYINT(1)   NOT NULL DEFAULT 1,
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -32,10 +33,13 @@ const SCHEMA_STATEMENTS: string[] = [
   name          VARCHAR(128) NOT NULL,
   type          VARCHAR(32)  NOT NULL DEFAULT 'video',
   description   TEXT         NOT NULL,
-  supports_i2v  TINYINT(1)   NOT NULL DEFAULT 0,
+  supports_i2v       TINYINT(1)   NOT NULL DEFAULT 0,
+  supports_first_last TINYINT(1)   NOT NULL DEFAULT 0,
+  supports_reference TINYINT(1)   NOT NULL DEFAULT 0,
   resolution    INT          NOT NULL DEFAULT 720,
   speed         INT          NOT NULL DEFAULT 60,
   price         INT          NOT NULL DEFAULT 2,
+  source        VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order    INT          NOT NULL DEFAULT 0,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -43,6 +47,7 @@ const SCHEMA_STATEMENTS: string[] = [
   PRIMARY KEY (id),
   INDEX idx_models_provider (provider_id),
   INDEX idx_models_type (type),
+  INDEX idx_models_source (source),
   CONSTRAINT fk_models_provider FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
@@ -128,8 +133,9 @@ const SCHEMA_STATEMENTS: string[] = [
   ratio         VARCHAR(16)  NOT NULL DEFAULT '',
   duration      VARCHAR(16)  NOT NULL DEFAULT '',
   prompt        TEXT         NOT NULL,
-  video_url     TEXT         NOT NULL DEFAULT '',
-  error_message TEXT         NOT NULL DEFAULT '',
+  image_url     LONGTEXT      NULL,
+  video_url     TEXT         NULL,
+  error_message TEXT         NULL,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   INDEX idx_tasks_user (user_id),
@@ -141,10 +147,35 @@ const SCHEMA_STATEMENTS: string[] = [
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
 ]
 
-/** 启动时执行：创建所有表（幂等）。 */
+/**
+ * 迁移：为已存在的表补充新字段（幂等，字段已存在则跳过）。
+ * 用于在 CREATE TABLE IF NOT EXISTS 不重建表的情况下，为旧库补充新字段。
+ */
+async function addColumnIfMissing(table: string, column: string, definition: string) {
+  const [rows] = await pool.query(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+    [table, column]
+  )
+  if (Array.isArray(rows) && rows.length === 0) {
+    await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`)
+    console.log(`[db] 已为表 ${table} 添加字段 ${column}`)
+  }
+}
+
+/** 启动时执行：创建所有表（幂等），并为已有表补充迁移字段。 */
 export async function ensureSchema(): Promise<void> {
   for (const sql of SCHEMA_STATEMENTS) {
     await pool.query(sql)
   }
+  // 迁移：为已有 providers/models 表补充 source 字段（区分系统自带 / 用户自定义）
+  await addColumnIfMissing('providers', 'source', "VARCHAR(16) NOT NULL DEFAULT 'system'")
+  await addColumnIfMissing('models', 'source', "VARCHAR(16) NOT NULL DEFAULT 'system'")
+  await addColumnIfMissing('tasks', 'image_url', 'LONGTEXT NULL')
+  await addColumnIfMissing('models', 'supports_first_last', 'TINYINT(1) NOT NULL DEFAULT 0')
+  await addColumnIfMissing('models', 'supports_reference', 'TINYINT(1) NOT NULL DEFAULT 0')
   console.log('[db] 表结构检查完成（已存在则跳过）')
 }
+
+
+

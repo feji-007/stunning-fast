@@ -1,7 +1,8 @@
-// 任务记录管理:列出每次视频生成任务，支持按服务商/模型/用户/状态过滤 + 列排序 + 删除。
+﻿// 任务记录管理:分页(服务端)+ 过滤 + 排序;删除。
 import { useEffect, useMemo, useState } from 'react'
 import { tasksApi, providersApi, modelsApi, usersApi } from '../api'
 import SortableTh from './SortableTh'
+import Pagination from './Pagination'
 
 interface Task {
   id: number
@@ -15,6 +16,7 @@ interface Task {
   ratio: string
   duration: string
   prompt: string
+  image_url: string
   video_url: string
   error_message: string
   created_at: string
@@ -23,7 +25,6 @@ interface Task {
 interface Option { id: string; name: string }
 interface UserOption { id: number; username: string }
 
-// 任务记录可排序字段 → 取值函数（client 侧二次排序，配合 server 排序）
 const TASK_GETTERS: Record<string, (t: Task) => string | number> = {
   id: (t) => t.id,
   user: (t) => t.username ?? '',
@@ -48,62 +49,63 @@ export default function Tasks() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // 过滤条件
+  // 过滤
   const [filterProvider, setFilterProvider] = useState('')
   const [filterModel, setFilterModel] = useState('')
   const [filterUser, setFilterUser] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
 
-  // 排序（client 侧）
+  // 排序(client + server)
   const [sortField, setSortField] = useState('created')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
-
-  // 排序请求参数（同步到 server 端，避免 client 与 server 不一致）
   const [serverSort, setServerSort] = useState({ field: 'created', order: 'desc' as 'asc' | 'desc' })
 
-  const load = () => {
-    setLoading(true)
-    setError('')
+  // 分页
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+
+  const load = (targetPage = page, targetSize: number = pageSize) => {
+    setLoading(true); setError('')
     Promise.all([
-      tasksApi.list({ sort: serverSort.field, order: serverSort.order }),
+      tasksApi.list({
+        providerId: filterProvider, modelId: filterModel, userId: filterUser, status: filterStatus,
+        sort: serverSort.field, order: serverSort.order,
+        page: targetPage, pageSize: targetSize
+      }),
       providersApi.list().then((r) => (r.providers ?? []).map((p: any) => ({ id: p.id, name: p.name }))),
-      modelsApi.list().then((r) => (r.models ?? []).map((m: any) => ({ id: m.id, name: m.name }))),
-      usersApi.list().then((r) => (r.users ?? []).map((u: any) => ({ id: u.id, username: u.username })))
+      modelsApi.list({ page: 1, pageSize: 500 }).then((r) => (r.models ?? []).map((m: any) => ({ id: m.id, name: m.name }))),
+      usersApi.list({ page: 1, pageSize: 500 }).then((r) => (r.users ?? []).map((u: any) => ({ id: u.id, username: u.username })))
     ])
       .then(([t, p, m, u]) => {
         setList(t.tasks ?? [])
-        setProviders(p)
-        setModels(m)
-        setUsers(u)
+        setTotal(t.total ?? (t.tasks?.length ?? 0))
+        setPage(t.page ?? targetPage)
+        setPageSize(t.pageSize ?? targetSize)
+        setTotalPages(t.totalPages ?? Math.max(1, Math.ceil((t.total ?? 0) / targetSize)))
+        setProviders(p); setModels(m); setUsers(u)
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverSort])
+  // 首次加载
+  useEffect(() => { load(1, pageSize) }, [serverSort])
 
   const providerName = (id: string) => providers.find((p) => p.id === id)?.name ?? id
   const modelName = (id: string) => models.find((m) => m.id === id)?.name ?? id
 
-  // client 侧过滤
+  // client 侧二次排序/过滤(服务端已分页,这里只做轻量补充)
   const filteredList = useMemo(() => {
-    let r = list
-    if (filterProvider) r = r.filter((t) => t.provider_id === filterProvider)
-    if (filterModel) r = r.filter((t) => t.model_id === filterModel)
-    if (filterUser) r = r.filter((t) => String(t.user_id) === filterUser)
-    if (filterStatus) r = r.filter((t) => t.status === filterStatus)
     const getter = TASK_GETTERS[sortField] ?? TASK_GETTERS.created
     const dir = sortOrder === 'asc' ? 1 : -1
-    return [...r].sort((a, b) => {
-      const va = getter(a)
-      const vb = getter(b)
+    return [...list].sort((a, b) => {
+      const va = getter(a); const vb = getter(b)
       if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
       return String(va).localeCompare(String(vb)) * dir
     })
-  }, [list, filterProvider, filterModel, filterUser, filterStatus, sortField, sortOrder])
+  }, [list, sortField, sortOrder])
 
   const onSort = (field: string) => {
     if (field === sortField) {
@@ -111,17 +113,15 @@ export default function Tasks() {
       setSortOrder(next)
       setServerSort({ field, order: next })
     } else {
-      setSortField(field)
-      setSortOrder('asc')
+      setSortField(field); setSortOrder('asc')
       setServerSort({ field, order: 'asc' })
     }
   }
 
   const remove = (t: Task) => {
     if (!confirm(`确认删除任务 #${t.id}?`)) return
-    tasksApi
-      .remove(t.id)
-      .then(load)
+    tasksApi.remove(t.id)
+      .then(() => load(page === 1 ? 1 : (filteredList.length === 1 ? Math.max(1, page - 1) : page), pageSize))
       .catch((e: Error) => alert(e.message))
   }
 
@@ -131,16 +131,13 @@ export default function Tasks() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-800">任务记录管理</h2>
-        <span className="text-xs text-gray-400">共 {filteredList.length} 条</span>
+        <span className="text-xs text-gray-400">共 {total} 条{hasFilter ? '，当前筛选显示' : ''}</span>
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
-          {error}
-        </div>
+        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
       )}
 
-      {/* 过滤搜索栏 */}
       <div className="mb-4 flex flex-wrap items-center gap-3 bg-white rounded-xl shadow-float px-4 py-3">
         <span className="text-xs text-gray-500">筛选</span>
         <select
@@ -149,11 +146,7 @@ export default function Tasks() {
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">全部服务商</option>
-          {providers.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
+          {providers.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
         </select>
         <select
           value={filterModel}
@@ -161,11 +154,7 @@ export default function Tasks() {
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">全部模型</option>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
+          {models.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
         </select>
         <select
           value={filterUser}
@@ -173,11 +162,7 @@ export default function Tasks() {
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">全部用户</option>
-          {users.map((u) => (
-            <option key={u.id} value={String(u.id)}>
-              {u.username}
-            </option>
-          ))}
+          {users.map((u) => (<option key={u.id} value={String(u.id)}>{u.username}</option>))}
         </select>
         <select
           value={filterStatus}
@@ -188,28 +173,25 @@ export default function Tasks() {
           <option value="success">成功</option>
           <option value="fail">失败</option>
         </select>
+        <button
+          onClick={() => { setPage(1); load(1, pageSize) }}
+          className="px-3 py-1.5 text-xs bg-brand-50 text-brand-700 rounded hover:bg-brand-100"
+        >查询</button>
         {hasFilter && (
           <button
             onClick={() => {
-              setFilterProvider('')
-              setFilterModel('')
-              setFilterUser('')
-              setFilterStatus('')
+              setFilterProvider(''); setFilterModel(''); setFilterUser(''); setFilterStatus('')
             }}
             className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
-          >
-            清除
-          </button>
+          >清除</button>
         )}
       </div>
 
       <div className="bg-white rounded-xl shadow-float overflow-hidden overflow-x-auto">
         {loading ? (
           <div className="p-8 text-center text-gray-400">加载中…</div>
-        ) : list.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">暂无任务记录</div>
         ) : filteredList.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">无匹配结果</div>
+          <div className="p-8 text-center text-gray-400">{total === 0 ? '暂无任务记录' : '无匹配结果'}</div>
         ) : (
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
@@ -222,6 +204,7 @@ export default function Tasks() {
                 <SortableTh label="状态" field="status" current={sortField} order={sortOrder} onSort={onSort} />
                 <th className="px-4 py-3 text-left">参数</th>
                 <th className="px-4 py-3 text-left">提示词</th>
+                <th className="px-4 py-3 text-left">参考图</th>
                 <SortableTh label="创建时间" field="created" current={sortField} order={sortOrder} onSort={onSort} />
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
@@ -239,13 +222,9 @@ export default function Tasks() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs ${
-                        t.status === 'success'
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : 'bg-red-50 text-red-600'
-                      }`}
-                    >
+                    <span className={`px-2 py-0.5 rounded text-xs ${
+                      t.status === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                    }`}>
                       {t.status === 'success' ? '成功' : '失败'}
                     </span>
                   </td>
@@ -255,31 +234,36 @@ export default function Tasks() {
                   <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={t.prompt}>
                     {t.prompt || '-'}
                   </td>
+                  <td className="px-4 py-3">
+                    {t.image_url ? (
+                      <a href={t.image_url} target="_blank" rel="noreferrer">
+                        <img src={t.image_url} alt="参考图" className="h-10 w-10 rounded object-cover border border-gray-200" />
+                      </a>
+                    ) : (<span className="text-xs text-gray-300">-</span>)}
+                  </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{fmtDate(t.created_at)}</td>
                   <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
                     {t.video_url && (
-                      <a
-                        href={t.video_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
-                      >
-                        查看
-                      </a>
+                      <a href={t.video_url} target="_blank" rel="noreferrer"
+                         className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100">查看</a>
                     )}
-                    <button
-                      onClick={() => remove(t)}
-                      className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100"
-                    >
-                      删除
-                    </button>
+                    <button onClick={() => remove(t)}
+                            className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">删除</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <Pagination
+          page={page} pageSize={pageSize} total={total} totalPages={totalPages}
+          onChange={({ page: np, pageSize: ns }) => {
+            if (ns !== pageSize) { setPageSize(ns); setPage(1); load(1, ns) }
+            else { setPage(np); load(np, ns) }
+          }}
+        />
       </div>
     </div>
   )
 }
+

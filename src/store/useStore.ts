@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
   ApiKeyEntry,
@@ -9,6 +9,7 @@ import type {
   LayoutColumns,
   Provider,
   ProviderId,
+  ProviderModel,
   UserState
 } from '../types'
 import { DEFAULT_FEATURES, PROVIDERS } from '../data/models'
@@ -18,7 +19,9 @@ import {
   clearToken,
   setToken,
   userApiKeysApi,
-  userConfigsApi
+  userConfigsApi,
+  userProvidersApi,
+  userModelsApi
 } from '../api/client'
 
 type Modal = 'none' | 'login' | 'settings'
@@ -107,6 +110,40 @@ interface AppState {
   bootstrap: () => Promise<void>
   pullUserConfig: () => Promise<void>
   pushUserConfig: () => Promise<void>
+
+  // 用户自定义供应商/模型
+  addCustomProvider: (b: {
+    id: string
+    name: string
+    keyHint?: string
+    url?: string
+  }) => Promise<void>
+  addCustomModel: (b: {
+    id: string
+    providerId: string
+    name: string
+    type?: string
+    description?: string
+    supportsI2V?: boolean
+  }) => Promise<void>
+
+  // 视频生成表单状态（内存级别，不持久化到 localStorage，
+  // 避免大体积 base64 图片撑爆 localStorage 配额；
+  // 但能在组件卸载/重新挂载时保留表单内容）
+  videoForm: {
+    prompt: string
+    images: Array<{ url: string; name: string }>
+    resolution: string
+    ratio: string
+    duration: string
+    genMode: 't2v' | 'i2v'
+    i2vMode: 'firstlast' | 'reference'
+    mode: 'auto' | 'manual'
+    autoPriority: 'quality' | 'speed' | 'price'
+    selected: string | null
+  }
+  setVideoForm: (patch: Partial<AppState['videoForm']>) => void
+  clearVideoForm: () => void
 }
 
 // 布局配置同步防抖：拖拽调整时只在停止 800ms 后推送一次
@@ -146,6 +183,27 @@ export const useStore = create<AppState>()(
       videoConfig: DEFAULT_VIDEO_CONFIG,
       bootstrapped: false,
       bootstrapError: '',
+
+      // 视频生成表单状态：内存级（不在 partialize 中，不写入 localStorage）
+      videoForm: {
+        prompt: '',
+        images: [],
+        resolution: '720P',
+        ratio: '16:9',
+        duration: '5',
+        genMode: 't2v',
+        i2vMode: 'firstlast',
+        mode: 'auto',
+        autoPriority: 'quality',
+        selected: null
+      },
+      setVideoForm: (patch) => set((s) => ({ videoForm: { ...s.videoForm, ...patch } })),
+      clearVideoForm: () => set({
+        videoForm: {
+          prompt: '', images: [], resolution: '720P', ratio: '16:9', duration: '5',
+          genMode: 't2v', i2vMode: 'firstlast', mode: 'auto', autoPriority: 'quality', selected: null
+        }
+      }),
 
       setExpanded: (v) => set({ expanded: v }),
       resetToToolbar: () => {
@@ -314,20 +372,40 @@ export const useStore = create<AppState>()(
       bootstrap: async () => {
         try {
           const data = await bootstrapApi.fetch()
+          // 构建 models.ts 中系统模型的查找表（用于覆盖数据库中的默认值）
+          const modelCapMap = new Map<string, Partial<ProviderModel>>()
+          PROVIDERS.forEach((pp) => pp.models.forEach((mm) => {
+            const patch: Partial<ProviderModel> = {}
+            if (mm.supportsI2V !== undefined)      patch.supportsI2V = mm.supportsI2V
+            if (mm.supportsFirstLast !== undefined) patch.supportsFirstLast = mm.supportsFirstLast
+            if (mm.supportsReference !== undefined) patch.supportsReference = mm.supportsReference
+            if (patch) modelCapMap.set(mm.id, patch)
+          }))
+
           // 映射后端 snake_case → 客户端类型；provider_id → provider，description → desc
+          // 系统模型(source=system)的能力字段以 models.ts 为准，覆盖数据库默认值
           const providers: Provider[] = (data.providers ?? []).map((p: any) => ({
             id: p.id as ProviderId,
             name: p.name,
             keyHint: p.key_hint || '',
             url: p.url || '',
-            models: (p.models ?? []).map((m: any) => ({
-              id: m.id,
-              name: m.name,
-              provider: p.id as ProviderId,
-              type: m.type ?? 'video',
-              desc: m.description || '',
-              supportsI2V: !!m.supports_i2v
-            }))
+            source: (p.source as 'system' | 'user') ?? 'system',
+            models: (p.models ?? []).map((m: any) => {
+              const base: ProviderModel = {
+                id: m.id,
+                name: m.name,
+                provider: p.id as ProviderId,
+                type: m.type ?? 'video',
+                desc: m.description || '',
+                supportsI2V: !!m.supports_i2v,
+                supportsFirstLast: !!m.supports_first_last,
+                supportsReference: !!m.supports_reference,
+                source: (m.source as 'system' | 'user') ?? 'system'
+              }
+              const override = modelCapMap.get(m.id)
+              if (override && base.source === 'system') return { ...base, ...override }
+              return base
+            })
           }))
           const features: Feature[] = (data.features ?? []).map((f: any) => ({
             id: f.id as FeatureId,
@@ -405,6 +483,43 @@ export const useStore = create<AppState>()(
         } catch {
           // 同步失败静默
         }
+      },
+
+      // ===== 用户自定义供应商/模型 =====
+      addCustomProvider: async (b) => {
+        // 先写入后端，成功后更新本地 store
+        await userProvidersApi.create(b)
+        const newProvider: Provider = {
+          id: b.id as ProviderId,
+          name: b.name,
+          keyHint: b.keyHint ?? '',
+          url: b.url ?? '',
+          source: 'user',
+          models: []
+        }
+        set((s) => ({
+          providers: [...s.providers.filter((p) => p.id !== b.id), newProvider]
+        }))
+      },
+
+      addCustomModel: async (b) => {
+        await userModelsApi.create(b)
+        const newModel = {
+          id: b.id,
+          name: b.name,
+          provider: b.providerId as ProviderId,
+          type: (b.type as ProviderModel['type']) ?? 'video',
+          desc: b.description ?? '',
+          supportsI2V: b.supportsI2V ?? false,
+          source: 'user' as const
+        }
+        set((s) => ({
+          providers: s.providers.map((p) =>
+            p.id === b.providerId
+              ? { ...p, models: [...p.models.filter((m) => m.id !== b.id), newModel] }
+              : p
+          )
+        }))
       }
     }),
     {
@@ -438,3 +553,6 @@ export function availableModels(providers: Provider[], keys: ApiKeyEntry[]) {
 export function hasVideoModel(providers: Provider[], keys: ApiKeyEntry[]) {
   return availableModels(providers, keys).some((m) => m.type === 'video')
 }
+
+
+

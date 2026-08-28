@@ -1,11 +1,10 @@
-import { Router } from 'express'
+﻿import { Router } from 'express'
 import { query } from '../../db/pool'
 import { ok, getAuthUser } from '../../utils/response'
 import { requireAuth, requireAdmin } from '../../middleware/auth'
 
 const router = Router()
 
-// 排序字段白名单 + 方向校验，避免 SQL 注入。
 const SORT_COLUMNS: Record<string, string> = {
   id: 't.id',
   provider: 't.provider_id',
@@ -19,11 +18,14 @@ function buildOrderBy(sort?: string, order?: string): string {
   const dir = String(order ?? 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC'
   return `ORDER BY ${col} ${dir}, t.id DESC`
 }
+function parsePagination(req: any) {
+  const page = Math.max(1, Number(req.query.page) || 1)
+  const rawSize = Number(req.query.pageSize)
+  const pageSize = rawSize > 0 ? Math.min(rawSize, 200) : 20
+  const offset = (page - 1) * pageSize
+  return { page, pageSize, offset }
+}
 
-/**
- * 记录一条任务生成记录（客户端生成视频后调用，仅登录用户）。
- * user_id 由 JWT 注入，避免前端伪造。
- */
 router.post('/', requireAuth, async (req, res, next) => {
   try {
     const u = getAuthUser(req)
@@ -33,8 +35,8 @@ router.post('/', requireAuth, async (req, res, next) => {
       return
     }
     const r = await query(
-      `INSERT INTO tasks (user_id, provider_id, model_id, gen_mode, status, resolution, ratio, duration, prompt, video_url, error_message)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks (user_id, provider_id, model_id, gen_mode, status, resolution, ratio, duration, prompt, image_url, video_url, error_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         u.id,
         b.providerId,
@@ -45,6 +47,7 @@ router.post('/', requireAuth, async (req, res, next) => {
         b.ratio ?? '',
         b.duration ?? '',
         b.prompt ?? '',
+        b.imageUrl ?? '',
         b.videoUrl ?? '',
         b.errorMessage ?? ''
       ]
@@ -55,13 +58,10 @@ router.post('/', requireAuth, async (req, res, next) => {
   }
 })
 
-/**
- * 任务列表（仅管理员）：支持按服务商/模型/用户/状态过滤 + 排序。
- * 关联 users 读取可读用户名。
- */
 router.get('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const { providerId, modelId, userId, status, sort, order } = req.query as Record<string, string>
+    const { page, pageSize, offset } = parsePagination(req)
     const where: string[] = []
     const params: unknown[] = []
     if (providerId) { where.push('t.provider_id = ?'); params.push(providerId) }
@@ -70,15 +70,40 @@ router.get('/', requireAuth, requireAdmin, async (req, res, next) => {
     if (status)     { where.push('t.status = ?'); params.push(status) }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
+    const cntSql = `SELECT COUNT(*) AS c FROM tasks t ${whereSql}`
+    const cnt = await query<any>(cntSql, params)
+    const total = Number((cnt.rows as any[])?.[0]?.c ?? 0)
+
     const r = await query(
       `SELECT t.id, t.user_id, u.username, t.provider_id, t.model_id, t.gen_mode, t.status,
-              t.resolution, t.ratio, t.duration, t.prompt, t.video_url, t.error_message, t.created_at
+              t.resolution, t.ratio, t.duration, t.prompt, t.image_url, t.video_url, t.error_message, t.created_at
        FROM tasks t
        LEFT JOIN users u ON u.id = t.user_id
        ${whereSql}
        ${buildOrderBy(sort, order)}
-       LIMIT 1000`,
-      params
+       LIMIT ? OFFSET ?`,
+      [...params, pageSize, offset]
+    )
+    ok(res, {
+      tasks: r.rows,
+      total, page, pageSize,
+      totalPages: Math.ceil(total / pageSize)
+    })
+  } catch (e) {
+    next(e)
+  }
+})
+
+router.get('/mine', requireAuth, async (req, res, next) => {
+  try {
+    const u = getAuthUser(req)
+    const r = await query(
+      `SELECT id, provider_id, model_id, gen_mode, status, resolution, ratio, duration, prompt, image_url, video_url, error_message, created_at
+       FROM tasks
+       WHERE user_id = ?
+       ORDER BY created_at DESC, id DESC
+       LIMIT 200`,
+      [u.id]
     )
     ok(res, { tasks: r.rows })
   } catch (e) {
@@ -86,12 +111,6 @@ router.get('/', requireAuth, requireAdmin, async (req, res, next) => {
   }
 })
 
-/**
- * 统计（仅管理员）：
- *   - byProvider: 每家服务商的 任务数 + 用户数
- *   - byModel:    每个模型的 任务数 + 用户数
- *   - total:      总任务数 / 总用户数 / 成功数 / 失败数
- */
 router.get('/stats', requireAuth, requireAdmin, async (_req, res, next) => {
   try {
     const [byProvider, byModel, total] = await Promise.all([
@@ -132,7 +151,6 @@ router.get('/stats', requireAuth, requireAdmin, async (_req, res, next) => {
   }
 })
 
-/** 删除一条任务记录（仅管理员）。 */
 router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id)

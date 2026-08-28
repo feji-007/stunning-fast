@@ -1,4 +1,4 @@
-// 统一 API 客户端：封装 fetch + JWT，所有响应走 { code, message, data } 结构。
+﻿// 统一 API 客户端：封装 fetch + JWT，所有响应走 { code, message, data } 结构。
 
 const TOKEN_KEY = 'stunning-admin-token'
 const USER_KEY = 'stunning-admin-user'
@@ -72,15 +72,46 @@ export const authApi = {
   me: () => api.get<{ user: AdminUser }>('/api/auth/me')
 }
 
+export interface PageQuery { page?: number; pageSize?: number }
+export interface PageResult<T> {
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+  list?: T[]
+}
+
+function withPage(qs: URLSearchParams, p: PageQuery | undefined) {
+  if (!p) return
+  if (p.page)     qs.set('page', String(p.page))
+  if (p.pageSize) qs.set('pageSize', String(p.pageSize))
+}
+
 // ===== 系统配置 =====
 export const providersApi = {
-  list: () => api.get<{ providers: any[] }>('/api/providers'),
+  list: (p?: PageQuery) => {
+    const qs = new URLSearchParams()
+    withPage(qs, p)
+    const q = qs.toString()
+    return api.get<{
+      providers: any[];
+      total: number; page: number; pageSize: number; totalPages: number
+    }>(`/api/providers${q ? `?${q}` : ''}`)
+  },
   create: (b: any) => api.post('/api/providers', b),
   update: (id: string, b: any) => api.put(`/api/providers/${id}`, b),
   remove: (id: string) => api.del(`/api/providers/${id}`)
 }
 export const modelsApi = {
-  list: () => api.get<{ models: any[] }>('/api/models'),
+  list: (p?: PageQuery) => {
+    const qs = new URLSearchParams()
+    withPage(qs, p)
+    const q = qs.toString()
+    return api.get<{
+      models: any[];
+      total: number; page: number; pageSize: number; totalPages: number
+    }>(`/api/models${q ? `?${q}` : ''}`)
+  },
   create: (b: any) => api.post('/api/models', b),
   update: (id: string, b: any) => api.put(`/api/models/${id}`, b),
   remove: (id: string) => api.del(`/api/models/${id}`)
@@ -99,7 +130,15 @@ export const videoConfigApi = {
   remove: (id: number) => api.del(`/api/video-config/${id}`)
 }
 export const usersApi = {
-  list: () => api.get<{ users: any[] }>('/api/users'),
+  list: (p?: PageQuery) => {
+    const qs = new URLSearchParams()
+    withPage(qs, p)
+    const q = qs.toString()
+    return api.get<{
+      users: any[];
+      total: number; page: number; pageSize: number; totalPages: number
+    }>(`/api/users${q ? `?${q}` : ''}`)
+  },
   create: (b: any) => api.post('/api/users', b),
   update: (id: number, b: any) => api.put(`/api/users/${id}`, b),
   resetPassword: (id: number, password: string) =>
@@ -108,9 +147,17 @@ export const usersApi = {
 }
 // ===== 任务记录与统计 =====
 export const tasksApi = {
-  list: (params: Record<string, string> = {}) => {
-    const qs = new URLSearchParams(params).toString()
-    return api.get<{ tasks: any[] }>(`/api/tasks${qs ? `?${qs}` : ''}`)
+  list: (params: Record<string, any> = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === '') return
+      qs.set(k, String(v))
+    })
+    const q = qs.toString()
+    return api.get<{
+      tasks: any[];
+      total: number; page: number; pageSize: number; totalPages: number
+    }>(`/api/tasks${q ? `?${q}` : ''}`)
   },
   remove: (id: number) => api.del(`/api/tasks/${id}`)
 }

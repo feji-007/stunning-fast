@@ -7,20 +7,35 @@ import { requireAuth, requireAdmin } from '../../middleware/auth'
 
 const router = Router()
 
-/** 用户列表（不含密码）。 */
-router.get('/', requireAuth, requireAdmin, async (_req, res, next) => {
+function parsePagination(req: any) {
+  const page = Math.max(1, Number(req.query.page) || 1)
+  const rawSize = Number(req.query.pageSize)
+  const pageSize = rawSize > 0 ? Math.min(rawSize, 200) : 20
+  const offset = (page - 1) * pageSize
+  return { page, pageSize, offset }
+}
+
+router.get('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
+    const { page, pageSize, offset } = parsePagination(req)
+    const cnt = await query<any>('SELECT COUNT(*) AS c FROM users')
+    const total = Number((cnt.rows as any[])?.[0]?.c ?? 0)
     const r = await query(
       `SELECT id, username, role, is_active, created_at, updated_at
-       FROM users ORDER BY id`
+       FROM users ORDER BY id
+       LIMIT ? OFFSET ?`,
+      [pageSize, offset]
     )
-    ok(res, { users: r.rows })
+    ok(res, {
+      users: r.rows,
+      total, page, pageSize,
+      totalPages: Math.ceil(total / pageSize)
+    })
   } catch (e) {
     next(e)
   }
 })
 
-/** 创建用户（管理员可指定角色）。 */
 router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const { username, password, role = 'user', isActive = true } = req.body ?? {}
@@ -40,18 +55,29 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   }
 })
 
-/** 更新用户（启用/禁用、改角色）。 */
 router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id)
-    const { role, isActive } = req.body ?? {}
+    const b = req.body ?? {}
+    const username = b.username
+    const password = b.password
+    const role = b.role
+    // 兼容 camelCase (isActive) 和 snake_case (is_active)
+    const isActive = b.isActive !== undefined ? b.isActive : b.is_active
+    let passwordHash: string | undefined
+    if (password) {
+      if (password.length < 4) throw badRequest('密码至少 4 位')
+      passwordHash = await hashPassword(password)
+    }
     const r = await query(
       `UPDATE users SET
+         username = COALESCE(?, username),
+         password_hash = COALESCE(?, password_hash),
          role = COALESCE(?, role),
          is_active = COALESCE(?, is_active),
          updated_at = NOW()
        WHERE id = ?`,
-      [role, isActive, id]
+      [username, passwordHash, role, isActive, id]
     )
     if (r.affectedRows === 0) throw notFound('用户不存在')
     ok(res, { id }, '已更新')
@@ -60,7 +86,6 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   }
 })
 
-/** 重置密码（仅管理员）。 */
 router.post('/:id/reset-password', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id)
@@ -78,7 +103,6 @@ router.post('/:id/reset-password', requireAuth, requireAdmin, async (req, res, n
   }
 })
 
-/** 删除用户。 */
 router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id)

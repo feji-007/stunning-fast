@@ -13,13 +13,13 @@ const router = Router()
  *   - features: 活跃功能入口
  *   - videoConfig: 按 key 分组的视频生成参数选项
  */
-router.get('/bootstrap', async (_req, res, next) => {
+router.get('/', async (_req, res, next) => {
   try {
     const providers = await query(
-      `SELECT id, name, key_hint, url FROM providers WHERE is_active = TRUE ORDER BY sort_order, id`
+      `SELECT id, name, key_hint, url, source FROM providers WHERE is_active = TRUE ORDER BY sort_order, id`
     )
     const models = await query(
-      `SELECT id, provider_id, name, type, description, supports_i2v, resolution, speed, price
+      `SELECT id, provider_id, name, type, description, supports_i2v, resolution, speed, price, source
        FROM models WHERE is_active = TRUE ORDER BY sort_order, id`
     )
     const features = await query(

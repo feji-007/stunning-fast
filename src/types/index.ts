@@ -1,4 +1,4 @@
-export type FeatureId =
+﻿export type FeatureId =
   | 'video'
   | 'library'
   | 'custom'
@@ -23,18 +23,15 @@ export interface ProviderModel {
   desc: string
   /** 是否支持图生视频（image-to-video） */
   supportsI2V?: boolean
+  /** 图生视频是否支持首尾帧模式 */
+  supportsFirstLast?: boolean
+  /** 图生视频是否支持参考图模式 */
+  supportsReference?: boolean
+  /** 来源：system 系统自带 / user 用户自定义 */
+  source?: 'system' | 'user'
 }
 
-export type ProviderId =
-  | 'alibaba'
-  | 'openai'
-  | 'volcengine'
-  | 'kling'
-  | 'minimax'
-  | 'runway'
-  | 'pika'
-  | 'luma'
-  | 'zhipu'
+export type ProviderId = string
 
 export interface Provider {
   id: ProviderId
@@ -44,6 +41,8 @@ export interface Provider {
   /** 供应商官网地址，用于资源库卡片跳转 */
   url: string
   models: ProviderModel[]
+  /** 来源：system 系统自带 / user 用户自定义 */
+  source?: 'system' | 'user'
 }
 
 export interface ApiKeyEntry {
@@ -65,3 +64,5 @@ export type LayoutColumns = 2 | 3 | 4
 export type CardStyle = 'icon' | 'icon-name' | 'icon-name-desc'
 /** 卡片密度：紧凑 / 标准 / 宽松 */
 export type CardSize = 'compact' | 'standard' | 'loose'
+
+

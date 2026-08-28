@@ -3,7 +3,7 @@ import { type ReactNode } from 'react'
 import { type AdminUser } from '../api'
 
 // 页面视图类型
-export type View = 'dashboard' | 'providers' | 'models' | 'features' | 'videoConfig' | 'users' | 'tasks' | 'statistics'
+export type View = 'dashboard' | 'providers' | 'models' | 'features' | 'videoConfig' | 'users' | 'tasks'
 
 interface NavItem {
   key: View
@@ -19,8 +19,7 @@ const NAV: NavItem[] = [
   { key: 'features', label: '功能入口', icon: '✨' },
   { key: 'videoConfig', label: '视频配置', icon: '🎬' },
   { key: 'users', label: '用户管理', icon: '👥' },
-  { key: 'tasks', label: '任务记录', icon: '📝' },
-  { key: 'statistics', label: '使用统计', icon: '📈' }
+  { key: 'tasks', label: '任务记录', icon: '📝' }
 ]
 
 // 各页面对应的顶部标题
@@ -31,8 +30,7 @@ const TITLES: Record<View, string> = {
   features: '功能入口管理',
   videoConfig: '视频配置',
   users: '用户管理',
-  tasks: '任务记录管理',
-  statistics: '使用统计'
+  tasks: '任务记录管理'
 }
 
 export default function Layout({

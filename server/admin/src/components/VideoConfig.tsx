@@ -37,6 +37,12 @@ export default function VideoConfig() {
   const [error, setError] = useState('')
   const [modal, setModal] = useState<null | { mode: 'create' | 'edit'; data: Form; id?: number }>(null)
   const [saving, setSaving] = useState(false)
+  // 每个配置卡片的展开/收起状态, key=config_key, 默认展开
+  const [expandedState, setExpandedState] = useState<Record<string, boolean>>(() =>
+    GROUPS.reduce<Record<string, boolean>>((acc, g) => ((acc[g.key] = true), acc), {})
+  )
+  const toggleExpanded = (key: string) =>
+    setExpandedState((s) => ({ ...s, [key]: !s[key] }))
 
   const load = () => {
     setLoading(true)
@@ -124,14 +130,29 @@ export default function VideoConfig() {
                   <h3 className="text-sm font-semibold text-gray-800">
                     {g.label} <span className="text-gray-400 font-normal">({g.key})</span>
                   </h3>
-                  <button
-                    onClick={() => setModal({ mode: 'create', data: { ...EMPTY_FORM, config_key: g.key } })}
-                    className="text-xs px-2 py-1 bg-brand-50 text-brand-700 rounded hover:bg-brand-100"
-                  >
-                    + 添加
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setModal({ mode: 'create', data: { ...EMPTY_FORM, config_key: g.key } })}
+                      className="text-xs px-2 py-1 bg-brand-50 text-brand-700 rounded hover:bg-brand-100"
+                    >
+                      + 添加
+                    </button>
+                    <button
+                      onClick={() => toggleExpanded(g.key)}
+                      title={expandedState[g.key] ? '收起' : '展开'}
+                      className="min-w-[32px] h-7 px-2 flex items-center justify-center text-xs rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+                    >
+                      <span
+                        className="inline-block transition-transform duration-200"
+                        style={{ transform: expandedState[g.key] ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+                      >
+                        ▾
+                      </span>
+                      <span className="ml-1">{expandedState[g.key] ? '收起' : '展开'}</span>
+                    </button>
+                  </div>
                 </div>
-                {items.length === 0 ? (
+                {!expandedState[g.key] ? null : items.length === 0 ? (
                   <div className="p-6 text-center text-sm text-gray-400">暂无选项</div>
                 ) : (
                   <table className="w-full text-sm">

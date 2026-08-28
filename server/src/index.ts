@@ -1,4 +1,4 @@
-import express from 'express'
+﻿import express from 'express'
 import cors from 'cors'
 import { config } from './config'
 import { ensureSchema } from './db/schema'
@@ -31,7 +31,7 @@ async function bootstrap() {
       credentials: true
     })
   )
-  app.use(express.json({ limit: '2mb' }))
+  app.use(express.json({ limit: '50mb' }))
 
   // 路由
   app.use('/api', apiRoutes)

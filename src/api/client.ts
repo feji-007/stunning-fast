@@ -1,4 +1,4 @@
-// 客户端后端 API：封装 fetch + JWT，对接 server（默认 http://localhost:4178）。
+﻿// 客户端后端 API：封装 fetch + JWT，对接 server（默认 http://localhost:4178）。
 // 所有响应走 { code, message, data } 结构；401 自动清理本地登录态。
 
 const DEFAULT_API_BASE = 'http://localhost:4178'
@@ -108,7 +108,50 @@ export const tasksApi = {
     ratio?: string
     duration?: string
     prompt?: string
+    imageUrl?: string
     videoUrl?: string
     errorMessage?: string
-  }) => api.post('/api/tasks', b)
+  }) => api.post('/api/tasks', b),
+  listMine: () =>
+    api.get<{ tasks: Array<{
+      id: number
+      provider_id: string
+      model_id: string
+      gen_mode: string
+      status: string
+      resolution: string
+      ratio: string
+      duration: string
+      prompt: string
+      image_url: string
+      video_url: string
+      error_message: string
+      created_at: string
+    }> }>('/api/tasks/mine')
 }
+
+// ===== 用户自定义供应商与模型（登录用户可添加，source='user'） =====
+export const userProvidersApi = {
+  create: (b: {
+    id: string
+    name: string
+    keyHint?: string
+    url?: string
+    sortOrder?: number
+  }) => api.post<{ provider: { id: string; name: string; source: 'user' } }>('/api/providers/user', b)
+}
+export const userModelsApi = {
+  create: (b: {
+    id: string
+    providerId: string
+    name: string
+    type?: string
+    description?: string
+    supportsI2V?: boolean
+    resolution?: number
+    speed?: number
+    price?: number
+    sortOrder?: number
+  }) => api.post<{ model: { id: string; source: 'user' } }>('/api/models/user', b)
+}
+

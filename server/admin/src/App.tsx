@@ -9,7 +9,6 @@ import Features from './components/Features'
 import VideoConfig from './components/VideoConfig'
 import Users from './components/Users'
 import Tasks from './components/Tasks'
-import Statistics from './components/Statistics'
 import { authApi, getStoredUser, clearAuth, getToken, type AdminUser } from './api'
 
 export default function App() {
@@ -68,7 +67,6 @@ export default function App() {
       {view === 'videoConfig' && <VideoConfig />}
       {view === 'users' && <Users />}
       {view === 'tasks' && <Tasks />}
-      {view === 'statistics' && <Statistics />}
     </Layout>
   )
 }

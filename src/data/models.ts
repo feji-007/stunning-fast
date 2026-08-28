@@ -1,4 +1,4 @@
-import type { Provider, Feature, FeatureId } from '../types'
+﻿import type { Provider, Feature, FeatureId } from '../types'
 
 // 资源库：目前主流常用的 AI 模型，帮用户搜索更适配的资源
 export const PROVIDERS: Provider[] = [
@@ -71,7 +71,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '字节最新 Seedance 2.5，文生/图生视频，支持多模态参考，最长 30s。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       },
       {
         id: 'doubao-seedance-2-0-260128',
@@ -79,7 +79,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '豆包 Seedance 2.0 标准版，文/图生视频，原生音频，最长 15s。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       },
       {
         id: 'doubao-seedance-2-0-fast-260128',
@@ -87,7 +87,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '豆包 Seedance 2.0 快速版，速度更快成本更低（不支持 1080p）。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       },
       {
         id: 'doubao-seedance-1-5-pro-251215',
@@ -95,15 +95,15 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '豆包 Seedance 1.5 Pro，文/图生视频，4-12s。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       },
       {
         id: 'doubao-seedance-1-0-pro-fast-251015',
         name: 'Seedance 1.0 Pro Fast',
         provider: 'volcengine',
         type: 'video',
-        desc: '豆包 Seedance 1.0 Pro Fast，文/图生视频，2-12s，快速。',
-        supportsI2V: true
+        desc: '豆包 Seedance 1.0 Pro Fast，文/图生视频，2-12s，快速。仅支持参考图模式。',
+        supportsI2V: true, supportsFirstLast: false, supportsReference: true
       },
       {
         id: 'doubao-pro',
@@ -126,7 +126,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'kling',
         type: 'video',
         desc: '可灵最新一代文生视频，画质与一致性最佳，支持更长时长。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       },
       {
         id: 'kling-v2-master',
@@ -134,7 +134,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'kling',
         type: 'video',
         desc: '可灵 2.0 高质量文生视频，1080p，最长 10s。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       },
       {
         id: 'kling-v2-5-turbo',
@@ -142,7 +142,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'kling',
         type: 'video',
         desc: '可灵 2.5 Turbo，速度更快成本更低，适合快速尝鲜。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       },
       {
         id: 'kling-v1-6',
@@ -150,7 +150,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'kling',
         type: 'video',
         desc: '可灵上一代视频模型，性价比高。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       }
     ]
   },
@@ -188,7 +188,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'runway',
         type: 'video',
         desc: 'Runway Gen-3，高质量文生/图生视频。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true
       }
     ]
   },
@@ -204,7 +204,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'pika',
         type: 'video',
         desc: 'Pika 视频生成，特效与 Pikaffects。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: false, supportsReference: true
       }
     ]
   },
@@ -220,7 +220,7 @@ export const PROVIDERS: Provider[] = [
         provider: 'luma',
         type: 'video',
         desc: 'Luma Dream Machine，文/图生视频。',
-        supportsI2V: true
+        supportsI2V: true, supportsFirstLast: false, supportsReference: true
       }
     ]
   },
@@ -328,3 +328,5 @@ export const DEFAULT_FEATURES: Feature[] = [
 export function featureById(id: FeatureId): Feature | undefined {
   return DEFAULT_FEATURES.find((f) => f.id === id)
 }
+
+
