@@ -58,6 +58,13 @@ export default function Features() {
       .catch((e: Error) => alert(e.message))
   }
 
+  const toggleActive = (f: Feature) => {
+    featuresApi
+      .update(f.id, { isActive: !f.is_active })
+      .then(load)
+      .catch((e: Error) => alert(e.message))
+  }
+
   const remove = (f: Feature) => {
     if (!confirm(`确认删除功能「${f.name}」?`)) return
     featuresApi
@@ -139,13 +146,17 @@ export default function Features() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{f.sort_order ?? 0}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs ${
-                        f.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'
+                    <button
+                      onClick={() => toggleActive(f)}
+                      title={f.is_active ? '点击禁用此功能' : '点击启用此功能'}
+                      className={`px-2 py-0.5 rounded text-xs cursor-pointer transition-colors ${
+                        f.is_active
+                          ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                       }`}
                     >
                       {f.is_active ? '启用' : '停用'}
-                    </span>
+                    </button>
                   </td>
                   <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
                     <button

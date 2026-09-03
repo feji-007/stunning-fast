@@ -1,4 +1,4 @@
-﻿// 统一 API 客户端：封装 fetch + JWT，所有响应走 { code, message, data } 结构。
+// 统一 API 客户端：封装 fetch + JWT，所有响应走 { code, message, data } 结构。
 
 const TOKEN_KEY = 'stunning-admin-token'
 const USER_KEY = 'stunning-admin-user'
@@ -168,4 +168,29 @@ export const statsApi = {
       byModel: any[]
       total: { total_tasks: number; total_users: number; success_count: number; fail_count: number }
     }>('/api/tasks/stats')
+}
+
+// ===== 用户意见反馈管理 =====
+export const feedbackApi = {
+  list: (params: Record<string, any> = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === '') return
+      qs.set(k, String(v))
+    })
+    const q = qs.toString()
+    return api.get<{
+      feedbacks: any[];
+      total: number; page: number; pageSize: number; totalPages: number
+    }>(`/api/feedback${q ? `?${q}` : ''}`)
+  },
+  stats: () =>
+    api.get<{
+      total: number
+      openCount: number
+      repliedCount: number
+      closedCount: number
+    }>('/api/feedback/stats'),
+  update: (id: number, b: any) => api.put(`/api/feedback/${id}`, b),
+  remove: (id: number) => api.del(`/api/feedback/${id}`)
 }

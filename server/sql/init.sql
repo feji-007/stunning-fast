@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- 绝色 · MySQL 建表脚本（与 server/src/db/schema.ts 保持同步）
 -- 幂等可重复执行：CREATE TABLE IF NOT EXISTS，表已存在则跳过，不重建不清空
 --
@@ -166,6 +166,25 @@ CREATE TABLE IF NOT EXISTS tasks (
   CONSTRAINT fk_tasks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ========== 用户意见反馈表（客户端提交，管理员查看处理） ==========
+CREATE TABLE IF NOT EXISTS feedbacks (
+  id            BIGINT       NOT NULL AUTO_INCREMENT,
+  user_id       INT          NOT NULL,
+  category      VARCHAR(32)  NOT NULL DEFAULT 'other',
+  title         VARCHAR(128) NOT NULL DEFAULT '',
+  content       TEXT         NOT NULL,
+  contact       VARCHAR(128) NOT NULL DEFAULT '',
+  status        VARCHAR(16)  NOT NULL DEFAULT 'open',
+  admin_reply   TEXT         NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_feedbacks_user (user_id),
+  INDEX idx_feedbacks_status (status),
+  INDEX idx_feedbacks_created (created_at),
+  CONSTRAINT fk_feedbacks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================
 -- 说明：
 --  1. 本脚本仅建表，不含种子数据。
@@ -173,9 +192,9 @@ CREATE TABLE IF NOT EXISTS tasks (
 --     时自动插入：9 家供应商 + 24 个模型、6 个功能入口、
 --     15 项视频参数选项、1 个管理员账号（admin/admin123）。
 --     表已有数据则跳过，不会覆盖管理员后续的修改。
---     tasks 表无种子数据，由客户端每次生成视频时写入。
+--     tasks/feedbacks 表无种子数据，由客户端提交时写入。
 --  3. 如需完全重置：DROP DATABASE stunning_fast; 后重新执行本脚本。
---  4. 建表依赖顺序：providers → models → users → user_api_keys/user_configs/tasks
+--  4. 建表依赖顺序：providers → models → users → user_api_keys/user_configs/tasks/feedbacks
 --     （外键要求被引用表先存在，本脚本已按此顺序排列）。
 --  5. 对于「老数据库 + 新增字段」的演进场景，请使用迁移脚本：
 --       # 方式 A（推荐）：  npm run migrate           # 通过项目连接池自动执行 sql/migrations/

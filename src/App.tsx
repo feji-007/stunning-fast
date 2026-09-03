@@ -5,14 +5,23 @@ import FloatingWindow from './components/FloatingWindow'
 import MainPanel from './components/MainPanel'
 import LoginModal from './components/LoginModal'
 import SettingsModal from './components/SettingsModal'
+import FeedbackModal from './components/FeedbackModal'
 
 export default function App() {
   const expanded = useStore((s) => s.expanded)
   const setExpanded = useStore((s) => s.setExpanded)
   const modal = useStore((s) => s.modal)
+  const theme = useStore((s) => s.theme)
 
   const overOverlay = useRef(false)
   const collapseTimerRef = useRef<number | null>(null)
+
+  // 主题切换：在 <html> 上增删 dark 类，触发 CSS 变量切换
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'dark') root.classList.add('dark')
+    else root.classList.remove('dark')
+  }, [theme])
 
   // 鼠标进入窗口：取消自动收起计时
   const handleEnter = () => {
@@ -112,7 +121,7 @@ export default function App() {
     <div onMouseEnter={handleEnter} onMouseLeave={handleLeave} className="h-screen w-screen">
       {!expanded ? <FloatingWindow /> : <MainPanel />}
 
-      {(modal === 'login' || modal === 'settings') && (
+      {(modal === 'login' || modal === 'settings' || modal === 'feedback') && (
         <div
           className="fixed inset-0 z-50"
           onMouseEnter={() => (overOverlay.current = true)}
@@ -120,6 +129,7 @@ export default function App() {
         >
           {modal === 'login' && <LoginModal />}
           {modal === 'settings' && <SettingsModal />}
+          {modal === 'feedback' && <FeedbackModal />}
         </div>
       )}
     </div>

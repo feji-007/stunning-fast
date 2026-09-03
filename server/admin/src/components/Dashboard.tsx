@@ -1,6 +1,6 @@
 // 仪表盘：聚合显示系统概览（供应商/模型/功能/用户数量）与使用统计（任务/用户/成功/失败 + 按服务商/模型维度，支持柱状图/饼状图/折线图/表格自由切换）。
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { providersApi, modelsApi, featuresApi, usersApi, statsApi } from '../api'
+import { providersApi, modelsApi, featuresApi, usersApi, statsApi, feedbackApi } from '../api'
 import StatsChart, { ChartModeSwitcher, ExportMenu, type ChartMode, type ChartDatum } from './StatsChart'
 
 interface SystemStats {
@@ -15,6 +15,13 @@ interface Total {
   total_users: number
   success_count: number
   fail_count: number
+}
+
+interface FeedbackStats {
+  total: number
+  openCount: number
+  repliedCount: number
+  closedCount: number
 }
 
 interface ProviderStat {
@@ -33,17 +40,19 @@ interface ModelStat {
 
 const EMPTY_SYS: SystemStats = { providers: 0, models: 0, features: 0, users: 0 }
 const EMPTY_TOTAL: Total = { total_tasks: 0, total_users: 0, success_count: 0, fail_count: 0 }
+const EMPTY_FB: FeedbackStats = { total: 0, openCount: 0, repliedCount: 0, closedCount: 0 }
 
 function toNum(v: unknown): number {
   const n = Number(v)
   return Number.isFinite(n) ? n : 0
 }
 
-export default function Dashboard() {
+export default function Dashboard({ onNavigate }: { onNavigate?: (v: 'feedback') => void }) {
   const [sys, setSys] = useState<SystemStats>(EMPTY_SYS)
   const [total, setTotal] = useState<Total>(EMPTY_TOTAL)
   const [byProvider, setByProvider] = useState<ProviderStat[]>([])
   const [byModel, setByModel] = useState<ModelStat[]>([])
+  const [fb, setFb] = useState<FeedbackStats>(EMPTY_FB)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   // 两个统计维度各自的图表模式
@@ -60,13 +69,15 @@ export default function Dashboard() {
       modelsApi.list().then((r) => r.models?.length ?? 0),
       featuresApi.list().then((r) => r.features?.length ?? 0),
       usersApi.list().then((r) => r.users?.length ?? 0),
-      statsApi.fetch()
+      statsApi.fetch(),
+      feedbackApi.stats().catch(() => EMPTY_FB)
     ])
-      .then(([p, m, f, u, stats]) => {
+      .then(([p, m, f, u, stats, fbStats]) => {
         setSys({ providers: p, models: m, features: f, users: u })
         setTotal(stats.total ?? EMPTY_TOTAL)
         setByProvider(stats.byProvider ?? [])
         setByModel(stats.byModel ?? [])
+        setFb(fbStats as FeedbackStats)
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
@@ -146,6 +157,50 @@ export default function Dashboard() {
               <div className="mt-1 text-sm text-gray-500">{c.label}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* 用户反馈通知：高亮显示待处理反馈，可一键跳转反馈管理 */}
+      <section className="mb-8">
+        <div
+          className={`rounded-xl shadow-float p-6 border ${
+            fb.openCount > 0
+              ? 'bg-gradient-to-r from-amber-50 to-white border-amber-200'
+              : 'bg-white border-gray-100'
+          }`}
+        >
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+                  fb.openCount > 0 ? 'bg-amber-100 text-amber-600' : 'bg-gray-50 text-gray-400'
+                }`}
+              >
+                💬
+              </div>
+              <div>
+                <div className="text-base font-semibold text-gray-800">
+                  {fb.openCount > 0
+                    ? `您有 ${fb.openCount} 条新反馈待处理`
+                    : '暂无待处理反馈'}
+                </div>
+                <div className="mt-1 text-sm text-gray-500">
+                  反馈总数 <b className="text-gray-700">{fb.total}</b> 条 ·
+                  <span className="ml-1 text-amber-600">待处理 {fb.openCount}</span> ·
+                  <span className="ml-1 text-blue-600">已回复 {fb.repliedCount}</span> ·
+                  <span className="ml-1 text-gray-500">已关闭 {fb.closedCount}</span>
+                </div>
+              </div>
+            </div>
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('feedback')}
+                className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm hover:bg-brand-700"
+              >
+                {fb.openCount > 0 ? '立即查看反馈' : '进入反馈管理'}
+              </button>
+            )}
+          </div>
         </div>
       </section>
 

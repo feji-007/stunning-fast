@@ -9,6 +9,7 @@ import Features from './components/Features'
 import VideoConfig from './components/VideoConfig'
 import Users from './components/Users'
 import Tasks from './components/Tasks'
+import Feedback from './components/Feedback'
 import { authApi, getStoredUser, clearAuth, getToken, type AdminUser } from './api'
 
 export default function App() {
@@ -60,13 +61,14 @@ export default function App() {
         setView('dashboard')
       }}
     >
-      {view === 'dashboard' && <Dashboard />}
+      {view === 'dashboard' && <Dashboard onNavigate={(v) => setView(v)} />}
       {view === 'providers' && <Providers />}
       {view === 'models' && <Models />}
       {view === 'features' && <Features />}
       {view === 'videoConfig' && <VideoConfig />}
       {view === 'users' && <Users />}
       {view === 'tasks' && <Tasks />}
+      {view === 'feedback' && <Feedback />}
     </Layout>
   )
 }

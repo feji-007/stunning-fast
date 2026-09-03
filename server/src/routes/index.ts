@@ -10,6 +10,7 @@ import usersRoute from '../modules/users/route'
 import userApiKeysRoute from '../modules/userApiKeys/route'
 import userConfigsRoute from '../modules/userConfigs/route'
 import tasksRoute from '../modules/tasks/route'
+import feedbackRoute from '../modules/feedback/route'
 
 const api = Router()
 
@@ -30,6 +31,9 @@ api.use('/users', usersRoute)
 
 // 任务记录（客户端写入 / 管理员查看统计）
 api.use('/tasks', tasksRoute)
+
+// 用户意见反馈（客户端提交 / 管理员查看处理）
+api.use('/feedback', feedbackRoute)
 
 // 用户私有配置（按用户隔离）
 api.use('/user/api-keys', userApiKeysRoute)

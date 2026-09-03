@@ -1,4 +1,4 @@
-﻿// 客户端后端 API：封装 fetch + JWT，对接 server（默认 http://localhost:4178）。
+// 客户端后端 API：封装 fetch + JWT，对接 server（默认 http://localhost:4178）。
 // 所有响应走 { code, message, data } 结构；401 自动清理本地登录态。
 
 const DEFAULT_API_BASE = 'http://localhost:4178'
@@ -153,5 +153,27 @@ export const userModelsApi = {
     price?: number
     sortOrder?: number
   }) => api.post<{ model: { id: string; source: 'user' } }>('/api/models/user', b)
+}
+
+// ===== 用户意见反馈（客户端提交，管理员查看） =====
+export const feedbackApi = {
+  submit: (b: {
+    category?: string
+    title?: string
+    content: string
+    contact?: string
+  }) => api.post<{ id: number }>('/api/feedback', b),
+  listMine: () =>
+    api.get<{ feedbacks: Array<{
+      id: number
+      category: string
+      title: string
+      content: string
+      contact: string
+      status: string
+      admin_reply: string | null
+      created_at: string
+      updated_at: string
+    }> }>('/api/feedback/mine')
 }
 

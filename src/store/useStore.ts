@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand'
+import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
   ApiKeyEntry,
@@ -10,6 +10,7 @@ import type {
   Provider,
   ProviderId,
   ProviderModel,
+  Theme,
   UserState
 } from '../types'
 import { DEFAULT_FEATURES, PROVIDERS } from '../data/models'
@@ -24,7 +25,7 @@ import {
   userModelsApi
 } from '../api/client'
 
-type Modal = 'none' | 'login' | 'settings'
+type Modal = 'none' | 'login' | 'settings' | 'feedback'
 
 // 视频生成参数默认选项（后端不可达时回退使用）
 const DEFAULT_VIDEO_CONFIG: Record<string, Array<{ value: string; label: string }>> = {
@@ -60,6 +61,7 @@ interface AppState {
   panelWidth: number // 主面板默认宽度（启动/返回主面板时使用）
   panelHeight: number // 主面板默认高度
   panelOpacity: number // 面板背景透明度 0.3~1.0
+  theme: Theme // 主题：明色 / 暗色
   // 功能区展示模式：true 时隐藏 toolbar，在原面板上显示功能区网格
   featureViewMode: boolean
   // 自动收起前的状态保存（用于展开后恢复）
@@ -96,6 +98,7 @@ interface AppState {
   setCardSize: (s: CardSize) => void
   setPanelSize: (w: number, h: number) => void
   setPanelOpacity: (v: number) => void
+  setTheme: (t: Theme) => void
   toggleFeatureViewMode: () => void
   login: (username: string, password: string) => Promise<void>
   logout: () => void
@@ -170,6 +173,7 @@ export const useStore = create<AppState>()(
       panelWidth: 1200,
       panelHeight: 720,
       panelOpacity: 0.95,
+      theme: 'light',
       featureViewMode: false,
       savedFeature: null,
       savedFeatureViewMode: false,
@@ -286,6 +290,10 @@ export const useStore = create<AppState>()(
       },
       setPanelOpacity: (v) => {
         set({ panelOpacity: Math.max(0.3, Math.min(1, v)) })
+        schedulePush(get)
+      },
+      setTheme: (t) => {
+        set({ theme: t })
         schedulePush(get)
       },
       toggleFeatureViewMode: () => {
@@ -455,6 +463,7 @@ export const useStore = create<AppState>()(
           if (cfg.panelWidth) patch.panelWidth = Number(cfg.panelWidth.value)
           if (cfg.panelHeight) patch.panelHeight = Number(cfg.panelHeight.value)
           if (cfg.panelOpacity) patch.panelOpacity = Number(cfg.panelOpacity.value)
+          if (cfg.theme) patch.theme = cfg.theme.value as Theme
           if (cfg.features) {
             try {
               patch.features = JSON.parse(cfg.features.value) as Feature[]
@@ -476,6 +485,7 @@ export const useStore = create<AppState>()(
           { key: 'panelWidth', value: String(s.panelWidth), type: 'number' },
           { key: 'panelHeight', value: String(s.panelHeight), type: 'number' },
           { key: 'panelOpacity', value: String(s.panelOpacity), type: 'number' },
+          { key: 'theme', value: s.theme, type: 'string' },
           { key: 'features', value: JSON.stringify(s.features), type: 'json' }
         ]
         try {
@@ -534,7 +544,8 @@ export const useStore = create<AppState>()(
         cardSize: s.cardSize,
         panelWidth: s.panelWidth,
         panelHeight: s.panelHeight,
-        panelOpacity: s.panelOpacity
+        panelOpacity: s.panelOpacity,
+        theme: s.theme
       })
     }
   )

@@ -130,7 +130,7 @@ export default function MainPanel() {
       if (!btn) return
       const rect = btn.getBoundingClientRect()
       const dropdownWidth = 160
-      const dropdownHeight = 120
+      const dropdownHeight = 156
       let left = rect.right - dropdownWidth
       left = Math.max(8, Math.min(left, window.innerWidth - dropdownWidth - 8))
       const top = rect.bottom + 4
@@ -263,7 +263,7 @@ export default function MainPanel() {
   return (
     <div
       className="relative flex h-full w-full flex-col overflow-visible rounded-2xl border border-black/5 shadow-float backdrop-blur-md"
-      style={{ backgroundColor: `rgba(255, 255, 255, ${panelOpacity})` } as React.CSSProperties}
+      style={{ backgroundColor: `rgb(var(--panel-bg) / ${panelOpacity})` } as React.CSSProperties}
     >
       {/* Top bar - 始终显示，功能区展示模式下也保留 */}
       <header
@@ -297,6 +297,18 @@ export default function MainPanel() {
                   style={{ top: userMenuPos.top, left: userMenuPos.left }}
                   className="fixed z-[9999] w-40 overflow-hidden rounded-lg border border-black/5 bg-white py-1 shadow-float"
                 >
+                  {/* 顺序：登录/注册 → 设置 → 用户反馈 → (退出登录 仅登录态显示) */}
+                  {!user.loggedIn && (
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false)
+                        setModal('login')
+                      }}
+                      className="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
+                    >
+                      🔑 登录 / 注册
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setShowUserMenu(false)
@@ -307,7 +319,16 @@ export default function MainPanel() {
                   >
                     ⚙️ 设置
                   </button>
-                  {user.loggedIn ? (
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      setModal('feedback')
+                    }}
+                    className="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
+                  >
+                    💬 意见反馈
+                  </button>
+                  {user.loggedIn && (
                     <button
                       onClick={() => {
                         setShowUserMenu(false)
@@ -316,16 +337,6 @@ export default function MainPanel() {
                       className="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
                     >
                       🚪 退出登录
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false)
-                        setModal('login')
-                      }}
-                      className="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
-                    >
-                      🔑 登录 / 注册
                     </button>
                   )}
                 </div>,

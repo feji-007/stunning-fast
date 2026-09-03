@@ -1,4 +1,4 @@
-﻿import { pool } from './pool'
+import { pool } from './pool'
 
 /**
  * 建表脚本：全部使用 CREATE TABLE IF NOT EXISTS，幂等可重复执行。
@@ -144,6 +144,26 @@ const SCHEMA_STATEMENTS: string[] = [
   INDEX idx_tasks_status (status),
   INDEX idx_tasks_created (created_at),
   CONSTRAINT fk_tasks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+  // ========== 用户意见反馈表（客户端提交，管理员查看处理） ==========
+
+  `CREATE TABLE IF NOT EXISTS feedbacks (
+  id            BIGINT       NOT NULL AUTO_INCREMENT,
+  user_id       INT          NOT NULL,
+  category      VARCHAR(32)  NOT NULL DEFAULT 'other',
+  title         VARCHAR(128) NOT NULL DEFAULT '',
+  content       TEXT         NOT NULL,
+  contact       VARCHAR(128) NOT NULL DEFAULT '',
+  status        VARCHAR(16)  NOT NULL DEFAULT 'open',
+  admin_reply   TEXT         NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_feedbacks_user (user_id),
+  INDEX idx_feedbacks_status (status),
+  INDEX idx_feedbacks_created (created_at),
+  CONSTRAINT fk_feedbacks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
 ]
 

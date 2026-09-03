@@ -2,6 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===== 主题变量：明色/暗色 ===== */
+:root {
+  --panel-bg: 255 255 255;        /* 主面板背景 RGB */
+  --surface: 255 255 255;         /* 卡片/行背景 */
+  --surface-muted: 249 250 251;   /* 次级背景 (gray-50) */
+  --surface-hover: 243 244 246;   /* hover 背景 (gray-100) */
+  --text-primary: 31 41 55;       /* 主文字 (gray-800) */
+  --text-secondary: 75 85 99;     /* 次文字 (gray-600) */
+  --text-muted: 156 163 175;      /* 弱文字 (gray-400) */
+  --border-subtle: 0 0 0;         /* 细边框 (black/5) */
+}
+
+html.dark {
+  --panel-bg: 24 24 34;           /* 深色面板背景 */
+  --surface: 34 34 46;            /* 深色卡片背景 */
+  --surface-muted: 28 28 38;      /* 深色次级背景 */
+  --surface-hover: 42 42 56;      /* 深色 hover 背景 */
+  --text-primary: 229 231 235;    /* 浅色主文字 */
+  --text-secondary: 156 163 175;  /* 浅色次文字 */
+  --text-muted: 107 114 128;     /* 浅色弱文字 */
+  --border-subtle: 255 255 255;  /* 浅色细边框 */
+}
+
+/* 暗色模式：覆盖常用 Tailwind 工具类，实现全局主题切换 */
+html.dark .bg-white { background-color: rgb(var(--surface)) !important; }
+html.dark .bg-gray-50 { background-color: rgb(var(--surface-muted)) !important; }
+html.dark .bg-gray-100 { background-color: rgb(var(--surface-hover)) !important; }
+html.dark .hover\:bg-gray-200:hover { background-color: rgb(var(--surface-hover)) !important; }
+html.dark .hover\:bg-black\/5:hover { background-color: rgba(255,255,255,0.08) !important; }
+html.dark .hover\:bg-black\/10:hover { background-color: rgba(255,255,255,0.12) !important; }
+
+html.dark .text-gray-800 { color: rgb(var(--text-primary)) !important; }
+html.dark .text-gray-700 { color: rgb(var(--text-secondary)) !important; }
+html.dark .text-gray-600 { color: rgb(var(--text-secondary)) !important; }
+html.dark .text-gray-500 { color: rgb(var(--text-muted)) !important; }
+html.dark .text-gray-400 { color: rgb(var(--text-muted)) !important; }
+
+html.dark .border-black\/5 { border-color: rgba(var(--border-subtle), 0.08) !important; }
+html.dark .border-black\/10 { border-color: rgba(var(--border-subtle), 0.12) !important; }
+
+html.dark .scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 html,
 body,
 #root {

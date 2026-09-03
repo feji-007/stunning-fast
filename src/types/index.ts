@@ -1,4 +1,4 @@
-﻿export type FeatureId =
+export type FeatureId =
   | 'video'
   | 'library'
   | 'custom'
@@ -64,5 +64,7 @@ export type LayoutColumns = 2 | 3 | 4
 export type CardStyle = 'icon' | 'icon-name' | 'icon-name-desc'
 /** 卡片密度：紧凑 / 标准 / 宽松 */
 export type CardSize = 'compact' | 'standard' | 'loose'
+/** 主题：明色 / 暗色 */
+export type Theme = 'light' | 'dark'
 
 

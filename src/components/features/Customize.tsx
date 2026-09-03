@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore'
-import type { CardSize, CardStyle, Feature, LayoutColumns } from '../../types'
+import type { CardSize, CardStyle, Feature, LayoutColumns, Theme } from '../../types'
 
 // 自定义：DIY 界面，布局调整 + 功能展示位 + 系统偏好。
 export default function Customize() {
@@ -25,6 +25,9 @@ export default function Customize() {
   // 面板透明度
   const panelOpacity = useStore((s) => s.panelOpacity)
   const setPanelOpacity = useStore((s) => s.setPanelOpacity)
+  // 主题
+  const theme = useStore((s) => s.theme)
+  const setTheme = useStore((s) => s.setTheme)
 
   const [autoLaunch, setAutoLaunch] = useState(storeAutoLaunch)
   const [panelW, setPanelW] = useState(String(storePanelW))
@@ -85,6 +88,32 @@ export default function Customize() {
 
   return (
     <div className="flex h-full flex-col gap-5">
+      {/* 主题 */}
+      <section>
+        <h2 className="text-sm font-semibold text-gray-800">主题</h2>
+        <p className="mt-0.5 text-[11px] text-gray-400">
+          切换主面板的明色 / 暗色外观。
+        </p>
+        <div className="mt-3 flex gap-1">
+          {([
+            { v: 'light' as Theme, label: '☀ 明色' },
+            { v: 'dark' as Theme, label: '☾ 暗色' }
+          ]).map((o) => (
+            <button
+              key={o.v}
+              onClick={() => setTheme(o.v)}
+              className={`flex-1 rounded-lg px-2 py-1.5 text-xs ${
+                theme === o.v
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* 布局调整 */}
       <section>
         <h2 className="text-sm font-semibold text-gray-800">布局调整</h2>
