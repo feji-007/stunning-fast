@@ -1,4 +1,4 @@
-﻿import type { Provider, Feature, FeatureId } from '../types'
+import type { Provider, Feature, FeatureId } from '../types'
 
 // 资源库：目前主流常用的 AI 模型，帮用户搜索更适配的资源
 export const PROVIDERS: Provider[] = [
@@ -63,7 +63,7 @@ export const PROVIDERS: Provider[] = [
     id: 'volcengine',
     name: '火山引擎 (豆包 Seedance)',
     keyHint: '',
-    url: 'https://www.volcengine.com/product/doubao-seedance',
+    url: 'https://www.volcengine.com/product/ark',
     models: [
       {
         id: 'doubao-seedance-2-5',

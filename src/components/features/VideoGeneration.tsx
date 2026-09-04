@@ -114,6 +114,8 @@ export default function VideoGeneration() {
   const [videoLoadError, setVideoLoadError] = useState<string | null>(null)
   const [historyTasks, setHistoryTasks] = useState<HistoryTask[]>([])
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set())
+  const [delError, setDelError] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(0.55)
   const containerRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
@@ -267,6 +269,67 @@ export default function VideoGeneration() {
     if (t.prompt) setVideoForm({ prompt: t.prompt })
   }
 
+  // ===== 历史任务删除操作 =====
+  const toggleTaskSelect = (id: number) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const toggleSelectAll = () => {
+    if (selectedTaskIds.size === historyTasks.length) {
+      setSelectedTaskIds(new Set())
+    } else {
+      setSelectedTaskIds(new Set(historyTasks.map((t) => t.id)))
+    }
+  }
+  const removeTaskFromLocal = (ids: number[]) => {
+    const dropIds = new Set(ids)
+    setHistoryTasks((prev) => prev.filter((t) => !dropIds.has(t.id)))
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev)
+      ids.forEach((i) => next.delete(i))
+      return next
+    })
+    if (ids.includes(Number(selectedTaskId))) {
+      setSelectedTaskId(null)
+      setVideoUrl(null)
+      setVideoLoadError(null)
+    }
+  }
+  const deleteOneTask = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDelError(null)
+    try {
+      await tasksApi.deleteMine(id)
+      removeTaskFromLocal([id])
+    } catch (err: any) {
+      setDelError(err?.message ?? '删除失败')
+    }
+  }
+  const deleteSelectedTasks = async () => {
+    if (selectedTaskIds.size === 0) return
+    setDelError(null)
+    try {
+      const ids = Array.from(selectedTaskIds)
+      await tasksApi.batchDeleteMine(ids)
+      removeTaskFromLocal(ids)
+    } catch (err: any) {
+      setDelError(err?.message ?? '批量删除失败')
+    }
+  }
+  const deleteAllFailedTasks = async () => {
+    setDelError(null)
+    try {
+      const failedIds = historyTasks.filter((t) => t.status === 'fail').map((t) => t.id)
+      await tasksApi.deleteFailedMine()
+      if (failedIds.length > 0) removeTaskFromLocal(failedIds)
+    } catch (err: any) {
+      setDelError(err?.message ?? '删除失败任务失败')
+    }
+  }
+
   const onVideoError = () => setVideoLoadError('媒体文件出错，无法播放该视频。可能链接已失效或格式不受支持。')
 
   const startDrag = () => { draggingRef.current = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none' }
@@ -315,11 +378,20 @@ export default function VideoGeneration() {
             <div>
               <p className="mb-1.5 text-[11px] font-medium text-gray-500">可用模型</p>
               {videoModels.length === 0 ? (
-                <span className="text-xs text-gray-400">暂无可用视频模型</span>
+                <div>
+                  <span className="text-xs text-gray-400">暂无可用视频模型。</span>
+                  <button className="ml-1 text-[11px] font-medium text-brand-600 hover:underline" onClick={() => setModal('settings')}>在「设置」中添加 API 密钥 →</button>
+                </div>
               ) : (
-                <select value={chosen?.id ?? ''} onChange={(e) => { setVideoForm({ mode: 'manual' as 'manual', selected: e.target.value }) }} className="w-full max-w-xs rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-gray-700 hover:border-brand-200 focus:border-brand-300 focus:outline-none">
-                  {videoModels.map((m) => (<option key={m.id} value={m.id}>{m.name}{m.supportsI2V ? ' (图+文)' : ''}</option>))}
-                </select>
+                <div>
+                  <select value={chosen?.id ?? ''} onChange={(e) => { setVideoForm({ mode: 'manual' as 'manual', selected: e.target.value }) }} className="w-full max-w-xs rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-gray-700 hover:border-brand-200 focus:border-brand-300 focus:outline-none">
+                    {videoModels.map((m) => (<option key={m.id} value={m.id}>{m.name}{m.supportsI2V ? ' (图+文)' : ''}</option>))}
+                  </select>
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    当前已接入 {videoModels.length} 个视频模型。
+                    <button className="ml-1 font-medium text-brand-600 hover:underline" onClick={() => setModal('settings')}>在「设置」中添加更多模型 →</button>
+                  </p>
+                </div>
               )}
             </div>
           )}
@@ -446,22 +518,71 @@ export default function VideoGeneration() {
           )}
           <div className="mt-2 border-t border-gray-100 pt-2">
             <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-[11px] font-medium text-gray-500">历史任务</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-medium text-gray-500">历史任务</p>
+                {!needLogin && historyTasks.length > 0 && (
+                  <>
+                    <button
+                      onClick={toggleSelectAll}
+                      className="text-[10px] text-gray-400 hover:text-brand-500"
+                      title="全选 / 取消全选"
+                    >
+                      {selectedTaskIds.size === historyTasks.length ? '取消全选' : '全选'}
+                    </button>
+                    <span className="text-[9px] text-gray-300">·</span>
+                    {selectedTaskIds.size > 0 && (
+                      <button
+                        onClick={deleteSelectedTasks}
+                        className="text-[10px] text-red-500 hover:underline"
+                      >
+                        删除选中（{selectedTaskIds.size}）
+                      </button>
+                    )}
+                    {historyTasks.some((t) => t.status === 'fail') && selectedTaskIds.size === 0 && (
+                      <button
+                        onClick={deleteAllFailedTasks}
+                        className="text-[10px] text-red-400 hover:text-red-600 hover:underline"
+                      >
+                        清理全部失败
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
               {user.loggedIn && (<button onClick={loadHistory} className="text-[10px] text-gray-400 hover:text-brand-500">刷新</button>)}
             </div>
+            {delError && (<div className="mb-1 rounded border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-600">{delError}</div>)}
             {needLogin ? (
               <div className="py-3 text-center text-[11px] text-gray-300">登录后可查看历史任务</div>
             ) : historyTasks.length === 0 ? (
               <div className="py-3 text-center text-[11px] text-gray-300">暂无历史记录</div>
             ) : (
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 max-h-[260px] overflow-auto scroll-thin pr-1">
                 {historyTasks.slice(0, 20).map((t) => (
-                  <button key={t.id} onClick={() => onSelectHistoryTask(t)} className={'flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-[11px] transition-colors ' + (selectedTaskId === t.id ? 'border-brand-300 bg-brand-50/50' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50')}>
+                  <div
+                    key={t.id}
+                    onClick={() => onSelectHistoryTask(t)}
+                    className={'group flex cursor-pointer items-center gap-1.5 rounded-lg border px-1.5 py-1 text-left text-[11px] transition-colors ' + (selectedTaskId === t.id ? 'border-brand-300 bg-brand-50/50' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50')}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTaskIds.has(t.id)}
+                      onChange={(e) => { e.stopPropagation(); toggleTaskSelect(t.id) }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-3 w-3 shrink-0 cursor-pointer accent-brand-500"
+                    />
                     <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (t.status === 'success' ? 'bg-emerald-400' : 'bg-red-400')} />
                     <span className="flex-1 truncate text-gray-600" title={t.prompt}>{truncatePrompt(t.prompt)}</span>
                     <span className="shrink-0 rounded bg-gray-100 px-1 py-0.5 text-[9px] text-gray-500">{t.gen_mode === 'i2v' ? '图生' : '文生'}</span>
                     <span className="shrink-0 text-[9px] text-gray-300">{fmtDate(t.created_at)}</span>
-                  </button>
+                    <button
+                      onClick={(e) => deleteOneTask(t.id, e)}
+                      className="shrink-0 rounded px-1 text-[10px] text-gray-300 hover:bg-red-50 hover:text-red-500"
+                      title="删除该任务"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 ))}
               </div>
             )}

@@ -1,4 +1,4 @@
-﻿import { Router } from 'express'
+import { Router } from 'express'
 import { query } from '../../db/pool'
 import { ok, getAuthUser } from '../../utils/response'
 import { requireAuth, requireAdmin } from '../../middleware/auth'
@@ -156,6 +156,70 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
     const id = Number(req.params.id)
     await query('DELETE FROM tasks WHERE id = ?', [id])
     ok(res, { id }, '已删除')
+  } catch (e) {
+    next(e)
+  }
+})
+
+// ===== 用户（按 user_id 隔离）删除自己的历史任务 =====
+
+/** 删除当前用户的单条任务 */
+router.delete('/mine/:id', requireAuth, async (req, res, next) => {
+  try {
+    const u = getAuthUser(req)
+    const id = Number(req.params.id)
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ code: 400, message: '任务 ID 无效' })
+      return
+    }
+    const r = await query('DELETE FROM tasks WHERE id = ? AND user_id = ?', [id, u.id])
+    const affected = Number((r as any).affectedRows ?? 0)
+    if (affected === 0) {
+      res.status(404).json({ code: 404, message: '任务不存在或无权删除' })
+      return
+    }
+    ok(res, { id }, '已删除')
+  } catch (e) {
+    next(e)
+  }
+})
+
+/** 批量删除当前用户选中的任务；body: { ids: number[] } */
+router.post('/mine/batch-delete', requireAuth, async (req, res, next) => {
+  try {
+    const u = getAuthUser(req)
+    const idsRaw: unknown = (req.body as any)?.ids
+    if (!Array.isArray(idsRaw)) {
+      res.status(400).json({ code: 400, message: 'ids 必须是数组' })
+      return
+    }
+    const ids = idsRaw
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && v > 0)
+    if (ids.length === 0) {
+      ok(res, { deleted: 0 }, '未选择需要删除的任务')
+      return
+    }
+    const placeholders = ids.map(() => '?').join(',')
+    const r = await query(
+      `DELETE FROM tasks WHERE user_id = ? AND id IN (${placeholders})`,
+      [u.id, ...ids]
+    )
+    ok(res, { deleted: Number((r as any).affectedRows ?? 0) }, '批量删除完成')
+  } catch (e) {
+    next(e)
+  }
+})
+
+/** 删除当前用户全部失败的任务（status = 'fail'） */
+router.post('/mine/delete-failed', requireAuth, async (req, res, next) => {
+  try {
+    const u = getAuthUser(req)
+    const r = await query(
+      "DELETE FROM tasks WHERE user_id = ? AND status = 'fail'",
+      [u.id]
+    )
+    ok(res, { deleted: Number((r as any).affectedRows ?? 0) }, '已清理失败任务')
   } catch (e) {
     next(e)
   }

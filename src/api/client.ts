@@ -127,7 +127,16 @@ export const tasksApi = {
       video_url: string
       error_message: string
       created_at: string
-    }> }>('/api/tasks/mine')
+    }> }>('/api/tasks/mine'),
+  /** 删除当前用户自己的一条任务 */
+  deleteMine: (id: number) =>
+    api.del<{ id: number }>(`/api/tasks/mine/${encodeURIComponent(String(id))}`),
+  /** 批量删除当前用户选中的任务 */
+  batchDeleteMine: (ids: number[]) =>
+    api.post<{ deleted: number }>('/api/tasks/mine/batch-delete', { ids }),
+  /** 删除当前用户全部失败任务（status = 'fail'） */
+  deleteFailedMine: () =>
+    api.post<{ deleted: number }>('/api/tasks/mine/delete-failed', {})
 }
 
 // ===== 用户自定义供应商与模型（登录用户可添加，source='user'） =====

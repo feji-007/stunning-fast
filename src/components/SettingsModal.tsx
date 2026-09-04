@@ -42,6 +42,7 @@ export default function SettingsModal() {
                   key={p.id}
                   id={p.id}
                   name={p.name}
+                  url={p.url}
                   keyHint={p.keyHint}
                   models={p.models.map((m) => m.name)}
                   connected={connected.has(p.id)}
@@ -60,6 +61,7 @@ export default function SettingsModal() {
 
 function ProviderRow({
   name,
+  url,
   keyHint,
   models,
   connected,
@@ -69,6 +71,7 @@ function ProviderRow({
 }: {
   id: ProviderId
   name: string
+  url: string
   keyHint: string
   models: string[]
   connected: boolean
@@ -88,6 +91,15 @@ function ProviderRow({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-gray-800">{name}</span>
+          {url && (
+            <button
+              onClick={() => window.api?.openExternal?.(url)}
+              className="text-[10px] text-brand-600 hover:underline"
+              title={`在系统浏览器中打开 ${name} 官网`}
+            >
+              🌐 官网 ↗
+            </button>
+          )}
           <span
             className={`rounded px-1.5 py-0.5 text-[10px] ${
               connected

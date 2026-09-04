@@ -294,7 +294,7 @@ export default function MainPanel() {
               createPortal(
                 <div
                   ref={userMenuRef}
-                  style={{ top: userMenuPos.top, left: userMenuPos.left }}
+                  style={{ top: userMenuPos.top, left: userMenuPos.left, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                   className="fixed z-[9999] w-40 overflow-hidden rounded-lg border border-black/5 bg-white py-1 shadow-float"
                 >
                   {/* 顺序：登录/注册 → 设置 → 用户反馈 → (退出登录 仅登录态显示) */}
@@ -304,6 +304,7 @@ export default function MainPanel() {
                         setShowUserMenu(false)
                         setModal('login')
                       }}
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                       className="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
                     >
                       🔑 登录 / 注册
@@ -315,6 +316,7 @@ export default function MainPanel() {
                       if (!user.loggedIn) setModal('login')
                       else setModal('settings')
                     }}
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     className="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
                   >
                     ⚙️ 设置
@@ -324,6 +326,7 @@ export default function MainPanel() {
                       setShowUserMenu(false)
                       setModal('feedback')
                     }}
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     className="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
                   >
                     💬 意见反馈
@@ -334,6 +337,7 @@ export default function MainPanel() {
                         setShowUserMenu(false)
                         useStore.getState().logout()
                       }}
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                       className="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
                     >
                       🚪 退出登录
@@ -480,7 +484,7 @@ export default function MainPanel() {
               createPortal(
                 <div
                   ref={moreMenuRef}
-                  style={{ top: morePos.top, left: morePos.left }}
+                  style={{ top: morePos.top, left: morePos.left, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                   className="fixed z-[9999] w-44 overflow-visible rounded-lg border border-black/5 bg-white py-1 shadow-float"
                 >
                   {features.slice(visibleCount).map((f) => (
@@ -490,6 +494,7 @@ export default function MainPanel() {
                         setShowAll(false)
                         openFeature(f.id)
                       }}
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-black/5"
                     >
                       <span>{f.icon}</span>

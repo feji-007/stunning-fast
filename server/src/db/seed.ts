@@ -30,7 +30,7 @@ const PROVIDERS_SEED: Array<{
   },
   {
     id: 'volcengine', name: '火山引擎 (豆包 Seedance)', keyHint: '',
-    url: 'https://www.volcengine.com/product/doubao-seedance', sort: 2,
+    url: 'https://www.volcengine.com/product/ark', sort: 2,
     models: [
       { id: 'doubao-seedance-2-5', name: 'Seedance 2.5', type: 'video', desc: '字节最新 Seedance 2.5，文生/图生视频，支持多模态参考，最长 30s。', supportsI2V: true, res: 1080, speed: 60, price: 3, sort: 1 },
       { id: 'doubao-seedance-2-0-260128', name: 'Seedance 2.0', type: 'video', desc: '豆包 Seedance 2.0 标准版，文/图生视频，原生音频，最长 15s。', supportsI2V: true, res: 1080, speed: 45, price: 2, sort: 2 },
