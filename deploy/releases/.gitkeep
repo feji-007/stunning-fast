@@ -1,0 +1,13 @@
+# 安装包分发目录（测试环境）
+# 将 electron-builder 打包产物放到这里：
+#   release/latest.yml
+#   release/latest-mac.yml
+#   release/latest-linux.yml
+#   release/juese-1.0.0-setup.exe
+#   release/juese-1.0.0.dmg
+#   release/juese-1.0.0.AppImage
+#
+# Nginx 会通过 http://8.219.219.110/releases/ 公开访问本目录
+# electron-updater 会拉取 latest.yml 检查更新
+#
+# 本文件用于占位，确保目录存在；部署时把打包产物拷进来

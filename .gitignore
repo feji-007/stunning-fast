@@ -10,9 +10,14 @@ site/.vitepress/dist
 site/.vitepress/cache
 server/dist
 
+# 安装包分发目录（只保留 .gitkeep 占位，二进制包不提交）
+deploy/releases/*
+!deploy/releases/.gitkeep
+
 # 环境变量（含密钥，绝不提交；.env.example 保留作模板）
 .env
 !.env.example
+!.env.production.example
 
 # 系统/编辑器
 *.local

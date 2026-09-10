@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitepress'
 
-// 下载分发基址：打包产物上传到 OSS+CDN 后，替换为实际 CDN 地址。
-// 例如 https://cdn.juese.app/releases/
-const DOWNLOAD_BASE = 'https://cdn.juese.app/releases/'
+// 下载分发基址：测试环境用云服务器公网 IP + Nginx 托管
+// 正式环境换 CDN 域名，如 https://cdn.juese.app/releases/
+const DOWNLOAD_BASE = 'http://8.219.219.110/releases/'
 
 export default defineConfig({
   lang: 'zh-CN',

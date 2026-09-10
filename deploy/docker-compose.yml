@@ -1,0 +1,101 @@
+# ============================================================
+# Docker Compose：绝色测试环境
+# ------------------------------------------------------------
+# 服务组成：
+#   mysql   : MySQL 8.x，数据持久化到 named volume
+#   server  : 绝色后端 + 管理后台 SPA，依赖 mysql
+#   nginx   : 反代到 server:4178，对外暴露 80
+# 服务器信息：内网 172.29.234.8 / 公网 8.219.219.110
+# 使用场景：测试环境（CDN/分发相关不在本编排内）
+# ============================================================
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: juese-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-ChangeMeRoot2026}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-stunning_fast}
+      MYSQL_USER: ${MYSQL_USER:-juese}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ChangeMeApp2026}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    ports:
+      # 仅内网监听；如需本机调试可注释
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - juese_net
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: juese-server
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PORT: 4178
+      NODE_ENV: production
+      # 数据库：用户名/密码须与上方 mysql 服务一致
+      DATABASE_URL: mysql://$${MYSQL_USER:-juese}:$${MYSQL_PASSWORD:-ChangeMeApp2026}@mysql:3306/$${MYSQL_DATABASE:-stunning_fast}
+      # JWT 密钥：测试环境用固定值即可；正式上线务必换
+      JWT_SECRET: ${JWT_SECRET:-test-secret-please-change-in-prod-a3f5b8e2c9d7f1e6}
+      JWT_EXPIRES_IN: 7d
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@2026}
+      # 测试环境放开 CORS
+      CORS_ORIGIN: "*"
+      # 客户端连接地址：公网 IP + Nginx 端口
+      CLIENT_API_BASE: ${CLIENT_API_BASE:-http://8.219.219.110}
+    ports:
+      # 不直接暴露公网，仅 Nginx 容器访问
+      - "127.0.0.1:4178:4178"
+    networks:
+      - juese_net
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4178/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: juese-nginx
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      # 对外只暴露 80
+      - "80:80"
+    volumes:
+      - ./nginx.juese.conf:/etc/nginx/conf.d/juese.conf:ro
+      - ./nginx.logs:/var/log/nginx
+      # 安装包分发目录：把本地 deploy/releases/ 挂载到 nginx，供 /releases/ 路径访问
+      - ./releases:/usr/share/nginx/releases:ro
+    networks:
+      - juese_net
+
+volumes:
+  mysql_data:
+    name: juese_mysql_data
+
+networks:
+  juese_net:
+    name: juese_net
+    driver: bridge

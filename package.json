@@ -12,6 +12,7 @@
     "start": "cross-env NODE_ENV=production electron .",
     "dist": "npm run build && electron-builder",
     "pack": "npm run build && electron-builder --dir",
+    "pack:to-releases": "bash scripts/pack-to-releases.sh",
     "upload:release": "node scripts/upload-release.mjs",
     "upload:site": "node scripts/upload-site.mjs",
     "upload:all": "npm run upload:site && npm run upload:release"

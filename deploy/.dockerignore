@@ -1,0 +1,31 @@
+# 构建上下文：项目根目录
+# 忽略一切与后端镜像无关的内容，缩小上下文、加速构建
+**/node_modules
+**/dist
+**/dist-electron
+**/release
+**/build
+**/.cache
+**/*.log
+**/.DS_Store
+**/Thumbs.db
+
+# 前端/Electron 相关（不打进后端镜像）
+electron
+site
+scripts
+
+# 部署产物本身不打包
+deploy
+
+# 环境变量（运行期通过 .env / compose 注入，不烤进镜像）
+**/.env
+**/.env.*
+!**/.env.production.example
+
+# Git / CI / 编辑器
+.git
+.github
+.vscode
+.idea
+**/*.tsbuildinfo

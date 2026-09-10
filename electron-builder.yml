@@ -49,9 +49,10 @@ linux:
   category: AudioVideo
   artifactName: juese-${version}.${ext}
 
-# 自动更新发布源：generic 指向 CDN 上的 releases/ 目录
+# 自动更新发布源：generic 指向测试服务器 releases/ 目录
 # electron-updater 会读取该目录下的 latest.yml / latest-mac.yml / latest-linux.yml
+# 测试环境：直接用云服务器公网 IP + Nginx 托管；正式环境换 CDN 域名
 publish:
   provider: generic
-  url: https://cdn.juese.app/releases/
+  url: http://8.219.219.110/releases/
   channel: latest
