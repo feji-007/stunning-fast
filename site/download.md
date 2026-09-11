@@ -1,8 +1,8 @@
 # 下载安装
 
 ::: tip 下载地址
-所有安装包与自动更新清单（`latest.yml` / `latest-mac.yml` / `latest-linux.yml`）托管在 OSS + CDN。
-下载基址：https://cdn.juese.app/releases/ （部署时替换为实际 CDN 地址）
+所有安装包与自动更新清单（`latest.yml` / `latest-mac.yml` / `latest-linux.yml`）托管在 Cloudflare R2 + CDN。
+下载基址：`https://cdn.juese.app/releases/`（部署时替换为实际 CDN 地址）
 :::
 
 ## Windows
@@ -36,5 +36,9 @@ chmod +x 绝色-*.AppImage
 安装版内置 electron-updater。客户端启动后会自动检测 CDN 上的 `latest.yml`，有新版本时静默下载并在下次启动应用更新。
 
 ::: warning 自定义更新源
-企业内部部署可修改客户端打包配置中的 `publish.url`，指向私有 OSS 桶地址。
+企业内部部署可修改客户端打包配置中的 `publish.url`，指向私有 R2 桶或内网 Nginx 静态服务地址（协议兼容 generic provider）。
+:::
+
+::: tip 测试环境
+当前测试环境（`http://8.219.219.110/releases/`）用云服务器公网 IP + Nginx 托管，未配 CDN。转正式环境后切换到 `https://cdn.juese.app/releases/`，详见 [部署运维](/guide/deploy)。
 :::

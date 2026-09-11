@@ -58,8 +58,6 @@ stunning-fast/
 ├── scripts/            # R2 上传脚本（upload-release / upload-site / r2-client）
 ├── .github/workflows/  # CI/CD 自动发布
 ├── electron-builder.yml
-├── DEPLOY.md           # 部署文档
-├── SETUP.md            # 启动文档
 └── package.json
 ```
 
@@ -86,7 +84,7 @@ cd .. && npm install && npm run dev
 ```
 
 管理后台：`http://localhost:4178/admin`（账号 `admin/admin123`）
-详细启动步骤见 [SETUP.md](./SETUP.md)。
+详细启动步骤见 [site/guide/install.md](./site/guide/install.md)。
 
 ## 配置
 
@@ -110,7 +108,7 @@ npm run upload:site      # 上传官网
 
 - Windows 产物：`release/nsis-web/juese-{version}-setup.exe`（约 676 KB web installer）+ `.nsis.7z`（完整包）
 - CI 自动发布：`git tag v1.2.3 && git push origin v1.2.3`（见 `.github/workflows/release.yml`）
-- 详见 [DEPLOY.md](./DEPLOY.md) 与 [site/guide/cloudflare-setup.md](./site/guide/cloudflare-setup.md)
+- 详见 [deploy/README.md](./deploy/README.md) 与 [site/guide/cloudflare-setup.md](./site/guide/cloudflare-setup.md)
 
 ## 自动更新
 
@@ -138,9 +136,9 @@ npm run upload:site      # 上传官网
 
 ## 文档
 
-- [SETUP.md](./SETUP.md) — 启动指南
-- [DEPLOY.md](./DEPLOY.md) — 部署运维
-- [site/guide/](./site/guide/) — 安装 / 部署 / 服务器配置 / Cloudflare 配置
+- [site/guide/install.md](./site/guide/install.md) — 安装与启动指南
+- [deploy/README.md](./deploy/README.md) — 部署运维（Docker 测试环境）
+- [site/guide/](./site/guide/) — 部署 / 服务器配置 / Cloudflare 配置
 - [site/](./site/) — VitePress 官网（`cd site && npm run dev` 本地预览）
 
 ## License
