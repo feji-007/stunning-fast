@@ -1,0 +1,38 @@
+# ============================================================
+# 绝色 Nginx 镜像：内含 VitePress 文档站构建产物
+# ------------------------------------------------------------
+# 多阶段构建：
+#   1. docs-builder 阶段：构建 site/.vitepress/dist
+#   2. runtime 阶段：基于 nginx:1.27-alpine，COPY 文档产物
+# 对外路径：/docs/（由 nginx.juese.conf 的 location 配置）
+# ============================================================
+FROM node:18-bookworm-slim AS docs-builder
+
+WORKDIR /app
+
+# 0. 安装 git：VitePress 的 lastUpdated 功能需要 git 获取文件最后提交时间
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
+# 1. 先拷 package.json（利用 docker 层缓存）
+COPY site/package.json site/package-lock.json* ./site/
+
+# 2. 装依赖
+RUN cd site && npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+# 3. 拷源码
+COPY site ./site
+
+# 4. 初始化临时 git 仓库：VitePress 的 lastUpdated 功能需要 git log 获取文件时间
+#    .dockerignore 排除了 .git，这里创建一个全新仓库供构建期使用
+RUN cd site && git init && git add -A && git config user.email "build@docker" && git config user.name "Docker Build" && git commit -m "docs build snapshot"
+
+# 5. 构建 VitePress 静态站 -> site/.vitepress/dist
+RUN cd site && npm run build
+
+# ============================================================
+# runtime 阶段
+# ============================================================
+FROM nginx:1.27-alpine
+
+# 文档产物放到 nginx 容器内的固定路径
+COPY --from=docs-builder /app/site/.vitepress/dist /usr/share/nginx/docs

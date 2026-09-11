@@ -12,9 +12,9 @@ export default defineConfig({
   cleanUrls: true,
   ignoreDeadLinks: [/^https?:\/\/localhost/],
 
-  // 构建产物输出到 site/.vitepress/dist，上传到 OSS+CDN 根目录或子路径
-  // 若部署在子路径，设置 base: '/docs/'
-  base: '/',
+  // 构建产物输出到 site/.vitepress/dist
+  // 部署在 nginx 子路径 /docs/，base 必须与之一致
+  base: '/docs/',
 
   themeConfig: {
     nav: [

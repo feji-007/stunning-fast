@@ -1,5 +1,6 @@
-﻿import express from 'express'
+import express from 'express'
 import cors from 'cors'
+import path from 'path'
 import { config } from './config'
 import { ensureSchema } from './db/schema'
 import { seedAll } from './db/seed'
@@ -33,8 +34,19 @@ async function bootstrap() {
   )
   app.use(express.json({ limit: '50mb' }))
 
-  // 路由
+  // API 路由
   app.use('/api', apiRoutes)
+
+  // 管理后台 SPA：构建产物位于 admin/dist，直接挂载在 /admin（非 /api/admin）
+  // Vite 构建时 base: '/admin/'，因此静态资源路径以 /admin/ 开头
+  const adminDist = path.join(__dirname, '../admin/dist')
+  app.use('/admin', express.static(adminDist, { index: ['index.html'] }))
+  // SPA history 路由回退：/admin 下所有子路径都返回 index.html
+  app.get('/admin/*', (_req, res) => {
+    res.sendFile(path.join(adminDist, 'index.html'), (err) => {
+      if (err) res.status(404).send('管理后台未构建，请先 npm run admin:build')
+    })
+  })
 
   // 根路径：跳转到管理后台
   app.get('/', (_req, res) => res.redirect('/admin'))

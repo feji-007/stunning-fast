@@ -73,24 +73,35 @@ function Deploy-Setup {
 # ---------- 各动作 ----------
 function Deploy-Up([bool]$rebuild) {
   Info "部署到 $RemoteUser@$RemoteHost`:$RemoteDir (CentOS 7.9)"
-  Step "1/4 同步 deploy/ 目录到服务器"
+  Step "1/4 同步项目根目录到服务器"
+  # docker-compose.yml 的 build context = ..（项目根），dockerfile = deploy/Dockerfile
+  # 因此服务器上 deploy/ 必须位于 $RemoteDir/deploy/，且 $RemoteDir 需含 server/ 源码
   Invoke-Remote "mkdir -p $RemoteDir"
-  # Windows 下用 scp 同步整个目录（PowerShell 5.1 下 scp 不支持通配符展开，用目录拷贝）
-  & scp -r "$DeployDir" "$RemoteUser@$RemoteHost`:$RemoteDir-deploy-tmp"
-  Invoke-Remote "rm -rf $RemoteDir; mv $RemoteDir-deploy-tmp $RemoteDir"
+  $zipfile  = "$env:TEMP\juese-project-$(Get-Date -Format 'yyyyMMddHHmmss').zip"
+  $staging  = "$env:TEMP\juese-staging-$(Get-Date -Format 'yyyyMMddHHmmss')"
+  $null = New-Item -ItemType Directory -Path $staging -Force
+  # robocopy: exclude large/irrelevant dirs by name
+  & robocopy $ProjectDir $staging /E /XD node_modules dist dist-electron release build .cache electron scripts .git .github .vscode .idea /XF *.tsbuildinfo *.log .DS_Store Thumbs.db | Out-Null
+  # Compress-Archive: PowerShell built-in zip
+  Compress-Archive -Path "$staging\*" -DestinationPath $zipfile -Force
+  & scp $zipfile "$RemoteUser@$RemoteHost`:/tmp/juese-project.zip"
+  # remote: install unzip if missing, extract, cleanup
+  Invoke-Remote "which unzip >/dev/null 2>&1 || yum install -y unzip; rm -rf $RemoteDir; mkdir -p $RemoteDir; unzip -o /tmp/juese-project.zip -d $RemoteDir; rm -f /tmp/juese-project.zip"
+  Remove-Item $zipfile -Force
+  Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
 
   Step "2/4 检查 .env"
-  $envExists = (Invoke-Remote "test -f $RemoteDir/.env && echo yes || echo no") -join ''
+  $envExists = (Invoke-Remote "test -f $RemoteDir/deploy/.env && echo yes || echo no") -join ''
   if ($envExists -ne 'yes') {
-    Warn "服务器无 $RemoteDir/.env，从 .env.example 复制（请编辑实际值后再跑）"
-    Invoke-Remote "cp $RemoteDir/.env.example $RemoteDir/.env"
-    Warn "已生成 $RemoteDir/.env，请编辑后重跑：ssh $RemoteUser@$RemoteHost 'vi $RemoteDir/.env'"
+    Warn "服务器无 $RemoteDir/deploy/.env，从 .env.example 复制（请编辑实际值后再跑）"
+    Invoke-Remote "cp $RemoteDir/deploy/.env.example $RemoteDir/deploy/.env"
+    Warn "已生成 $RemoteDir/deploy/.env，请编辑后重跑：ssh $RemoteUser@$RemoteHost 'vi $RemoteDir/deploy/.env'"
     return
   }
 
   Step "3/4 远程构建镜像并启动"
   $buildArgs = if ($rebuild) { 'build --no-cache' } else { 'build' }
-  Invoke-Remote "cd $RemoteDir && docker compose $buildArgs && docker compose up -d"
+  Invoke-Remote "cd $RemoteDir/deploy && docker compose $buildArgs && docker compose up -d"
 
   Step "4/4 等待健康检查 + 状态"
   Info "等待 server 健康检查通过（最多 60s）"
@@ -103,7 +114,7 @@ function Deploy-Up([bool]$rebuild) {
     Start-Sleep -Seconds 5
   }
 
-  Invoke-Remote "cd $RemoteDir && docker compose ps"
+  Invoke-Remote "cd $RemoteDir/deploy && docker compose ps"
   Write-Host ''
   Info "部署完成。访问地址："
   Write-Host "  API      : http://$RemoteHost/api"
@@ -119,22 +130,22 @@ function Deploy-Up([bool]$rebuild) {
 
 function Deploy-Down {
   Info "停止并移除容器（保留数据卷）"
-  Invoke-Remote "cd $RemoteDir && docker compose down"
+  Invoke-Remote "cd $RemoteDir/deploy && docker compose down"
 }
 
 function Deploy-Logs {
-  Invoke-Remote "cd $RemoteDir && docker compose logs -f --tail=200"
+  Invoke-Remote "cd $RemoteDir/deploy && docker compose logs -f --tail=200"
 }
 
 function Deploy-Ps {
-  Invoke-Remote "cd $RemoteDir && docker compose ps"
+  Invoke-Remote "cd $RemoteDir/deploy && docker compose ps"
 }
 
 function Deploy-Reset {
   Warn "即将删除所有容器 + 数据卷，数据将丢失！"
   $ans = Read-Host '确认清库重置？输入 yes 继续'
   if ($ans -ne 'yes') { Info '已取消'; return }
-  Invoke-Remote "cd $RemoteDir && docker compose down -v"
+  Invoke-Remote "cd $RemoteDir/deploy && docker compose down -v"
   Info '已清空，重跑 powershell -File deploy\docker-deploy.ps1 重新部署'
 }
 

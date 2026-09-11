@@ -1,4 +1,4 @@
-# 构建上下文：项目根目录
+# 构建上下文：项目根目录（Docker 在此查找 .dockerignore）
 # 忽略一切与后端镜像无关的内容，缩小上下文、加速构建
 **/node_modules
 **/dist
@@ -11,9 +11,10 @@
 **/Thumbs.db
 
 # 前端/Electron 相关（不打进后端镜像）
+# 注意：site 不排除，nginx 镜像构建需要 VitePress 源码
 electron
-site
 scripts
+src
 
 # 部署产物本身不打包
 deploy

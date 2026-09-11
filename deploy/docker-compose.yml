@@ -52,7 +52,7 @@ services:
       PORT: 4178
       NODE_ENV: production
       # 数据库：用户名/密码须与上方 mysql 服务一致
-      DATABASE_URL: mysql://$${MYSQL_USER:-juese}:$${MYSQL_PASSWORD:-ChangeMeApp2026}@mysql:3306/$${MYSQL_DATABASE:-stunning_fast}
+      DATABASE_URL: mysql://${MYSQL_USER:-juese}:${MYSQL_PASSWORD:-ChangeMeApp2026}@mysql:3306/${MYSQL_DATABASE:-stunning_fast}
       # JWT 密钥：测试环境用固定值即可；正式上线务必换
       JWT_SECRET: ${JWT_SECRET:-test-secret-please-change-in-prod-a3f5b8e2c9d7f1e6}
       JWT_EXPIRES_IN: 7d
@@ -75,7 +75,9 @@ services:
       start_period: 20s
 
   nginx:
-    image: nginx:1.27-alpine
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.nginx
     container_name: juese-nginx
     restart: unless-stopped
     depends_on:
@@ -85,6 +87,8 @@ services:
       - "80:80"
     volumes:
       - ./nginx.juese.conf:/etc/nginx/conf.d/juese.conf:ro
+      # 覆盖镜像内置的 default.conf，避免其 server 块抢占 80 端口
+      - /dev/null:/etc/nginx/conf.d/default.conf:ro
       - ./nginx.logs:/var/log/nginx
       # 安装包分发目录：把本地 deploy/releases/ 挂载到 nginx，供 /releases/ 路径访问
       - ./releases:/usr/share/nginx/releases:ro

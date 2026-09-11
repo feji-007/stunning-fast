@@ -1,5 +1,4 @@
-import { Router, static as expressStatic } from 'express'
-import path from 'path'
+import { Router } from 'express'
 import authRoute from '../modules/auth/route'
 import bootstrapRoute from '../modules/bootstrap/route'
 import providersRoute from '../modules/providers/route'
@@ -38,16 +37,5 @@ api.use('/feedback', feedbackRoute)
 // 用户私有配置（按用户隔离）
 api.use('/user/api-keys', userApiKeysRoute)
 api.use('/user/configs', userConfigsRoute)
-
-// 管理后台 SPA 静态托管：构建产物位于 admin/dist
-// 开发模式由 Vite 独立服务（默认 http://localhost:5174），不在此托管。
-const adminDist = path.join(__dirname, '../../admin/dist')
-api.use('/admin', expressStatic(adminDist, { index: ['index.html'] }))
-// 管理后台前端 SPA history 路由回退
-api.get('/admin/*', (_req, res) => {
-  res.sendFile(path.join(adminDist, 'index.html'), (err) => {
-    if (err) res.status(404).send('管理后台未构建，请先 npm run admin:build')
-  })
-})
 
 export default api
