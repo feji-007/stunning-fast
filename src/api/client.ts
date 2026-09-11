@@ -1,7 +1,9 @@
-// 客户端后端 API：封装 fetch + JWT，对接 server（默认 http://localhost:4178）。
+﻿// 客户端后端 API：封装 fetch + JWT，对接 server。
+// 默认地址可通过环境变量 VITE_API_BASE_URL 在打包时覆盖（生产部署指向云服务器），
+// 未设置时回退到 http://localhost:4178（本地开发）。
 // 所有响应走 { code, message, data } 结构；401 自动清理本地登录态。
 
-const DEFAULT_API_BASE = 'http://localhost:4178'
+const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4178').replace(/\/+$/, '')
 const API_BASE_KEY = 'stunning-fast-api-base'
 const TOKEN_KEY = 'stunning-fast-token'
 
