@@ -7,7 +7,7 @@
 
 ## Windows
 
-- **在线安装器（推荐）**：[绝色-Setup-x.y.z.exe](https://cdn.juese.app/releases/juese-x.y.z-setup.exe)
+- **在线安装器（推荐）**：[绝色-Setup-1.0.1.exe](http://8.219.219.110/releases/juese-1.0.1-setup.exe)
 
   约 2 MB，运行后自动从 CDN 拉取完整程序（约 80 MB）并安装，**需联网**。完成后从开始菜单启动「绝色」。
 

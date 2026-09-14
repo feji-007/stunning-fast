@@ -40,6 +40,11 @@ function Step($m)  { Write-Host ">>> $m"      -ForegroundColor Cyan }
 
 function Invoke-Remote([string]$cmd) {
   # Windows PowerShell 5.1 下 ssh 调用，命令本身是给 Linux shell 执行的，直接传字符串
+  try {
+      ssh -o BatchMode=yes -o ConnectTimeout=5 $RemoteUser@$RemoteHost exit
+  } catch {
+      throw "无法通过 SSH 密钥连接到 $RemoteUser@$RemoteHost。请确保已配置 SSH 免密登录。"
+  }
   & ssh "$RemoteUser@$RemoteHost" $cmd
 }
 
@@ -81,7 +86,7 @@ function Deploy-Up([bool]$rebuild) {
   $staging  = "$env:TEMP\juese-staging-$(Get-Date -Format 'yyyyMMddHHmmss')"
   $null = New-Item -ItemType Directory -Path $staging -Force
   # robocopy: exclude large/irrelevant dirs by name
-  & robocopy $ProjectDir $staging /E /XD node_modules dist dist-electron release build .cache electron scripts .git .github .vscode .idea /XF *.tsbuildinfo *.log .DS_Store Thumbs.db | Out-Null
+  & robocopy $ProjectDir $staging /E /XD node_modules dist dist-electron release build .cache electron scripts .git .github .vscode .idea /XF *.tsbuildinfo *.log *.bat *.ps1 .DS_Store Thumbs.db | Out-Null
   # Compress-Archive: PowerShell built-in zip
   Compress-Archive -Path "$staging\*" -DestinationPath $zipfile -Force
   & scp $zipfile "$RemoteUser@$RemoteHost`:/tmp/juese-project.zip"
