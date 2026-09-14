@@ -15,6 +15,7 @@ export default function App() {
 
   const overOverlay = useRef(false)
   const collapseTimerRef = useRef<number | null>(null)
+  const pointerOver = useRef(true) // 鼠标是否在窗口内
 
   // 主题切换：在 <html> 上增删 dark 类，触发 CSS 变量切换
   useEffect(() => {
@@ -25,26 +26,44 @@ export default function App() {
 
   // 鼠标进入窗口：取消自动收起计时
   const handleEnter = () => {
+    pointerOver.current = true
     if (collapseTimerRef.current) {
       clearTimeout(collapseTimerRef.current)
       collapseTimerRef.current = null
     }
   }
 
-  // 鼠标离开窗口：60 秒后自动收起到悬浮窗
-  const handleLeave = () => {
-    if (overOverlay.current) return
+  // 启动自动收起计时器（抽成函数，便于在模态框关闭后补启动）
+  const startCollapseTimer = () => {
     if (collapseTimerRef.current) return
     collapseTimerRef.current = window.setTimeout(async () => {
       collapseTimerRef.current = null
       try {
-        // 保存当前状态以便展开后恢复
+        // 先保存当前状态（含 modal），再关闭模态框，避免 overlay 覆盖悬浮球导致卡死
         useStore.getState().saveStateBeforeCollapse()
+        if (useStore.getState().modal !== 'none') {
+          useStore.getState().setModal('none')
+        }
         setExpanded(false)
         await window.api?.collapseWindow?.()
       } catch {}
     }, 60 * 1000)
   }
+
+  // 鼠标离开窗口：5 秒后自动收起到悬浮窗（模态框打开时同样收起，收起前会先关闭模态框）
+  const handleLeave = () => {
+    pointerOver.current = false
+    if (overOverlay.current) return
+    startCollapseTimer()
+  }
+
+  // 模态框关闭时：若鼠标不在窗口内，补启动自动收起计时器
+  useEffect(() => {
+    if (modal === 'none' && !pointerOver.current && !collapseTimerRef.current) {
+      startCollapseTimer()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal])
 
   useEffect(() => {
     const onCollapsed = () => setExpanded(false)

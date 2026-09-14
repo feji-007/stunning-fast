@@ -67,6 +67,7 @@ interface AppState {
   // 自动收起前的状态保存（用于展开后恢复）
   savedFeature: FeatureId | null
   savedFeatureViewMode: boolean
+  savedModal: Modal // 收起前打开的模态框（展开后恢复）
   // 工具栏模式下球的位置（由主进程通过 IPC 事件设置）
   ballSide: 'left' | 'right'
   // Modals
@@ -177,6 +178,7 @@ export const useStore = create<AppState>()(
       featureViewMode: false,
       savedFeature: null,
       savedFeatureViewMode: false,
+      savedModal: 'none',
       ballSide: 'left',
       modal: 'none',
       user: { loggedIn: false, userId: null, username: '', token: '' },
@@ -216,12 +218,16 @@ export const useStore = create<AppState>()(
       },
       saveStateBeforeCollapse: () => {
         // 收起前保存当前状态，以便展开后恢复
-        const { activeFeature, featureViewMode } = get()
-        set({ savedFeature: activeFeature, savedFeatureViewMode: featureViewMode })
+        const { activeFeature, featureViewMode, modal } = get()
+        set({
+          savedFeature: activeFeature,
+          savedFeatureViewMode: featureViewMode,
+          savedModal: modal
+        })
       },
       restoreFromCollapse: () => {
         // 从悬浮窗展开：恢复到收起前的状态
-        const { savedFeature, savedFeatureViewMode, panelWidth, panelHeight } = get()
+        const { savedFeature, savedFeatureViewMode, savedModal, panelWidth, panelHeight } = get()
         set({ expanded: true })
         if (savedFeature) {
           // 恢复到功能页
@@ -242,8 +248,12 @@ export const useStore = create<AppState>()(
           } catch {}
           set({ activeFeature: null, featureViewMode: false })
         }
+        // 恢复收起前的模态框（若有）
+        if (savedModal !== 'none') {
+          set({ modal: savedModal })
+        }
         // 清除保存的状态
-        set({ savedFeature: null, savedFeatureViewMode: false })
+        set({ savedFeature: null, savedFeatureViewMode: false, savedModal: 'none' })
       },
       setBallSide: (side) => set({ ballSide: side }),
       openFeature: (id) => {
