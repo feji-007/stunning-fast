@@ -1,18 +1,18 @@
-<#
+ï»¿<#
 .SYNOPSIS
-    ×Ô¶¯ÅäÖÃ Windows µ½ Linux ·şÎñÆ÷µÄ SSH ÃÜÔ¿ÃâÃÜµÇÂ¼¡£
+    è‡ªåŠ¨é…ç½® Windows åˆ° Linux æœåŠ¡å™¨çš„ SSH å¯†é’¥å…å¯†ç™»å½•ã€‚
 
 .DESCRIPTION
-    1. ¼ì²é±¾µØÊÇ·ñ´æÔÚ ED25519 SSH ÃÜÔ¿¶Ô£¬Èô²»´æÔÚÔòÉú³É¡£
-    2. ½«±¾µØ¹«Ô¿ÉÏ´«ÖÁÔ¶³Ì·şÎñÆ÷µÄ ~/.ssh/authorized_keys¡£
-    3. ÉèÖÃÔ¶³Ì·şÎñÆ÷ÕıÈ·µÄÄ¿Â¼ºÍÎÄ¼şÈ¨ÏŞ¡£
-    4. ÑéÖ¤ÃâÃÜµÇÂ¼ÊÇ·ñÅäÖÃ³É¹¦¡£
+    1. æ£€æŸ¥æœ¬åœ°æ˜¯å¦å­˜åœ¨ ED25519 SSH å¯†é’¥å¯¹ï¼Œè‹¥ä¸å­˜åœ¨åˆ™ç”Ÿæˆã€‚
+    2. å°†æœ¬åœ°å…¬é’¥ä¸Šä¼ è‡³è¿œç¨‹æœåŠ¡å™¨çš„ ~/.ssh/authorized_keysã€‚
+    3. è®¾ç½®è¿œç¨‹æœåŠ¡å™¨æ­£ç¡®çš„ç›®å½•å’Œæ–‡ä»¶æƒé™ã€‚
+    4. éªŒè¯å…å¯†ç™»å½•æ˜¯å¦é…ç½®æˆåŠŸã€‚
 
 .PARAMETER RemoteUser
-    Ô¶³Ì·şÎñÆ÷ÓÃ»§Ãû (Ä¬ÈÏ: root)
+    è¿œç¨‹æœåŠ¡å™¨ç”¨æˆ·å (é»˜è®¤: root)
 
 .PARAMETER RemoteHost
-    Ô¶³Ì·şÎñÆ÷ IP µØÖ·»òÓòÃû
+    è¿œç¨‹æœåŠ¡å™¨ IP åœ°å€æˆ–åŸŸå
 
 .EXAMPLE
     .\Setup-SSHKey.ps1 -RemoteUser "admin" -RemoteHost "192.168.1.100"
@@ -24,7 +24,7 @@ param(
 )
 
 # --------------------------
-# ÅäÖÃÇøÓò
+# é…ç½®åŒºåŸŸ
 # --------------------------
 $SshDir = "$env:USERPROFILE\.ssh"
 $PrivateKeyPath = "$SshDir\id_ed25519"
@@ -32,7 +32,7 @@ $PublicKeyPath = "$SshDir\id_ed25519.pub"
 $Comment = "deploy-script@$env:COMPUTERNAME"
 
 # --------------------------
-# ¸¨Öúº¯Êı
+# è¾…åŠ©å‡½æ•°
 # --------------------------
 function Write-Step {
     param([string]$Message)
@@ -51,83 +51,83 @@ function Write-Error-Custom {
 }
 
 # --------------------------
-# Ö÷Âß¼­
+# ä¸»é€»è¾‘
 # --------------------------
 
-Write-Step "1. ¼ì²é²¢Éú³É SSH ÃÜÔ¿¶Ô"
+Write-Step "1. æ£€æŸ¥å¹¶ç”Ÿæˆ SSH å¯†é’¥å¯¹"
 
-# ¼ì²é .ssh Ä¿Â¼ÊÇ·ñ´æÔÚ
+# æ£€æŸ¥ .ssh ç›®å½•æ˜¯å¦å­˜åœ¨
 if (-not (Test-Path $SshDir)) {
     New-Item -ItemType Directory -Path $SshDir -Force | Out-Null
-    Write-Success "´´½¨Ä¿Â¼: $SshDir"
+    Write-Success "åˆ›å»ºç›®å½•: $SshDir"
 }
 
-# ¼ì²éÃÜÔ¿¶ÔÊÇ·ñ´æÔÚ
+# æ£€æŸ¥å¯†é’¥å¯¹æ˜¯å¦å­˜åœ¨
 if ((Test-Path $PrivateKeyPath) -and (Test-Path $PublicKeyPath)) {
-    Write-Success "±¾µØÃÜÔ¿¶ÔÒÑ´æÔÚ: $PrivateKeyPath"
+    Write-Success "æœ¬åœ°å¯†é’¥å¯¹å·²å­˜åœ¨: $PrivateKeyPath"
 } else {
-    Write-Host "±¾µØÎ´ÕÒµ½ ED25519 ÃÜÔ¿£¬ÕıÔÚÉú³É..." -ForegroundColor Yellow
+    Write-Host "æœ¬åœ°æœªæ‰¾åˆ° ED25519 å¯†é’¥ï¼Œæ­£åœ¨ç”Ÿæˆ..." -ForegroundColor Yellow
     try {
-        # -N "" ±íÊ¾¿Õ passphrase (ÎŞÃÜÂë)£¬-t ed25519 Ö¸¶¨Ëã·¨
+        # -N "" è¡¨ç¤ºç©º passphrase (æ— å¯†ç )ï¼Œ-t ed25519 æŒ‡å®šç®—æ³•
         #ssh-keygen -t ed25519 -f $PrivateKeyPath -C $Comment -N ''
 		echo "`n`n" | ssh-keygen -t ed25519 -f $PrivateKeyPath -C $Comment
         if ($LASTEXITCODE -eq 0) {
-            Write-Success "ÃÜÔ¿¶ÔÉú³É³É¹¦"
+            Write-Success "å¯†é’¥å¯¹ç”ŸæˆæˆåŠŸ"
         } else {
-            Write-Error-Custom "ÃÜÔ¿Éú³ÉÊ§°Ü£¬Çë¼ì²é ssh-keygen ÊÇ·ñ¿ÉÓÃ"
+            Write-Error-Custom "å¯†é’¥ç”Ÿæˆå¤±è´¥ï¼Œè¯·æ£€æŸ¥ ssh-keygen æ˜¯å¦å¯ç”¨"
         }
     } catch {
-        Write-Error-Custom "Éú³ÉÃÜÔ¿Ê±·¢ÉúÒì³£: $_"
+        Write-Error-Custom "ç”Ÿæˆå¯†é’¥æ—¶å‘ç”Ÿå¼‚å¸¸: $_"
     }
 }
 
-Write-Step "2. ²¿Êğ¹«Ô¿µ½Ô¶³Ì·şÎñÆ÷ ($RemoteUser@$RemoteHost)"
+Write-Step "2. éƒ¨ç½²å…¬é’¥åˆ°è¿œç¨‹æœåŠ¡å™¨ ($RemoteUser@$RemoteHost)"
 
-# ¶ÁÈ¡¹«Ô¿ÄÚÈİ
+# è¯»å–å…¬é’¥å†…å®¹
 if (-not (Test-Path $PublicKeyPath)) {
-    Write-Error-Custom "ÎŞ·¨¶ÁÈ¡¹«Ô¿ÎÄ¼ş: $PublicKeyPath"
+    Write-Error-Custom "æ— æ³•è¯»å–å…¬é’¥æ–‡ä»¶: $PublicKeyPath"
 }
 
-# ¹¹½¨Ô¶³ÌÃüÁî
-# 1. mkdir -p ~/.ssh : È·±£Ä¿Â¼´æÔÚ
-# 2. chmod 700 ~/.ssh : ÉèÖÃÄ¿Â¼È¨ÏŞ (½öËùÓĞÕß¿É¶ÁĞ´Ö´ĞĞ)
-# 3. cat >> ~/.ssh/authorized_keys : ×·¼Ó¹«Ô¿
-# 4. chmod 600 ~/.ssh/authorized_keys : ÉèÖÃÎÄ¼şÈ¨ÏŞ (½öËùÓĞÕß¿É¶ÁĞ´)
+# æ„å»ºè¿œç¨‹å‘½ä»¤
+# 1. mkdir -p ~/.ssh : ç¡®ä¿ç›®å½•å­˜åœ¨
+# 2. chmod 700 ~/.ssh : è®¾ç½®ç›®å½•æƒé™ (ä»…æ‰€æœ‰è€…å¯è¯»å†™æ‰§è¡Œ)
+# 3. cat >> ~/.ssh/authorized_keys : è¿½åŠ å…¬é’¥
+# 4. chmod 600 ~/.ssh/authorized_keys : è®¾ç½®æ–‡ä»¶æƒé™ (ä»…æ‰€æœ‰è€…å¯è¯»å†™)
 $RemoteCommand = "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 
-Write-Host "ÕıÔÚÉÏ´«¹«Ô¿... (´ËÊ±¿ÉÄÜĞèÒªÊäÈëÒ»´Î·şÎñÆ÷ÃÜÂë)" -ForegroundColor Yellow
+Write-Host "æ­£åœ¨ä¸Šä¼ å…¬é’¥... (æ­¤æ—¶å¯èƒ½éœ€è¦è¾“å…¥ä¸€æ¬¡æœåŠ¡å™¨å¯†ç )" -ForegroundColor Yellow
 
-# ±ê×¼¹ÜµÀ·½·¨ (ÍÆ¼ö)
+# æ ‡å‡†ç®¡é“æ–¹æ³• (æ¨è)
 try {
-    # Ê¹ÓÃ cmd /c type ÒÔÈ·±£Ô­Ê¼×Ö½ÚÁ÷´«Êä£¬±ÜÃâ PowerShell ¿ÉÄÜµÄ±àÂë¸ÉÈÅ
+    # ä½¿ç”¨ cmd /c type ä»¥ç¡®ä¿åŸå§‹å­—èŠ‚æµä¼ è¾“ï¼Œé¿å… PowerShell å¯èƒ½çš„ç¼–ç å¹²æ‰°
     cmd /c "type `"$PublicKeyPath`" | ssh -o StrictHostKeyChecking=no $RemoteUser@$RemoteHost `"$RemoteCommand`""
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "¹«Ô¿²¿Êğ³É¹¦"
+        Write-Success "å…¬é’¥éƒ¨ç½²æˆåŠŸ"
     } else {
-        Write-Error-Custom "¹«Ô¿²¿ÊğÊ§°Ü¡£Çë¼ì²éÍøÂçÁ¬½Ó¡¢ÓÃ»§Ãû/IPÊÇ·ñÕıÈ·£¬ÒÔ¼°ÊÇ·ñÊäÈëÁËÕıÈ·µÄÃÜÂë¡£"
+        Write-Error-Custom "å…¬é’¥éƒ¨ç½²å¤±è´¥ã€‚è¯·æ£€æŸ¥ç½‘ç»œè¿æ¥ã€ç”¨æˆ·å/IPæ˜¯å¦æ­£ç¡®ï¼Œä»¥åŠæ˜¯å¦è¾“å…¥äº†æ­£ç¡®çš„å¯†ç ã€‚"
     }
 } catch {
-    Write-Error-Custom "Ö´ĞĞ²¿ÊğÃüÁîÊ±³ö´í: $_"
+    Write-Error-Custom "æ‰§è¡Œéƒ¨ç½²å‘½ä»¤æ—¶å‡ºé”™: $_"
 }
 
-Write-Step "3. ÑéÖ¤ÃâÃÜµÇÂ¼"
+Write-Step "3. éªŒè¯å…å¯†ç™»å½•"
 
-Write-Host "ÕıÔÚ²âÊÔÁ¬½Ó..." -ForegroundColor Yellow
+Write-Host "æ­£åœ¨æµ‹è¯•è¿æ¥..." -ForegroundColor Yellow
 
-# ³¢ÊÔÖ´ĞĞÒ»¸ö¼òµ¥µÄÔ¶³ÌÃüÁî
+# å°è¯•æ‰§è¡Œä¸€ä¸ªç®€å•çš„è¿œç¨‹å‘½ä»¤
 try {
     $output = ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no $RemoteUser@$RemoteHost "echo 'SSH_Connection_Success'" 2>&1
     
     if ($output -match "SSH_Connection_Success") {
-        Write-Success "ÃâÃÜµÇÂ¼ÅäÖÃ³É¹¦£¡"
-        Write-Host "`nÄãÏÖÔÚ¿ÉÒÔÔÚ½Å±¾ÖĞÊ¹ÓÃ scp ºÍ ssh ¶øÎŞĞèÊäÈëÃÜÂë¡£" -ForegroundColor Green
+        Write-Success "å…å¯†ç™»å½•é…ç½®æˆåŠŸï¼"
+        Write-Host "`nä½ ç°åœ¨å¯ä»¥åœ¨è„šæœ¬ä¸­ä½¿ç”¨ scp å’Œ ssh è€Œæ— éœ€è¾“å…¥å¯†ç ã€‚" -ForegroundColor Green
     } else {
-        Write-Host "[WARN] Á¬½ÓËÆºõ½¨Á¢ÁË£¬µ«Î´ÊÕµ½Ô¤ÆÚÏìÓ¦¡£Êä³ö: $output" -ForegroundColor Yellow
-        Write-Host "ÇëÊÖ¶¯³¢ÊÔ: ssh $RemoteUser@$RemoteHost" -ForegroundColor Yellow
+        Write-Host "[WARN] è¿æ¥ä¼¼ä¹å»ºç«‹äº†ï¼Œä½†æœªæ”¶åˆ°é¢„æœŸå“åº”ã€‚è¾“å‡º: $output" -ForegroundColor Yellow
+        Write-Host "è¯·æ‰‹åŠ¨å°è¯•: ssh $RemoteUser@$RemoteHost" -ForegroundColor Yellow
     }
 } catch {
-    Write-Error-Custom "ÑéÖ¤Ê§°Ü¡£¿ÉÄÜÔ­Òò£ºÃÜÂë´íÎó¡¢È¨ÏŞÅäÖÃ´íÎó»òÍøÂçÎÊÌâ¡£"
+    Write-Error-Custom "éªŒè¯å¤±è´¥ã€‚å¯èƒ½åŸå› ï¼šå¯†ç é”™è¯¯ã€æƒé™é…ç½®é”™è¯¯æˆ–ç½‘ç»œé—®é¢˜ã€‚"
 }
 
-Write-Host "`nÍê³É¡£" -ForegroundColor Cyan
+Write-Host "`nå®Œæˆã€‚" -ForegroundColor Cyan
