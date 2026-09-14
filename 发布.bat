@@ -1,4 +1,4 @@
 
-powershell -File deploy\docker-deploy.ps1
+powershell -File deploy\docker-deploy.ps1 -Rebuild
 
 @pause
