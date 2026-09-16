@@ -15,7 +15,7 @@ export default function SettingsModal() {
 
   return (
     <div className="flex h-full w-full items-center justify-center bg-black/30">
-      <div className="flex h-[460px] w-[640px] flex-col rounded-2xl bg-white shadow-float">
+      <div className="flex h-[460px] w-[640px] flex-col rounded-2xl bg-white">
         <div className="flex items-center justify-between border-b border-black/5 px-5 py-3">
           <h2 className="text-sm font-semibold text-gray-800">设置 · 密钥管理</h2>
           <button

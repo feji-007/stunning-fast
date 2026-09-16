@@ -13,6 +13,13 @@ export default function LoginModal() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const switchTab = (t: 'login' | 'register') => {
+    setTab(t)
+    setUsername('')
+    setPassword('')
+    setError('')
+  }
+
   const submit = async () => {
     setError('')
     if (username.trim().length < 2) {
@@ -36,7 +43,7 @@ export default function LoginModal() {
 
   return (
     <div className="flex h-full w-full items-center justify-center bg-black/30">
-      <div className="w-80 rounded-2xl bg-white p-5 shadow-float">
+      <div className="w-80 rounded-2xl bg-white p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-800">
             {tab === 'login' ? '登录' : '注册'}
@@ -51,7 +58,7 @@ export default function LoginModal() {
 
         <div className="mb-4 inline-flex w-full rounded-lg border border-black/10 bg-gray-50 p-0.5 text-xs">
           <button
-            onClick={() => setTab('login')}
+            onClick={() => switchTab('login')}
             className={`flex-1 rounded-md py-1 ${
               tab === 'login' ? 'bg-white font-medium text-brand-600 shadow-sm' : 'text-gray-500'
             }`}
@@ -59,7 +66,7 @@ export default function LoginModal() {
             登录
           </button>
           <button
-            onClick={() => setTab('register')}
+            onClick={() => switchTab('register')}
             className={`flex-1 rounded-md py-1 ${
               tab === 'register' ? 'bg-white font-medium text-brand-600 shadow-sm' : 'text-gray-500'
             }`}

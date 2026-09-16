@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 // 只导入类型（编译时擦除，不生成 require 调用）
 import type { ExposedAPI } from './shared/ipc'
-
+ 
 // 沙箱模式下 preload 无法 require 本地模块，必须内联 IPC 通道常量
 const IPC = {
   WINDOW_EXPAND: 'window:expand',
@@ -24,9 +24,14 @@ const IPC = {
   OPEN_EXTERNAL: 'open-external',
   SHOW_CONTEXT_MENU: 'show-context-menu',
   CONTEXT_MENU_SETTINGS: 'context-menu:settings',
-  WINDOW_BALL_SIDE: 'window:ball-side'
+  WINDOW_BALL_SIDE: 'window:ball-side',
+  UPDATER_DOWNLOAD: 'updater:download',
+  UPDATER_INSTALL: 'updater:install',
+  UPDATER_GET_VERSION: 'updater:get-version',
+  UPDATE_WINDOW_CLOSE: 'update-window:close',
+  UPDATE_WINDOW_EVENT: 'update-window:event'
 } as const
-
+ 
 const api: ExposedAPI = {
   expandWindow: () => ipcRenderer.invoke(IPC.WINDOW_EXPAND),
   expandWindowTo: (dims: { width: number; height: number }) => ipcRenderer.invoke(IPC.WINDOW_EXPAND_TO, dims),
@@ -86,9 +91,39 @@ const api: ExposedAPI = {
     return () => {
       ipcRenderer.removeListener('video:progress', listener)
     }
+  },
+  // ===== 自动更新 =====
+  downloadUpdate: () => ipcRenderer.invoke(IPC.UPDATER_DOWNLOAD),
+  installUpdate: () => ipcRenderer.invoke(IPC.UPDATER_INSTALL),
+  getCurrentVersion: () => ipcRenderer.invoke(IPC.UPDATER_GET_VERSION),
+  onUpdateAvailable: (cb) => {
+    const listener = (_e: unknown, info: { version: string; releaseNotes?: string }) => cb(info)
+    ipcRenderer.on('updater:available', listener)
+    return () => ipcRenderer.removeListener('updater:available', listener)
+  },
+  onUpdateProgress: (cb) => {
+    const listener = (_e: unknown, info: { percent: number; bytesPerSecond: number; total: number; transferred: number }) => cb(info)
+    ipcRenderer.on('updater:progress', listener)
+    return () => ipcRenderer.removeListener('updater:progress', listener)
+  },
+  onUpdateDownloaded: (cb) => {
+    const listener = (_e: unknown, info: { version: string }) => cb(info)
+    ipcRenderer.on('updater:downloaded', listener)
+    return () => ipcRenderer.removeListener('updater:downloaded', listener)
+  },
+  onUpdateError: (cb) => {
+    const listener = (_e: unknown, err: string) => cb(err)
+    ipcRenderer.on('updater:error', listener)
+    return () => ipcRenderer.removeListener('updater:error', listener)
+  },
+  closeUpdateWindow: () => ipcRenderer.invoke(IPC.UPDATE_WINDOW_CLOSE),
+  onUpdateWindowEvent: (cb) => {
+    const listener = (_e: unknown, data: { phase: string; progress?: number; version?: string; releaseNotes?: string; currentVersion?: string; errorMsg?: string }) => cb(data)
+    ipcRenderer.on(IPC.UPDATE_WINDOW_EVENT, listener)
+    return () => ipcRenderer.removeListener(IPC.UPDATE_WINDOW_EVENT, listener)
   }
 }
-
+ 
 contextBridge.exposeInMainWorld('api', api)
 // Debug: print that api was exposed so we can see in renderer DevTools.
 try {

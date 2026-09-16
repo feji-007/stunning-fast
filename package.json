@@ -1,6 +1,6 @@
 {
   "name": "stunning-fast",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "绝色 · AI 视频生成桌面助手 - 绝色巴黎香槟主题，悬浮窗模式",
   "main": "dist-electron/main.js",
   "author": "",

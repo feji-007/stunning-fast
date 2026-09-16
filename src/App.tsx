@@ -6,8 +6,24 @@ import MainPanel from './components/MainPanel'
 import LoginModal from './components/LoginModal'
 import SettingsModal from './components/SettingsModal'
 import FeedbackModal from './components/FeedbackModal'
+import StandaloneUpdateModal from './components/StandaloneUpdateModal'
+import { type UpdatePhase } from './components/UpdateModal'
+
+// 检查是否为独立弹窗模式（URL 含 ?modal=update）
+function isStandaloneUpdateMode(): boolean {
+  return new URLSearchParams(window.location.search).get('modal') === 'update'
+}
 
 export default function App() {
+  // 独立弹窗模式：仅渲染更新弹窗
+  if (isStandaloneUpdateMode()) {
+    return <StandaloneUpdateModal />
+  }
+
+  return <MainApp />
+}
+
+function MainApp() {
   const expanded = useStore((s) => s.expanded)
   const setExpanded = useStore((s) => s.setExpanded)
   const modal = useStore((s) => s.modal)
@@ -39,7 +55,6 @@ export default function App() {
     collapseTimerRef.current = window.setTimeout(async () => {
       collapseTimerRef.current = null
       try {
-        // 先保存当前状态（含 modal），再关闭模态框，避免 overlay 覆盖悬浮球导致卡死
         useStore.getState().saveStateBeforeCollapse()
         if (useStore.getState().modal !== 'none') {
           useStore.getState().setModal('none')
@@ -68,7 +83,6 @@ export default function App() {
   useEffect(() => {
     const onCollapsed = () => setExpanded(false)
     const onExpanded = () => {
-      // 从悬浮窗展开时恢复之前的状态（restoreFromCollapse 已设 expanded=true，这里不重复）
       if (!useStore.getState().expanded) {
         useStore.getState().restoreFromCollapse()
       }
@@ -95,7 +109,6 @@ export default function App() {
           void useStore.getState().pullUserConfig()
         })
         .catch(() => {
-          // token 失效：清理登录态
           useStore.getState().logout()
         })
     }
@@ -110,7 +123,7 @@ export default function App() {
       } catch {}
     } else {
       const { featureViewMode, panelWidth, panelHeight, activeFeature, expanded } = useStore.getState()
-      if (!expanded) return // 悬浮窗模式不调整
+      if (!expanded) return
       if (activeFeature !== null) {
         try {
           ;(window as any).api?.expandWindowTo?.({ width: panelWidth, height: panelHeight })

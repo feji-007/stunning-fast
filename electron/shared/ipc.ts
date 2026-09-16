@@ -1,5 +1,5 @@
 // Shared types and IPC channel definitions between main and renderer process.
-
+ 
 export const IPC = {
   WINDOW_EXPAND: 'window:expand',
   WINDOW_EXPAND_TO: 'window:expand-to',
@@ -21,9 +21,15 @@ export const IPC = {
   OPEN_EXTERNAL: 'open-external',
   SHOW_CONTEXT_MENU: 'show-context-menu',
   CONTEXT_MENU_SETTINGS: 'context-menu:settings',
-  WINDOW_BALL_SIDE: 'window:ball-side'
+  WINDOW_BALL_SIDE: 'window:ball-side',
+  // ===== 自动更新 =====
+  UPDATER_DOWNLOAD: 'updater:download',
+  UPDATER_INSTALL: 'updater:install',
+  UPDATER_GET_VERSION: 'updater:get-version',
+  UPDATE_WINDOW_CLOSE: 'update-window:close',
+  UPDATE_WINDOW_EVENT: 'update-window:event'
 } as const
-
+ 
 export interface ExposedAPI {
   /** Expand the window to the main panel size. */
   expandWindow: () => Promise<void>
@@ -66,8 +72,27 @@ export interface ExposedAPI {
   // 通义万相 (DashScope) 视频生成：主进程负责提交任务 + 轮询，跨进程无 CORS 限制。
   generateVideo: (params: GenerateVideoParams) => Promise<GenerateVideoResult>
   onVideoProgress: (cb: (p: VideoProgress) => void) => () => void
+  // ===== 自动更新 =====
+  /** 触发下载更新包（用户在弹窗中点击"立即更新"后调用） */
+  downloadUpdate: () => Promise<void>
+  /** 退出并安装已下载的更新包 */
+  installUpdate: () => Promise<void>
+  /** 获取当前应用版本号 */
+  getCurrentVersion: () => Promise<string>
+  /** 发现新版本时触发，回调参数为新版本号 */
+  onUpdateAvailable: (cb: (info: { version: string; releaseNotes?: string }) => void) => () => void
+  /** 下载进度回调，percent 为 0~100 */
+  onUpdateProgress: (cb: (info: { percent: number; bytesPerSecond: number; total: number; transferred: number }) => void) => () => void
+  /** 更新包下载完成，可重启安装 */
+  onUpdateDownloaded: (cb: (info: { version: string }) => void) => () => void
+  /** 更新检查失败（网络等问题），不弹窗，仅日志 */
+  onUpdateError: (cb: (err: string) => void) => () => void
+  /** 关闭独立更新弹窗窗口 */
+  closeUpdateWindow: () => Promise<void>
+  /** 主进程推送更新事件到弹窗窗口（phase / progress / version / error） */
+  onUpdateWindowEvent: (cb: (data: { phase: string; progress?: number; version?: string; releaseNotes?: string; currentVersion?: string; errorMsg?: string }) => void) => () => void
 }
-
+ 
 export interface GenerateVideoParams {
   /** 供应商路由：主进程据此分发到对应客户端 */
   provider: string
@@ -84,17 +109,17 @@ export interface GenerateVideoParams {
   /** 图生视频：参考图 URL，可选（仅支持图生视频的模型使用） */
   imageUrl?: string
 }
-
+ 
 export interface GenerateVideoResult {
   videoUrl: string
   taskId?: string
 }
-
+ 
 export interface VideoProgress {
   status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'UNKNOWN'
   message?: string
 }
-
+ 
 declare global {
   interface Window {
     api: ExposedAPI

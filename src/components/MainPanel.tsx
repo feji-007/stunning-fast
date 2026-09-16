@@ -262,7 +262,7 @@ export default function MainPanel() {
 
   return (
     <div
-      className="relative flex h-full w-full flex-col overflow-visible rounded-2xl border border-black/5 shadow-float backdrop-blur-md"
+      className="relative flex h-full w-full flex-col overflow-visible rounded-2xl border border-black/5 backdrop-blur-md"
       style={{ backgroundColor: `rgb(var(--panel-bg) / ${panelOpacity})` } as React.CSSProperties}
     >
       {/* Top bar - 始终显示，功能区展示模式下也保留 */}
@@ -295,7 +295,7 @@ export default function MainPanel() {
                 <div
                   ref={userMenuRef}
                   style={{ top: userMenuPos.top, left: userMenuPos.left, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                  className="fixed z-[9999] w-40 overflow-hidden rounded-lg border border-black/5 bg-white py-1 shadow-float"
+                  className="fixed z-[9999] w-40 overflow-hidden rounded-lg border border-black/5 bg-white py-1"
                 >
                   {/* 顺序：登录/注册 → 设置 → 用户反馈 → (退出登录 仅登录态显示) */}
                   {!user.loggedIn && (
@@ -436,7 +436,7 @@ export default function MainPanel() {
             >
               <button
                 onClick={() => setShowHiddenCards((v) => !v)}
-                className="rounded-lg bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow-float hover:bg-white"
+                className="rounded-lg bg-white/90 px-3 py-1.5 text-xs text-gray-600 hover:bg-white"
                 title={showHiddenCards ? '收起更多功能' : '展开更多功能'}
               >
                 {showHiddenCards ? '收起 ▴' : '更多 ▾'}
@@ -485,7 +485,7 @@ export default function MainPanel() {
                 <div
                   ref={moreMenuRef}
                   style={{ top: morePos.top, left: morePos.left, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                  className="fixed z-[9999] w-44 overflow-visible rounded-lg border border-black/5 bg-white py-1 shadow-float"
+                  className="fixed z-[9999] w-44 overflow-visible rounded-lg border border-black/5 bg-white py-1"
                 >
                   {features.slice(visibleCount).map((f) => (
                     <button
@@ -570,7 +570,7 @@ function FeatureSelection({
             key={f.id}
             onClick={() => onOpen(f.id)}
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-            className={`group flex flex-col items-start ${isIconOnly ? 'items-center justify-center' : ''} ${size.pad} ${size.gap} rounded-xl border border-black/5 bg-white text-left transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-float`}
+            className={`group flex flex-col items-start ${isIconOnly ? 'items-center justify-center' : ''} ${size.pad} ${size.gap} rounded-xl border border-black/5 bg-white text-left transition-all hover:-translate-y-0.5 hover:border-brand-200`}
           >
             <span className={`grid ${size.icon} shrink-0 place-items-center rounded-lg bg-brand-50 ${size.iconText}`}>
               {f.icon}
@@ -704,7 +704,7 @@ function LayoutQuickSwitch() {
           <div
             ref={menuRef}
             style={{ top: pos.top, left: pos.left }}
-            className="fixed z-[9999] w-56 overflow-visible rounded-lg border border-black/5 bg-white p-3 shadow-float"
+            className="fixed z-[9999] w-56 overflow-visible rounded-lg border border-black/5 bg-white p-3"
           >
             <p className="mb-1.5 text-[11px] font-medium text-gray-500">列数</p>
             <div className="mb-3 flex gap-1">

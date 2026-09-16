@@ -5,7 +5,7 @@ import Store from 'electron-store'
 import { IPC } from './shared/ipc'
 import { generateVideo } from './video'
 import { autoUpdater } from 'electron-updater'
-
+ 
 // Window dimension presets -------------------------------------------------
 const MINI = { width: 72, height: 72 }
 // Default main window size at startup: slim bar (toolbar only).
@@ -14,7 +14,7 @@ const MAIN_PANEL = { width: 450, height: 100 }
 // compact view (not used as the startup state anymore).
 const PANEL = { width: 450, height: 100 }
 const FEATURE_PANEL = { width: 1200, height: 720 }
-
+ 
 const store = new Store<{
   lastPos: { x: number; y: number } | null
   autoLaunch: boolean
@@ -28,15 +28,17 @@ let isMiniMode = false
 let savedBallPos: { x: number; y: number } | null = null
 // Track the base window height so dropdowns can temporarily extend it.
 let baseWindowHeight = PANEL.height
-
+// 独立更新弹窗窗口
+let updateWindow: BrowserWindow | null = null
+ 
 const isDev = process.env.NODE_ENV === 'development'
-
+ 
 const autoLauncher = new AutoLaunch({
   name: '绝色',
   path: app.getPath('exe'),
   isHidden: true
 })
-
+ 
 function getTrayIcon(): Tray | null {
   // Build a tray icon defensively: an empty native image can throw on some
   // platforms, so fall back to a 1x1 transparent PNG and never crash startup.
@@ -56,7 +58,7 @@ function getTrayIcon(): Tray | null {
     return null
   }
 }
-
+ 
 function createWindow(): BrowserWindow {
   const savedPos = store.get('lastPos') as { x: number; y: number } | null
   // 默认使用细长工具栏尺寸 450x100，用户自定义 panelSize 仅用于功能页展开时
@@ -71,7 +73,7 @@ function createWindow(): BrowserWindow {
   const defaultY = primary.workAreaSize.height - panelH - 24
   const x = savedPos?.x ?? defaultX
   const y = savedPos?.y ?? defaultY
-
+ 
   const win = new BrowserWindow({
     width: panelW,
     height: panelH,
@@ -79,6 +81,7 @@ function createWindow(): BrowserWindow {
     y,
     frame: false,
     transparent: true,
+    hasShadow: false,
     resizable: true,
     maximizable: true,
     minimizable: true,
@@ -92,10 +95,10 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false
     }
   })
-
+ 
   // 初始化基准窗口高度
   baseWindowHeight = panelH
-
+ 
   // Keep window inside the visible area of the current display, and remember
   // the last resting position so dragging is preserved across restarts.
   let moveSaveTimer: NodeJS.Timeout | null = null
@@ -118,7 +121,7 @@ function createWindow(): BrowserWindow {
     }
   }
   win.on('move', onMove)
-
+ 
   if (isDev) {
     win.loadURL('http://localhost:5173')
   } else {
@@ -140,6 +143,80 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+// 构建弹窗 URL（加载主应用并附带 ?modal= 参数）
+function buildPopupUrl(query: string): string {
+  if (isDev) {
+    return `http://localhost:5173/?modal=update&${query}`
+  }
+  return `file://${path.join(__dirname, '../dist/index.html')}?modal=update&${query}`
+}
+
+// 创建独立更新弹窗窗口
+function createUpdateWindow(info: { version: string; releaseNotes?: string }) {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.focus()
+    return
+  }
+  const currentVersion = app.getVersion()
+  const [mx, my] = mainWindow ? mainWindow.getPosition() : [100, 100]
+  const [mw] = mainWindow ? mainWindow.getSize() : [450, 100]
+  // 计算窗口位置：居中于主窗口上方，但确保在屏幕内
+  const winW = 360
+  const winH = 480
+  let wx = mx + Math.round((mw - winW) / 2)
+  let wy = my - winH - 10
+  // 确保窗口在屏幕可见区域内
+  const display = screen.getDisplayNearestPoint({ x: mx, y: my })
+  const wa = display.workArea
+  if (wy < wa.y) wy = my + 30 // 不够上方空间则显示在主窗口下方
+  if (wx < wa.x) wx = wa.x + 10
+  if (wx + winW > wa.x + wa.width) wx = wa.x + wa.width - winW - 10
+
+  const win = new BrowserWindow({
+    width: winW,
+    height: winH,
+    x: wx,
+    y: wy,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  const query = `version=${encodeURIComponent(info.version)}&currentVersion=${encodeURIComponent(currentVersion)}&releaseNotes=${encodeURIComponent(info.releaseNotes ?? '')}`
+  const url = buildPopupUrl(query)
+  console.log('[updater] 加载更新弹窗 URL:', url)
+  win.loadURL(url)
+  win.once('ready-to-show', () => {
+    console.log('[updater] 更新弹窗已显示')
+    win.show()
+    // 推送初始状态
+    win.webContents.send(IPC.UPDATE_WINDOW_EVENT, {
+      phase: 'available',
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+      currentVersion
+    })
+  })
+  win.webContents.on('did-fail-load', (_e, errorCode, errorDesc) => {
+    console.error('[updater] 更新弹窗加载失败:', errorCode, errorDesc, 'URL:', url)
+  })
+  win.on('closed', () => {
+    updateWindow = null
+  })
+  updateWindow = win
+}
+ 
 function expandWindow() {
   if (!mainWindow) return
   if (!isMiniMode) return
@@ -157,7 +234,7 @@ function expandWindow() {
   let ny = Math.round(centerY - PANEL.height / 2)
   nx = Math.min(Math.max(nx, wa.x), wa.x + wa.width - PANEL.width)
   ny = Math.min(Math.max(ny, wa.y), wa.y + wa.height - PANEL.height)
-
+ 
   win.setAlwaysOnTop(false)
   win.setSize(PANEL.width, PANEL.height)
   win.setPosition(nx, ny)
@@ -172,7 +249,7 @@ function expandWindow() {
     mainWindow?.webContents.send('window:expanded')
   } catch {}
 }
-
+ 
 function collapseWindow() {
   if (!mainWindow) return
   if (isMiniMode) return
@@ -181,7 +258,7 @@ function collapseWindow() {
   const [px, py] = win.getPosition()
   const display = screen.getDisplayNearestPoint({ x: px, y: py })
   const wa = display.workArea
-
+ 
   // 恢复到展开前的球位置（不随展开后的拖动改变）
   let nx: number
   let ny: number
@@ -195,7 +272,7 @@ function collapseWindow() {
   }
   const clampedX = Math.min(Math.max(nx, wa.x), wa.x + wa.width - MINI.width)
   const clampedY = Math.min(Math.max(ny, wa.y), wa.y + wa.height - MINI.height)
-
+ 
   win.setAlwaysOnTop(true, 'floating')
   win.setSize(MINI.width, MINI.height)
   win.setPosition(clampedX, clampedY)
@@ -209,33 +286,33 @@ function collapseWindow() {
     mainWindow?.webContents.send('window:collapsed')
   } catch {}
 }
-
+ 
 function registerIpc() {
   ipcMain.handle(IPC.WINDOW_EXPAND, () => {
     expandWindow()
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_COLLAPSE, () => {
     try {
       mainWindow?.webContents.send('window:collapsed')
     } catch {}
     collapseWindow()
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_MOVE, (_e, x: number, y: number) => {
     mainWindow?.setPosition(Math.round(x), Math.round(y))
   })
-
+ 
   ipcMain.handle('window:save-position', (_e, x: number, y: number) => {
     store.set('lastPos', { x: Math.round(x), y: Math.round(y) })
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_GET_POSITION, () => {
     if (!mainWindow) return null
     const [x, y] = mainWindow.getPosition()
     return { x, y }
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_MINIMIZE, () => {
     try {
       mainWindow?.setSkipTaskbar(false)
@@ -243,13 +320,13 @@ function registerIpc() {
     } catch {}
     mainWindow?.minimize()
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_TOGGLE_MAXIMIZE, () => {
     if (!mainWindow) return
     if (mainWindow.isMaximized()) mainWindow.unmaximize()
     else mainWindow.maximize()
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_EXPAND_TO, (_e, dims: { width: number; height: number }) => {
     if (!mainWindow) return
     const win = mainWindow
@@ -282,23 +359,23 @@ function registerIpc() {
       mainWindow?.webContents.send('window:expanded')
     } catch {}
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, () => {
     return mainWindow?.isMaximized() ?? false
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_HIDE, () => {
     mainWindow?.hide()
   })
-
+ 
   ipcMain.handle(IPC.WINDOW_SET_ALWAYS_ON_TOP, (_e, on: boolean) => {
     mainWindow?.setAlwaysOnTop(on, 'floating')
   })
-
+ 
   ipcMain.handle(IPC.APP_QUIT, () => {
     app.quit()
   })
-
+ 
   ipcMain.handle(IPC.AUTO_LAUNCH_GET, async () => {
     try {
       return await autoLauncher.isEnabled()
@@ -306,22 +383,22 @@ function registerIpc() {
       return false
     }
   })
-
+ 
   ipcMain.handle(IPC.AUTO_LAUNCH_SET, async (_e, enabled: boolean) => {
     store.set('autoLaunch', enabled)
     if (enabled) await autoLauncher.enable()
     else await autoLauncher.disable()
   })
-
+ 
   ipcMain.handle(IPC.PANEL_SIZE_GET, () => {
     const saved = store.get('panelSize') as { width: number; height: number } | null
     return saved ?? { width: FEATURE_PANEL.width, height: FEATURE_PANEL.height }
   })
-
+ 
   ipcMain.handle(IPC.PANEL_SIZE_SET, (_e, dims: { width: number; height: number }) => {
     store.set('panelSize', { width: dims.width, height: dims.height })
   })
-
+ 
   // 下拉框打开：临时扩展窗口高度，让下拉框能超出主面板
   ipcMain.handle(IPC.WINDOW_DROPDOWN_OPEN, (_e, dropdownHeight: number) => {
     if (!mainWindow) return
@@ -349,7 +426,7 @@ function registerIpc() {
       setTimeout(() => win.setOpacity(1.0), 16)
     } catch {}
   })
-
+ 
   // 下拉框关闭：恢复窗口基准高度
   ipcMain.handle(IPC.WINDOW_DROPDOWN_CLOSE, () => {
     if (!mainWindow) return
@@ -374,14 +451,14 @@ function registerIpc() {
       setTimeout(() => win.setOpacity(1.0), 16)
     } catch {}
   })
-
+ 
   // 在外部浏览器中打开链接
   ipcMain.handle(IPC.OPEN_EXTERNAL, (_e, url: string) => {
     if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
       shell.openExternal(url)
     }
   })
-
+ 
   // 右键菜单：用户信息 + 设置 + 退出
   ipcMain.handle(IPC.SHOW_CONTEXT_MENU, (e, user: { username: string; loggedIn: boolean }) => {
     const menu = Menu.buildFromTemplate([
@@ -398,14 +475,36 @@ function registerIpc() {
     ])
     menu.popup({ window: mainWindow ?? undefined })
   })
-
+ 
   ipcMain.handle('video:generate', async (e, params) => {
     return generateVideo(params, (p) => {
       if (!e.sender.isDestroyed()) e.sender.send('video:progress', p)
     })
   })
-}
+ 
+  // ===== 自动更新 =====
+  ipcMain.handle(IPC.UPDATER_DOWNLOAD, () => {
+    // 用户确认后开始下载更新包
+    autoUpdater.downloadUpdate().catch((e) => {
+      console.error('[updater] 下载更新失败', e)
+    })
+  })
+ 
+  ipcMain.handle(IPC.UPDATER_INSTALL, () => {
+    // 退出并安装更新
+    autoUpdater.quitAndInstall(false, true)
+  })
+ 
+  ipcMain.handle(IPC.UPDATER_GET_VERSION, () => {
+    return app.getVersion()
+  })
 
+  // ===== 独立更新弹窗 =====
+  ipcMain.handle(IPC.UPDATE_WINDOW_CLOSE, () => {
+    if (updateWindow && !updateWindow.isDestroyed()) updateWindow.close()
+  })
+}
+ 
 app.whenReady().then(() => {
   registerIpc()
   tray = getTrayIcon()
@@ -417,30 +516,72 @@ app.whenReady().then(() => {
     tray.setContextMenu(menu)
   }
   mainWindow = createWindow()
-
+ 
   // Restore auto-launch state preference silently.
   const wantAuto = (store.get('autoLaunch') as boolean | undefined) ?? false
   if (wantAuto) autoLauncher.enable().catch(() => {})
-
+ 
   // 自动更新：仅打包后生效（开发模式跳过，避免缺 app-update.yml 报错）
   if (!isDev && app.isPackaged) {
-    autoUpdater.autoDownload = true
-    autoUpdater.autoInstallOnAppQuit = true
+    // 用户确认后再下载，避免静默更新
+    autoUpdater.autoDownload = false
+    autoUpdater.autoInstallOnAppQuit = false
     autoUpdater.logger = {
       info: (m: string) => console.log('[updater]', m),
       warn: (m: string) => console.warn('[updater]', m),
       error: (m: string) => console.error('[updater]', m)
     }
-    autoUpdater.on('update-downloaded', () => {
-      // 已下载完成，用户下次退出应用时自动安装更新
-      console.log('[updater] 新版本已下载，退出时自动安装')
+ 
+    // 发现新版本：创建独立弹窗窗口
+    autoUpdater.on('update-available', (info) => {
+      console.log('[updater] 发现新版本', info.version, '当前版本:', app.getVersion())
+      const releaseNotes = typeof info.releaseNotes === 'string' ? info.releaseNotes : undefined
+      createUpdateWindow({ version: info.version, releaseNotes })
     })
-    autoUpdater.checkForUpdatesAndNotify().catch((e) => {
-      console.error('[updater] 检查更新失败', e)
+
+    // 没有新版本（当前已是最新）
+    autoUpdater.on('update-not-available', (info) => {
+      console.log('[updater] 当前已是最新版本', info?.version ?? app.getVersion())
+    })
+
+    // 检查更新完成
+    autoUpdater.on('checking-for-update', () => {
+      console.log('[updater] 正在检查更新...')
+    })
+
+    // 下载进度：推送到弹窗窗口
+    autoUpdater.on('download-progress', (progress) => {
+      updateWindow?.webContents.send(IPC.UPDATE_WINDOW_EVENT, {
+        phase: 'downloading',
+        progress: progress.percent
+      })
+    })
+
+    // 下载完成：推送下载完成状态
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('[updater] 新版本已下载，等待用户重启安装', info.version)
+      updateWindow?.webContents.send(IPC.UPDATE_WINDOW_EVENT, {
+        phase: 'downloaded'
+      })
+    })
+
+    // 更新错误：推送到弹窗窗口
+    autoUpdater.on('error', (err) => {
+      console.error('[updater] 更新出错', err)
+      updateWindow?.webContents.send(IPC.UPDATE_WINDOW_EVENT, {
+        phase: 'error',
+        errorMsg: err?.message ?? '未知错误'
+      })
+    })
+ 
+    autoUpdater.checkForUpdates().then((result) => {
+      console.log('[updater] 检查完成:', result?.updateInfo?.version ? `发现 ${result.updateInfo.version}` : '无更新')
+    }).catch((e) => {
+      console.error('[updater] 检查更新失败', e?.message ?? e)
     })
   }
 })
-
+ 
 app.on('window-all-closed', () => {
   // Keep running in tray on all platforms.
 })

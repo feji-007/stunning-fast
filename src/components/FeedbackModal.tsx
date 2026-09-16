@@ -86,7 +86,7 @@ export default function FeedbackModal() {
 
   return (
     <div className="flex h-full w-full items-center justify-center bg-black/30">
-      <div className="flex h-[520px] w-[640px] flex-col rounded-2xl bg-white shadow-float">
+      <div className="flex h-[520px] w-[640px] flex-col rounded-2xl bg-white">
         <div className="flex items-center justify-between border-b border-black/5 px-5 py-3">
           <h2 className="text-sm font-semibold text-gray-800">意见反馈 / 问题报告</h2>
           <button
