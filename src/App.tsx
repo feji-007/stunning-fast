@@ -155,7 +155,7 @@ function MainApp() {
 
       {(modal === 'login' || modal === 'settings' || modal === 'feedback') && (
         <div
-          className="fixed inset-0 z-50"
+          className="fixed inset-0 z-50 overflow-hidden rounded-2xl"
           onMouseEnter={() => (overOverlay.current = true)}
           onMouseLeave={() => (overOverlay.current = false)}
         >

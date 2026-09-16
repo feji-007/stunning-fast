@@ -348,6 +348,11 @@ function registerIpc() {
     win.setSize(dims.width, dims.height)
     win.setPosition(nx, ny)
     baseWindowHeight = dims.height
+    // 强制重绘：transparent 窗口在 Windows 上 resize 后需要切换一次合成模式
+    try {
+      win.setOpacity(0.99)
+      setTimeout(() => win.setOpacity(1.0), 16)
+    } catch {}
     try {
       win.setAlwaysOnTop(false)
       win.setResizable(true)
