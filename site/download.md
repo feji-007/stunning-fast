@@ -7,24 +7,26 @@
 
 ## Windows
 
-- **在线安装器（推荐）**：[绝色-Setup-1.0.1.exe](http://8.219.219.110/releases/juese-1.0.1-setup.exe)
+<!-- AUTO-GENERATED-DOWNLOADS:START -->
+- **在线安装器（推荐）：**[下载](http://8.219.219.110/releases/juese-1.0.3-setup.exe)
 
   约 2 MB，运行后自动从 CDN 拉取完整程序（约 80 MB）并安装，**需联网**。完成后从开始菜单启动「绝色」。
+
+## macOS
+
+- **Intel：**本次未生成
+- **Apple Silicon：**本次未生成
+
+## Linux
+
+- **AppImage：**本次未生成
+<!-- AUTO-GENERATED-DOWNLOADS:END -->
 
 ::: tip 离线安装场景
 在线安装器需联网。若需离线完整包，可在 `electron-builder.yml` 的 `win.target` 追加 `- target: nsis`（与 `nsis-web` 并存），同时生成完整 NSIS 安装包供离线分发。
 :::
 
-## macOS
-
-- Intel：[绝色-x.y.z.dmg](https://cdn.juese.app/releases/juese-x.y.z.dmg)
-- Apple Silicon：[绝色-x.y.z-arm64.dmg](https://cdn.juese.app/releases/juese-x.y.z-arm64.dmg)
-
 打开 dmg 后将「绝色」拖入「应用程序」。首次启动若提示未验证，前往 系统设置 → 隐私与安全性 点击「仍要打开」。
-
-## Linux
-
-- AppImage：[绝色-x.y.z.AppImage](https://cdn.juese.app/releases/juese-x.y.z.AppImage)
 
 ```bash
 chmod +x 绝色-*.AppImage

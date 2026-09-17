@@ -178,9 +178,15 @@ function Do-Upload {
   Info "已拷贝 $copied 个文件到 $DeployReleases"
 }
 
-# ---------- 3. 打印部署提示 ----------
+# ---------- 3. 更新下载文档 ----------
+function Update-DownloadPage {
+  Step "3/4 根据实际产物更新 site\download.md"
+  Invoke-Native 'node' @((Join-Path $ProjectDir 'scripts\update-download.mjs'))
+}
+
+# ---------- 4. 打印部署提示 ----------
 function Print-Summary {
-  Step "3/3 完成"
+  Step "4/4 完成"
   Write-Host ''
   Info "deploy\releases 当前内容："
   Get-ChildItem -Path $DeployReleases -File -ErrorAction SilentlyContinue |
@@ -198,9 +204,11 @@ function Print-Summary {
   Write-Host "     curl.exe -sI http://8.219.219.110/releases/"
   Write-Host ''
   Write-Host "  3. 客户端 electron-updater 会拉取 latest.yml 检查更新"
+  Write-Host "  4. 发布官网：npm run publish:site"
 }
 
 # ---------- 入口 ----------
 Do-Pack
 Do-Upload
+Update-DownloadPage
 Print-Summary

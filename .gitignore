@@ -9,6 +9,7 @@ release/
 site/.vitepress/dist
 site/.vitepress/cache
 server/dist
+.vitepress/
 
 # 安装包分发目录（只保留 .gitkeep 占位，二进制包不提交）
 deploy/releases/*

@@ -153,9 +153,15 @@ do_upload() {
   log "已拷贝 $copied 个文件到 $DEPLOY_RELEASES"
 }
 
-# ---------- 3. 打印部署提示 ----------
+# ---------- 3. 更新下载文档 ----------
+update_download_page() {
+  step "3/4 根据实际产物更新 site/download.md"
+  node "$PROJECT_DIR/scripts/update-download.mjs"
+}
+
+# ---------- 4. 打印部署提示 ----------
 print_summary() {
-  step "3/3 完成"
+  step "4/4 完成"
   echo ""
   log "deploy/releases 当前内容："
   ls -la "$DEPLOY_RELEASES" 2>/dev/null | grep -v '^total' | grep -v '\.gitkeep$' || true
@@ -171,9 +177,11 @@ print_summary() {
   echo "     curl -sI http://8.219.219.110/releases/"
   echo ""
   echo "  3. 客户端 electron-updater 会拉取 latest.yml 检查更新"
+  echo "  4. 发布官网：npm run publish:site"
 }
 
 # ---------- 入口 ----------
 do_pack
 do_upload
+update_download_page
 print_summary
