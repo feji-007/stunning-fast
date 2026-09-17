@@ -11,8 +11,8 @@
 | `nginx.juese.conf` | 容器内 Nginx 反代配置（挂载到 nginx 容器） |
 | `.env.example` | compose 变量模板（拷贝为 .env 后修改） |
 | `.dockerignore` | 缩小构建上下文 |
-| `docker-deploy.sh` | Linux/macOS 一键部署脚本 |
-| `docker-deploy.ps1` | Windows PowerShell 一键部署脚本 |
+| `docker-deploy.sh` | Linux/macOS 上传源码并在服务器构建脚本 |
+| `docker-deploy.ps1` | Windows PowerShell 上传源码并在服务器构建脚本 |
 
 ## 一次性准备
 
@@ -39,7 +39,6 @@ docker --version && docker compose version
 
 ### 本地（仅做一次）
 
-- 装 `rsync`（macOS 自带；Windows 可用 Git Bash / WSL，或直接用 `docker-deploy.ps1` 走 scp）
 - 配 SSH 免密：`ssh-copy-id root@8.219.219.110`
 
 ## 部署方式
@@ -50,8 +49,11 @@ docker --version && docker compose version
 copy deploy\.env.example deploy\.env
 notepad deploy\.env
 
-# 一键部署（系统自带 powershell.exe，无需安装 PowerShell 7）
+# 一键部署：上传构建上下文，服务器构建镜像并启动
 powershell -File deploy\docker-deploy.ps1
+
+# 服务器无缓存重新构建
+powershell -File deploy\docker-deploy.ps1 -Rebuild
 ```
 
 ### macOS/Linux 本地
@@ -60,11 +62,16 @@ powershell -File deploy\docker-deploy.ps1
 cp deploy/.env.example deploy/.env
 vi deploy/.env
 
-# 一键部署
+# 一键部署：上传构建上下文，服务器构建镜像并启动
 bash deploy/docker-deploy.sh
+
+# 服务器无缓存重新构建
+bash deploy/docker-deploy.sh --rebuild
 ```
 
-脚本自动完成：同步 deploy/ 目录到服务器 → 远程 `docker compose build && up -d` → 健康检查 → 打印访问地址。
+脚本自动完成：同步项目根目录（排除无关构建产物）→ 服务器 `docker compose build` → `docker compose up -d` → 健康检查。
+
+服务器上的 `deploy/.env` 保存数据库、JWT 和管理员密码。首次部署若服务器没有 `.env`，脚本只会生成模板并退出，请通过 SSH 编辑服务器上的文件后重新执行部署。
 
 ## 访问地址
 

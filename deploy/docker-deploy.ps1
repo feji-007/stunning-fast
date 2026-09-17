@@ -3,8 +3,8 @@
 # 绝色测试环境 Docker 一键部署脚本（Windows PowerShell 5.1 兼容版，目标 CentOS 7.9）
 # ------------------------------------------------------------
 # 用法（在项目根目录本地执行）：
-#   powershell -File deploy\docker-deploy.ps1                 # 构建并启动
-#   powershell -File deploy\docker-deploy.ps1 -Rebuild        # 强制重建镜像
+#   powershell -File deploy\docker-deploy.ps1                 # 上传源码并在服务器构建
+#   powershell -File deploy\docker-deploy.ps1 -Rebuild        # 服务器无缓存重建
 #   powershell -File deploy\docker-deploy.ps1 -Down           # 停止并移除容器（保留数据）
 #   powershell -File deploy\docker-deploy.ps1 -Logs           # 查看实时日志
 #   powershell -File deploy\docker-deploy.ps1 -Ps             # 查看容器状态
@@ -79,23 +79,21 @@ function Deploy-Setup {
 function Deploy-Up([bool]$rebuild) {
   Info "部署到 $RemoteUser@$RemoteHost`:$RemoteDir (CentOS 7.9)"
   Step "1/4 同步项目根目录到服务器"
-  # docker-compose.yml 的 build context = ..（项目根），dockerfile = deploy/Dockerfile
-  # 因此服务器上 deploy/ 必须位于 $RemoteDir/deploy/，且 $RemoteDir 需含 server/ 源码
   Invoke-Remote "mkdir -p $RemoteDir"
   $zipfile  = "$env:TEMP\juese-project-$(Get-Date -Format 'yyyyMMddHHmmss').zip"
   $staging  = "$env:TEMP\juese-staging-$(Get-Date -Format 'yyyyMMddHHmmss')"
   $null = New-Item -ItemType Directory -Path $staging -Force
-  # robocopy: exclude large/irrelevant dirs by name
-  & robocopy $ProjectDir $staging /E /XD node_modules dist dist-electron release build .cache electron scripts .git .github .vscode .idea /XF *.tsbuildinfo *.log *.bat *.ps1 .DS_Store Thumbs.db | Out-Null
+  & robocopy $ProjectDir $staging /E /XD node_modules dist dist-electron release build .cache electron scripts .git .github .vscode .idea nginx.logs /XF .env *.tsbuildinfo *.log *.bat *.ps1 .DS_Store Thumbs.db | Out-Null
   # Compress-Archive: PowerShell built-in zip
   Compress-Archive -Path "$staging\*" -DestinationPath $zipfile -Force
   & scp $zipfile "$RemoteUser@$RemoteHost`:/tmp/juese-project.zip"
+  if ($LASTEXITCODE -ne 0) { throw "项目上传失败" }
   # remote: install unzip if missing, extract, cleanup
-  Invoke-Remote "which unzip >/dev/null 2>&1 || yum install -y unzip; rm -rf $RemoteDir; mkdir -p $RemoteDir; unzip -o /tmp/juese-project.zip -d $RemoteDir; rm -f /tmp/juese-project.zip"
+  Invoke-Remote "which unzip >/dev/null 2>&1 || yum install -y unzip; if test -f $RemoteDir/deploy/.env; then cp $RemoteDir/deploy/.env /tmp/juese-deploy.env; fi; rm -rf $RemoteDir; mkdir -p $RemoteDir; unzip -o /tmp/juese-project.zip -d $RemoteDir; if test -f /tmp/juese-deploy.env; then mkdir -p $RemoteDir/deploy; mv /tmp/juese-deploy.env $RemoteDir/deploy/.env; fi; rm -f /tmp/juese-project.zip"
   Remove-Item $zipfile -Force
   Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
 
-  Step "2/4 检查 .env"
+  Step "2/4 检查服务器 .env"
   $envExists = (Invoke-Remote "test -f $RemoteDir/deploy/.env && echo yes || echo no") -join ''
   if ($envExists -ne 'yes') {
     Warn "服务器无 $RemoteDir/deploy/.env，从 .env.example 复制（请编辑实际值后再跑）"

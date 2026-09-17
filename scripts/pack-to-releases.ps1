@@ -35,6 +35,14 @@ function Warn($m) { Write-Host "[warn] $m" -ForegroundColor Yellow }
 function Err($m)  { Write-Host "[error] $m" -ForegroundColor Red }
 function Step($m) { Write-Host ">>> $m" -ForegroundColor Cyan }
 
+# ---------- 外部命令 ----------
+function Invoke-Native([string]$command, [string[]]$arguments) {
+  & $command @arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "$command 执行失败，退出码：$LASTEXITCODE"
+  }
+}
+
 # ---------- 平台检测（用 if/elseif 避免 switch 嵌套解析问题） ----------
 function Detect-Platform {
   if ($env:OS -eq 'Windows_NT') { return 'win' }
@@ -71,26 +79,26 @@ function Do-Pack {
   try {
     if ($Target -eq 'win') {
       Info "构建 Windows 安装包（nsis-web）"
-      npm run build
-      npx electron-builder --win --x64
+      Invoke-Native 'npm' @('run', 'build')
+      Invoke-Native 'npx' @('electron-builder', '--win', '--x64')
     }
     elseif ($Target -eq 'mac') {
       Info "构建 macOS 安装包（dmg x64 + arm64）"
-      npm run build
-      npx electron-builder --mac --x64 --arm64
+      Invoke-Native 'npm' @('run', 'build')
+      Invoke-Native 'npx' @('electron-builder', '--mac', '--x64', '--arm64')
     }
     elseif ($Target -eq 'linux') {
       Info "构建 Linux 安装包（AppImage x64）"
-      npm run build
-      npx electron-builder --linux --x64
+      Invoke-Native 'npm' @('run', 'build')
+      Invoke-Native 'npx' @('electron-builder', '--linux', '--x64')
     }
     elseif ($Target -eq 'all') {
       Info "构建全平台（win + mac + linux）"
-      npm run build
-      npx electron-builder --win --x64 --linux --x64
+      Invoke-Native 'npm' @('run', 'build')
+      Invoke-Native 'npx' @('electron-builder', '--win', '--x64', '--linux', '--x64')
       $platform = Detect-Platform
       if ($platform -eq 'mac') {
-        npx electron-builder --mac --x64 --arm64
+        Invoke-Native 'npx' @('electron-builder', '--mac', '--x64', '--arm64')
       }
       else {
         Warn "当前非 macOS，跳过 mac 包；如需 mac dmg 请在 mac 上执行 powershell -File scripts\pack-to-releases.ps1 -Mac"
@@ -118,7 +126,7 @@ function Do-Upload {
   # 清理旧产物（保留 .gitkeep）
   Get-ChildItem -Path $DeployReleases -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -ne '.gitkeep' } |
-    Remove-Item -Force -ErrorAction SilentlyContinue
+    Remove-Item -Force -ErrorAction Stop
 
   # electron-builder 产物分布：
   #   release\nsis-web\*.exe / *.7z / latest.yml    (Windows nsis-web target)

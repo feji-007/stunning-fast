@@ -3,8 +3,8 @@
 # 绝色测试环境 Docker 一键部署脚本（CentOS 7.9 服务器）
 # ------------------------------------------------------------
 # 用法（在项目根目录本地执行）：
-#   bash deploy/docker-deploy.sh            # 构建并启动
-#   bash deploy/docker-deploy.sh --rebuild  # 强制重建镜像
+#   bash deploy/docker-deploy.sh            # 上传源码并在服务器构建
+#   bash deploy/docker-deploy.sh --rebuild  # 服务器无缓存重建
 #   bash deploy/docker-deploy.sh --down     # 停止并移除容器（保留数据）
 #   bash deploy/docker-deploy.sh --logs     # 查看实时日志
 #   bash deploy/docker-deploy.sh --ps       # 查看容器状态
@@ -104,23 +104,39 @@ docker compose version
 # ---------- 各动作 ----------
 do_up() {
   log "部署到 ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR} (CentOS 7.9)"
-  step "1/4 同步 deploy/ 目录到服务器"
+  step "1/4 同步项目根目录到服务器"
   remote_exec "mkdir -p $REMOTE_DIR"
   rsync -az --delete \
     --exclude '.env' \
     --exclude 'nginx.logs' \
-    "$DEPLOY_DIR/" "${REMOTE_USER}@${REMOTE_HOST}:$REMOTE_DIR/"
+    --exclude '.git' \
+    --exclude '.github' \
+    --exclude '.vscode' \
+    --exclude '.idea' \
+    --exclude 'node_modules' \
+    --exclude 'dist' \
+    --exclude 'dist-electron' \
+    --exclude 'release' \
+    --exclude 'build' \
+    --exclude '.cache' \
+    --exclude 'electron' \
+    --exclude 'scripts' \
+    --exclude '*.log' \
+    --exclude '*.tsbuildinfo' \
+    --exclude '*.bat' \
+    --exclude '*.ps1' \
+    "$PROJECT_DIR/" "${REMOTE_USER}@${REMOTE_HOST}:$REMOTE_DIR/"
 
-  step "2/4 检查 .env"
-  if ! remote_exec "test -f $REMOTE_DIR/.env"; then
-    warn "服务器无 $REMOTE_DIR/.env，从 .env.example 复制（请编辑实际值后再跑）"
-    remote_exec "cp $REMOTE_DIR/.env.example $REMOTE_DIR/.env"
-    warn "已生成 $REMOTE_DIR/.env，请编辑后重跑：ssh $REMOTE_USER@$REMOTE_HOST 'vi $REMOTE_DIR/.env'"
+  step "2/4 检查服务器 .env"
+  if ! remote_exec "test -f $REMOTE_DIR/deploy/.env"; then
+    warn "服务器无 $REMOTE_DIR/deploy/.env，从 .env.example 复制（请编辑实际值后再跑）"
+    remote_exec "cp $REMOTE_DIR/deploy/.env.example $REMOTE_DIR/deploy/.env"
+    warn "已生成 $REMOTE_DIR/deploy/.env，请编辑后重跑：ssh $REMOTE_USER@$REMOTE_HOST 'vi $REMOTE_DIR/deploy/.env'"
     exit 0
   fi
 
   step "3/4 远程构建镜像并启动"
-  remote_exec_heredoc "cd $REMOTE_DIR && docker compose build $FORCE_REBUILD && docker compose up -d"
+  remote_exec_heredoc "cd $REMOTE_DIR/deploy && docker compose build $FORCE_REBUILD && docker compose up -d"
 
   step "4/4 等待健康检查 + 状态"
   log "等待 server 健康检查通过（最多 60s）"
@@ -132,7 +148,7 @@ do_up() {
     sleep 5
   done
 
-  remote_exec "cd $REMOTE_DIR && docker compose ps"
+  remote_exec "cd $REMOTE_DIR/deploy && docker compose ps"
   echo ""
   log "部署完成。访问地址："
   echo "  API      : http://$REMOTE_HOST/api"
@@ -148,22 +164,22 @@ do_up() {
 
 do_down() {
   log "停止并移除容器（保留数据卷）"
-  remote_exec_heredoc "cd $REMOTE_DIR && docker compose down"
+  remote_exec_heredoc "cd $REMOTE_DIR/deploy && docker compose down"
 }
 
 do_logs() {
-  remote_exec_heredoc "cd $REMOTE_DIR && docker compose logs -f --tail=200"
+  remote_exec_heredoc "cd $REMOTE_DIR/deploy && docker compose logs -f --tail=200"
 }
 
 do_ps() {
-  remote_exec_heredoc "cd $REMOTE_DIR && docker compose ps"
+  remote_exec_heredoc "cd $REMOTE_DIR/deploy && docker compose ps"
 }
 
 do_reset() {
   warn "即将删除所有容器 + 数据卷，数据将丢失！"
   read -p "确认清库重置？输入 yes 继续：" ANS
   [[ "$ANS" == "yes" ]] || { log "已取消"; exit 0; }
-  remote_exec_heredoc "cd $REMOTE_DIR && docker compose down -v"
+  remote_exec_heredoc "cd $REMOTE_DIR/deploy && docker compose down -v"
   log "已清空，重跑 bash $0 重新部署"
 }
 

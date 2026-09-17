@@ -113,7 +113,7 @@ do_upload() {
   mkdir -p "$DEPLOY_RELEASES"
 
   # 清理旧产物（保留 .gitkeep）
-  find "$DEPLOY_RELEASES" -mindepth 1 ! -name '.gitkeep' -delete 2>/dev/null || true
+  find "$DEPLOY_RELEASES" -mindepth 1 ! -name '.gitkeep' -delete 2>/dev/null
 
   # 需要拷贝的文件清单：
   #   - latest.yml / latest-mac.yml / latest-linux.yml（electron-updater 元信息）
@@ -137,7 +137,11 @@ do_upload() {
     while IFS= read -r f; do
       [[ -z "$f" ]] && continue
       [[ -f "$RELEASE_DIR/$f" ]] || continue
-      cp -v "$RELEASE_DIR/$f" "$DEPLOY_RELEASES/" 2>/dev/null && copied=$((copied + 1)) || true
+      if ! cp -v "$RELEASE_DIR/$f" "$DEPLOY_RELEASES/"; then
+        err "复制发布文件失败：$RELEASE_DIR/$f"
+        exit 1
+      fi
+      copied=$((copied + 1))
     done < <(cd "$RELEASE_DIR" && ls -1 $pattern 2>/dev/null)
   done
 
