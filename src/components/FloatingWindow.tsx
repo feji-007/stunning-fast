@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useStore } from '../store/useStore'
 
 // 悬浮球：手动区分拖拽与点击
@@ -8,6 +8,7 @@ export default function FloatingWindow() {
   const setModal = useStore((s) => s.setModal)
   const user = useStore((s) => s.user)
   const restoreFromCollapse = useStore((s) => s.restoreFromCollapse)
+  const btnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const off = window.api?.onContextMenuSettings?.(() => {
@@ -35,25 +36,45 @@ export default function FloatingWindow() {
       curY: e.screenY - e.clientY
     }
 
+    // 用 rAF 合并同一帧内的多次 mousemove，减少 IPC 调用次数
+    let rafId: number | null = null
+
     const onMouseMove = (ev: MouseEvent) => {
       const dx = ev.screenX - state.startMX
       const dy = ev.screenY - state.startMY
       if (!state.dragging && Math.hypot(dx, dy) > 5) {
         state.dragging = true
+        // 添加 CSS 类禁用 hover:scale-105 + transition-transform，
+        // 防止拖拽中 hover 状态闪烁导致球大小变化和抖动
+        btnRef.current?.classList.add('ball-dragging')
       }
       if (state.dragging) {
         state.curX = state.winX + dx
         state.curY = state.winY + dy
-        window.api?.moveWindow?.(state.curX, state.curY)
+        // 同一帧内只发一次 moveWindow IPC
+        if (rafId === null) {
+          rafId = requestAnimationFrame(() => {
+            rafId = null
+            window.api?.moveWindow?.(state.curX, state.curY)
+          })
+        }
       }
     }
 
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
+      // 取消未执行的 rAF，补发最终位置
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+        window.api?.moveWindow?.(state.curX, state.curY)
+      }
       if (state.dragging) {
         // 拖拽结束，保存位置
         window.api?.savePosition?.(state.curX, state.curY)
+        // 移除 CSS 类，恢复 hover:scale-105 + transition-transform 效果
+        btnRef.current?.classList.remove('ball-dragging')
       } else {
         // 点击：展开面板
         restoreFromCollapse()
@@ -70,6 +91,7 @@ export default function FloatingWindow() {
       onContextMenu={handleContextMenu}
     >
       <button
+        ref={btnRef}
         className="group relative h-16 w-16 cursor-grab rounded-full bg-brand-400 transition-transform hover:scale-105 active:cursor-grabbing"
         title="绝色 · 点击展开 · 拖拽移动 · 右键菜单"
         onMouseDown={handleMouseDown}

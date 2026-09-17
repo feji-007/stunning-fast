@@ -30,6 +30,9 @@ let savedBallPos: { x: number; y: number } | null = null
 let baseWindowHeight = PANEL.height
 // 独立更新弹窗窗口
 let updateWindow: BrowserWindow | null = null
+// 拖拽进行中标志：moveWindow IPC 设置，避免 onMove 二次 clamp 造成窗口跳动
+let isUserDragging = false
+let dragClampTimer: NodeJS.Timeout | null = null
  
 const isDev = process.env.NODE_ENV === 'development'
  
@@ -105,11 +108,21 @@ function createWindow(): BrowserWindow {
   const onMove = () => {
     const [wx, wy] = win.getPosition()
     const [ww, wh] = win.getSize()
-    const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
-    const wa = display.workArea
-    const nx = Math.min(Math.max(wx, wa.x), wa.x + wa.width - ww)
-    const ny = Math.min(Math.max(wy, wa.y), wa.y + wa.height - wh)
-    if (nx !== wx || ny !== wy) win.setPosition(nx, ny)
+    // 拖拽中跳过 clamp —— clamp 已在 moveWindow IPC handler 内完成，
+    // 此处再次 clamp 会触发第二次 setPosition，导致窗口在目标位置与 clamp
+    // 位置之间反复跳动（即"异常移动"）
+    if (!isUserDragging) {
+      const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
+      const wa = display.workArea
+      // mini 模式下用 MINI 尺寸 clamp，并用 setBounds 防止透明窗口被 OS resize
+      const cw = isMiniMode ? MINI.width : ww
+      const ch = isMiniMode ? MINI.height : wh
+      const nx = Math.min(Math.max(wx, wa.x), wa.x + wa.width - cw)
+      const ny = Math.min(Math.max(wy, wa.y), wa.y + wa.height - ch)
+      if (nx !== wx || ny !== wy || cw !== ww || ch !== wh) {
+        win.setBounds({ x: nx, y: ny, width: cw, height: ch })
+      }
+    }
     // Throttle persistence while the mini window is being dragged.
     if (ww === MINI.width && wh === MINI.height) {
       if (moveSaveTimer) clearTimeout(moveSaveTimer)
@@ -121,6 +134,21 @@ function createWindow(): BrowserWindow {
     }
   }
   win.on('move', onMove)
+
+  // 透明窗口在 Windows 上可能被 OS 意外 resize（尤其 DPI 缩放 + setPosition 时）。
+  // mini 模式下强制锁定尺寸为 MINI，任何 resize 立即纠正。
+  // 容差 5px：DPI 缩放下 getSize() 可能有 2-3px 取整偏差，不需要纠正。
+  let isCorrectingSize = false
+  win.on('resize', () => {
+    if (!isMiniMode || isCorrectingSize) return
+    const [cw, ch] = win.getSize()
+    if (Math.abs(cw - MINI.width) > 5 || Math.abs(ch - MINI.height) > 5) {
+      isCorrectingSize = true
+      const [px, py] = win.getPosition()
+      win.setBounds({ x: px, y: py, width: MINI.width, height: MINI.height })
+      isCorrectingSize = false
+    }
+  })
  
   if (isDev) {
     win.loadURL('http://localhost:5173')
@@ -220,6 +248,7 @@ function createUpdateWindow(info: { version: string; releaseNotes?: string }) {
 function expandWindow() {
   if (!mainWindow) return
   if (!isMiniMode) return
+  console.log('[diag] expandWindow called from:', new Error().stack)
   const win = mainWindow
   const [wx, wy] = win.getPosition()
   const [ww, wh] = win.getSize()
@@ -236,6 +265,8 @@ function expandWindow() {
   ny = Math.min(Math.max(ny, wa.y), wa.y + wa.height - PANEL.height)
  
   win.setAlwaysOnTop(false)
+  // 先退出 mini 模式，防止 resize 守卫在 setSize 时将窗口纠正回 72x72
+  isMiniMode = false
   win.setSize(PANEL.width, PANEL.height)
   win.setPosition(nx, ny)
   baseWindowHeight = PANEL.height
@@ -245,7 +276,6 @@ function expandWindow() {
     win.setMinimizable(true)
   } catch {}
   try {
-    isMiniMode = false
     mainWindow?.webContents.send('window:expanded')
   } catch {}
 }
@@ -253,6 +283,7 @@ function expandWindow() {
 function collapseWindow() {
   if (!mainWindow) return
   if (isMiniMode) return
+  console.log('[diag] collapseWindow called from:', new Error().stack)
   const win = mainWindow
   const [ww, wh] = win.getSize()
   const [px, py] = win.getPosition()
@@ -289,6 +320,7 @@ function collapseWindow() {
  
 function registerIpc() {
   ipcMain.handle(IPC.WINDOW_EXPAND, () => {
+    console.log('[diag] WINDOW_EXPAND IPC received, stack:', new Error().stack)
     expandWindow()
   })
  
@@ -299,12 +331,54 @@ function registerIpc() {
     collapseWindow()
   })
  
+  let dragLogCount = 0
   ipcMain.handle(IPC.WINDOW_MOVE, (_e, x: number, y: number) => {
-    mainWindow?.setPosition(Math.round(x), Math.round(y))
+    const win = mainWindow
+    if (!win) return
+    const ix = Math.round(x)
+    const iy = Math.round(y)
+    // 拖拽中：标记 flag，让 onMove 跳过二次 clamp（避免双重 setPosition 跳动）
+    isUserDragging = true
+    if (dragClampTimer) clearTimeout(dragClampTimer)
+    // 拖拽停止 1000ms 后恢复 onMove 的 clamp 行为（兜底；
+    // 正常情况下 save-position 处理器会在 mouseup 时立即重置）
+    dragClampTimer = setTimeout(() => {
+      isUserDragging = false
+      dragClampTimer = null
+    }, 1000)
+    // 在此处一次性 clamp 到工作区，onMove 不再重复 clamp
+    const [ww, wh] = win.getSize()
+    const [preX, preY] = win.getPosition()
+    // mini 模式下强制用 MINI 尺寸做 clamp 和 setBounds，防止透明窗口被 OS resize
+    const targetW = isMiniMode ? MINI.width : ww
+    const targetH = isMiniMode ? MINI.height : wh
+    const display = screen.getDisplayNearestPoint({ x: ix, y: iy })
+    const wa = display.workArea
+    const nx = Math.min(Math.max(ix, wa.x), wa.x + wa.width - targetW)
+    const ny = Math.min(Math.max(iy, wa.y), wa.y + wa.height - targetH)
+    // 使用 setBounds 而非 setPosition：Windows 透明无边框窗口在 setPosition
+    // 时可能被 OS 意外 resize（DPI 缩放下尤为明显），setBounds 同时锁定位置和尺寸。
+    win.setBounds({ x: nx, y: ny, width: targetW, height: targetH })
+    // 诊断日志：前 30 次拖拽 move，每 3 次记一条
+    if (dragLogCount < 30 && dragLogCount % 3 === 0) {
+      const [postX, postY] = win.getPosition()
+      console.log(
+        `[drag#${dragLogCount}] recv=(${ix},${iy}) prePos=(${preX},${preY}) ` +
+          `size=(${ww},${wh}) clamp=(${nx},${ny}) postPos=(${postX},${postY}) ` +
+          `workArea=(${wa.x},${wa.y},${wa.width},${wa.height})`
+      )
+    }
+    dragLogCount++
   })
  
   ipcMain.handle('window:save-position', (_e, x: number, y: number) => {
     store.set('lastPos', { x: Math.round(x), y: Math.round(y) })
+    // 拖拽结束（mouseup），立即恢复 onMove 的 clamp 行为
+    isUserDragging = false
+    if (dragClampTimer) {
+      clearTimeout(dragClampTimer)
+      dragClampTimer = null
+    }
   })
  
   ipcMain.handle(IPC.WINDOW_GET_POSITION, () => {
@@ -329,6 +403,9 @@ function registerIpc() {
  
   ipcMain.handle(IPC.WINDOW_EXPAND_TO, (_e, dims: { width: number; height: number }) => {
     if (!mainWindow) return
+    if (isMiniMode) {
+      console.log('[diag] expandWindowTo called from mini mode with dims:', JSON.stringify(dims), 'stack:', new Error().stack)
+    }
     const win = mainWindow
     const [wx, wy] = win.getPosition()
     const [ww, wh] = win.getSize()
@@ -345,6 +422,8 @@ function registerIpc() {
     let ny = Math.round(centerY - dims.height / 2)
     nx = Math.min(Math.max(nx, wa.x), wa.x + wa.width - dims.width)
     ny = Math.min(Math.max(ny, wa.y), wa.y + wa.height - dims.height)
+    // 先退出 mini 模式，防止 resize 守卫在 setSize 时将窗口纠正回 72x72
+    isMiniMode = false
     win.setSize(dims.width, dims.height)
     win.setPosition(nx, ny)
     baseWindowHeight = dims.height
@@ -360,7 +439,6 @@ function registerIpc() {
       win.setMinimizable(true)
     } catch {}
     try {
-      isMiniMode = false
       mainWindow?.webContents.send('window:expanded')
     } catch {}
   })
@@ -521,6 +599,15 @@ app.whenReady().then(() => {
     tray.setContextMenu(menu)
   }
   mainWindow = createWindow()
+
+  // 每 2 秒输出窗口位置，观察是否有漂移
+  setInterval(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const [x, y] = mainWindow.getPosition()
+      const [w, h] = mainWindow.getSize()
+      console.log(`[tick] pos=(${x},${y}) size=(${w},${h}) mini=${isMiniMode} drag=${isUserDragging}`)
+    }
+  }, 2000)
  
   // Restore auto-launch state preference silently.
   const wantAuto = (store.get('autoLaunch') as boolean | undefined) ?? false

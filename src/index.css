@@ -64,6 +64,14 @@ body {
   background: transparent;
 }
 
+/* 拖拽中禁用悬浮球 hover 缩放和过渡，防止大小变化和抖动。
+   !important 用于覆盖 Tailwind 的 hover:scale-105 和 transition-transform。 */
+.ball-dragging,
+.ball-dragging:hover {
+  transform: scale(1) !important;
+  transition: none !important;
+}
+
 /* Custom thin scrollbar */
 .scroll-thin::-webkit-scrollbar {
   width: 6px;
