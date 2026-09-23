@@ -397,17 +397,26 @@ export const useStore = create<AppState>()(
             if (mm.supportsI2V !== undefined)      patch.supportsI2V = mm.supportsI2V
             if (mm.supportsFirstLast !== undefined) patch.supportsFirstLast = mm.supportsFirstLast
             if (mm.supportsReference !== undefined) patch.supportsReference = mm.supportsReference
+            if (mm.docsUrl)                         patch.docsUrl = mm.docsUrl
             if (patch) modelCapMap.set(mm.id, patch)
           }))
+          // 系统供应商的 apiKeyUrl 以 models.ts 为准
+          const providerApiKeyMap = new Map<string, string>()
+          PROVIDERS.forEach((pp) => {
+            if (pp.apiKeyUrl) providerApiKeyMap.set(pp.id, pp.apiKeyUrl)
+          })
 
           // 映射后端 snake_case → 客户端类型；provider_id → provider，description → desc
           // 系统模型(source=system)的能力字段以 models.ts 为准，覆盖数据库默认值
-          const providers: Provider[] = (data.providers ?? []).map((p: any) => ({
+          const providers: Provider[] = (data.providers ?? []).map((p: any) => {
+            const pSource = (p.source as 'system' | 'user') ?? 'system'
+            return {
             id: p.id as ProviderId,
             name: p.name,
             keyHint: p.key_hint || '',
             url: p.url || '',
-            source: (p.source as 'system' | 'user') ?? 'system',
+            apiKeyUrl: pSource === 'system' ? (providerApiKeyMap.get(p.id) || p.api_key_url || undefined) : (p.api_key_url || undefined),
+            source: pSource,
             models: (p.models ?? []).map((m: any) => {
               const base: ProviderModel = {
                 id: m.id,
@@ -418,13 +427,14 @@ export const useStore = create<AppState>()(
                 supportsI2V: !!m.supports_i2v,
                 supportsFirstLast: !!m.supports_first_last,
                 supportsReference: !!m.supports_reference,
+                docsUrl: m.docs_url || undefined,
                 source: (m.source as 'system' | 'user') ?? 'system'
               }
               const override = modelCapMap.get(m.id)
               if (override && base.source === 'system') return { ...base, ...override }
               return base
             })
-          }))
+          }})
           const features: Feature[] = (data.features ?? []).map((f: any) => ({
             id: f.id as FeatureId,
             name: f.name,

@@ -30,6 +30,8 @@ let savedBallPos: { x: number; y: number } | null = null
 let baseWindowHeight = PANEL.height
 // 独立更新弹窗窗口
 let updateWindow: BrowserWindow | null = null
+// 独立模型推荐助手弹窗窗口
+let recommendationWindow: BrowserWindow | null = null
 // 拖拽进行中标志：moveWindow IPC 设置，避免 onMove 二次 clamp 造成窗口跳动
 let isUserDragging = false
 let dragClampTimer: NodeJS.Timeout | null = null
@@ -168,15 +170,33 @@ function createWindow(): BrowserWindow {
   win.on('closed', () => {
     mainWindow = null
   })
+  // 最小化时隐藏推荐弹窗，恢复时重新显示并重新定位
+  win.on('minimize', () => {
+    if (recommendationWindow && !recommendationWindow.isDestroyed()) {
+      recommendationWindow.hide()
+    }
+  })
+  win.on('restore', () => {
+    if (recommendationWindow && !recommendationWindow.isDestroyed()) {
+      positionRecommendationWindow()
+      recommendationWindow.show()
+    }
+  })
+  // 主窗口移动时同步更新推荐弹窗位置
+  win.on('moved', () => {
+    if (recommendationWindow && !recommendationWindow.isDestroyed() && recommendationWindow.isVisible()) {
+      positionRecommendationWindow()
+    }
+  })
   return win
 }
 
 // 构建弹窗 URL（加载主应用并附带 ?modal= 参数）
-function buildPopupUrl(query: string): string {
+function buildPopupUrl(query: string, modal: string = 'update'): string {
   if (isDev) {
-    return `http://localhost:5173/?modal=update&${query}`
+    return `http://localhost:5173/?modal=${modal}&${query}`
   }
-  return `file://${path.join(__dirname, '../dist/index.html')}?modal=update&${query}`
+  return `file://${path.join(__dirname, '../dist/index.html')}?modal=${modal}&${query}`
 }
 
 // 创建独立更新弹窗窗口
@@ -244,7 +264,78 @@ function createUpdateWindow(info: { version: string; releaseNotes?: string }) {
   })
   updateWindow = win
 }
- 
+
+// 创建独立模型推荐助手弹窗窗口
+function positionRecommendationWindow() {
+  if (!recommendationWindow || recommendationWindow.isDestroyed()) return
+  const [mx, my] = mainWindow ? mainWindow.getPosition() : [100, 100]
+  const [mw] = mainWindow ? mainWindow.getSize() : [450, 100]
+  const winW = 420
+  const winH = 620
+  let wx = mx + Math.round((mw - winW) / 2)
+  let wy = my - winH - 10
+  const display = screen.getDisplayNearestPoint({ x: mx, y: my })
+  const wa = display.workArea
+  if (wy < wa.y) wy = my + 30
+  if (wx < wa.x) wx = wa.x + 10
+  if (wx + winW > wa.x + wa.width) wx = wa.x + wa.width - winW - 10
+  recommendationWindow.setPosition(wx, wy)
+}
+
+function createRecommendationWindow() {
+  if (recommendationWindow && !recommendationWindow.isDestroyed()) {
+    recommendationWindow.focus()
+    return
+  }
+  const [mx, my] = mainWindow ? mainWindow.getPosition() : [100, 100]
+  const [mw] = mainWindow ? mainWindow.getSize() : [450, 100]
+  const winW = 420
+  const winH = 620
+  let wx = mx + Math.round((mw - winW) / 2)
+  let wy = my - winH - 10
+  const display = screen.getDisplayNearestPoint({ x: mx, y: my })
+  const wa = display.workArea
+  if (wy < wa.y) wy = my + 30
+  if (wx < wa.x) wx = wa.x + 10
+  if (wx + winW > wa.x + wa.width) wx = wa.x + wa.width - winW - 10
+
+  const win = new BrowserWindow({
+    width: winW,
+    height: winH,
+    x: wx,
+    y: wy,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  const url = buildPopupUrl('', 'recommendation')
+  console.log('[recommendation] 加载推荐助手弹窗 URL:', url)
+  win.loadURL(url)
+  win.once('ready-to-show', () => {
+    console.log('[recommendation] 推荐助手弹窗已显示')
+    win.show()
+  })
+  win.webContents.on('did-fail-load', (_e, errorCode, errorDesc) => {
+    console.error('[recommendation] 弹窗加载失败:', errorCode, errorDesc, 'URL:', url)
+  })
+  win.on('closed', () => {
+    recommendationWindow = null
+  })
+  recommendationWindow = win
+}
+
 function expandWindow() {
   if (!mainWindow) return
   if (!isMiniMode) return
@@ -278,6 +369,11 @@ function expandWindow() {
   try {
     mainWindow?.webContents.send('window:expanded')
   } catch {}
+  // 展开后恢复推荐弹窗（如果之前存在）
+  if (recommendationWindow && !recommendationWindow.isDestroyed()) {
+    positionRecommendationWindow()
+    recommendationWindow.show()
+  }
 }
  
 function collapseWindow() {
@@ -316,6 +412,10 @@ function collapseWindow() {
     isMiniMode = true
     mainWindow?.webContents.send('window:collapsed')
   } catch {}
+  // 折叠时隐藏推荐弹窗（不销毁，展开后恢复）
+  if (recommendationWindow && !recommendationWindow.isDestroyed()) {
+    recommendationWindow.hide()
+  }
 }
  
 function registerIpc() {
@@ -585,6 +685,14 @@ function registerIpc() {
   // ===== 独立更新弹窗 =====
   ipcMain.handle(IPC.UPDATE_WINDOW_CLOSE, () => {
     if (updateWindow && !updateWindow.isDestroyed()) updateWindow.close()
+  })
+
+  // ===== 模型推荐助手弹窗 =====
+  ipcMain.handle(IPC.RECOMMENDATION_WINDOW_OPEN, () => {
+    createRecommendationWindow()
+  })
+  ipcMain.handle(IPC.RECOMMENDATION_WINDOW_CLOSE, () => {
+    if (recommendationWindow && !recommendationWindow.isDestroyed()) recommendationWindow.close()
   })
 }
  

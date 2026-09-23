@@ -27,6 +27,8 @@ export interface ProviderModel {
   supportsFirstLast?: boolean
   /** 图生视频是否支持参考图模式 */
   supportsReference?: boolean
+  /** 模型详情介绍页地址 */
+  docsUrl?: string
   /** 来源：system 系统自带 / user 用户自定义 */
   source?: 'system' | 'user'
 }
@@ -38,8 +40,10 @@ export interface Provider {
   name: string
   /** Key prefix used to detect a valid-looking key, e.g. "sk-". */
   keyHint: string
-  /** 供应商官网地址，用于资源库卡片跳转 */
+  /** 供应商官网地址 */
   url: string
+  /** API Key 获取/管理页面地址 */
+  apiKeyUrl?: string
   models: ProviderModel[]
   /** 来源：system 系统自带 / user 用户自定义 */
   source?: 'system' | 'user'

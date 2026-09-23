@@ -29,7 +29,9 @@ const IPC = {
   UPDATER_INSTALL: 'updater:install',
   UPDATER_GET_VERSION: 'updater:get-version',
   UPDATE_WINDOW_CLOSE: 'update-window:close',
-  UPDATE_WINDOW_EVENT: 'update-window:event'
+  UPDATE_WINDOW_EVENT: 'update-window:event',
+  RECOMMENDATION_WINDOW_OPEN: 'recommendation-window:open',
+  RECOMMENDATION_WINDOW_CLOSE: 'recommendation-window:close'
 } as const
  
 const api: ExposedAPI = {
@@ -121,7 +123,10 @@ const api: ExposedAPI = {
     const listener = (_e: unknown, data: { phase: string; progress?: number; version?: string; releaseNotes?: string; currentVersion?: string; errorMsg?: string }) => cb(data)
     ipcRenderer.on(IPC.UPDATE_WINDOW_EVENT, listener)
     return () => ipcRenderer.removeListener(IPC.UPDATE_WINDOW_EVENT, listener)
-  }
+  },
+  // ===== 模型推荐助手弹窗 =====
+  openRecommendationWindow: () => ipcRenderer.invoke(IPC.RECOMMENDATION_WINDOW_OPEN),
+  closeRecommendationWindow: () => ipcRenderer.invoke(IPC.RECOMMENDATION_WINDOW_CLOSE)
 }
  
 contextBridge.exposeInMainWorld('api', api)

@@ -142,25 +142,16 @@ function ModelCard({ model }: { model: ProviderModel }) {
     audio: '音频',
     text: '文本'
   }
-  const handleOpen = () => {
-    const url = provider?.url
-    if (!url) return
-    // 不使用可选链，避免 IPC 方法未暴露时静默失败
+  const openExternal = (url: string) => {
     const api = window.api as any
     if (api && typeof api.openExternal === 'function') {
       api.openExternal(url)
     } else {
-      // 兜底：在 Electron 新窗口中打开（preload 未重新编译时）
-      console.warn('[ResourceLibrary] openExternal 不可用，回退到 window.open')
       window.open(url, '_blank')
     }
   }
   return (
-    <div
-      onClick={handleOpen}
-      className="flex cursor-pointer flex-col gap-1 rounded-lg border border-black/5 bg-white p-2.5 transition-colors hover:border-brand-200 hover:bg-brand-50/30"
-      title={`点击访问 ${provider?.name} 官网（在外部浏览器打开）`}
-    >
+    <div className="flex flex-col gap-1 rounded-lg border border-black/5 bg-white p-2.5">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-gray-800">{model.name}</span>
         <div className="flex items-center gap-1 flex-wrap">
@@ -187,9 +178,24 @@ function ModelCard({ model }: { model: ProviderModel }) {
         {provider?.source === 'user' && ' (自定义)'}
       </span>
       <p className="line-clamp-2 text-[11px] leading-relaxed text-gray-400">{model.desc}</p>
-      <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-brand-400">
-        访问官网 ↗
-      </span>
+      <div className="mt-0.5 flex items-center gap-2">
+        {provider?.apiKeyUrl && (
+          <button
+            onClick={() => openExternal(provider.apiKeyUrl!)}
+            className="inline-flex items-center gap-0.5 rounded-md bg-brand-500 px-2 py-0.5 text-[10px] font-medium text-white transition-colors hover:bg-brand-600"
+          >
+            接入API ↗
+          </button>
+        )}
+        {model.docsUrl && (
+          <button
+            onClick={() => openExternal(model.docsUrl!)}
+            className="inline-flex items-center gap-0.5 rounded-md border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 transition-colors hover:border-brand-300 hover:text-brand-600"
+          >
+            了解模型详情 ↗
+          </button>
+        )}
+      </div>
     </div>
   )
 }

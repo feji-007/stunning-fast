@@ -7,55 +7,63 @@ export const PROVIDERS: Provider[] = [
     name: '通义万相 (DashScope)',
     keyHint: 'sk-',
     url: 'https://dashscope.aliyun.com/',
+    apiKeyUrl: 'https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key',
     models: [
       {
         id: 'wan2.7-t2v',
         name: 'Wan2.7 文生视频',
         provider: 'alibaba',
         type: 'video',
-        desc: '通义万相最新文生视频，2-15s，720P/1080P，含音频，支持多镜头叙事。'
+        desc: '通义万相最新文生视频，2-15s，720P/1080P，含音频，支持多镜头叙事。',
+        docsUrl: 'https://help.aliyun.com/zh/model-studio/wan2.7-video-generation'
       },
       {
         id: 'wan2.7-t2v-2026-06-12',
         name: 'Wan2.7 (2026-06-12 快照)',
         provider: 'alibaba',
         type: 'video',
-        desc: '通义万相 wan2.7 固定版本快照，结果更稳定可复现。'
+        desc: '通义万相 wan2.7 固定版本快照，结果更稳定可复现。',
+        docsUrl: 'https://help.aliyun.com/zh/model-studio/wan2.7-video-generation'
       },
       {
         id: 'wan2.6-t2v',
         name: 'Wan2.6 文生视频',
         provider: 'alibaba',
         type: 'video',
-        desc: '通义万相文生视频，2-15s，1080P，含音频，支持多镜头。'
+        desc: '通义万相文生视频，2-15s，1080P，含音频，支持多镜头。',
+        docsUrl: 'https://help.aliyun.com/zh/model-studio/wan2.6-video-generation'
       },
       {
         id: 'wan2.2-t2v-plus',
         name: 'Wan2.2 文生视频',
         provider: 'alibaba',
         type: 'video',
-        desc: '通义万相文生视频，5s，1080P，画质优先。'
+        desc: '通义万相文生视频，5s，1080P，画质优先。',
+        docsUrl: 'https://help.aliyun.com/zh/model-studio/wan2.2-video-generation'
       },
       {
         id: 'wan2.1-t2v-turbo',
         name: 'Wan2.1 Turbo 文生视频',
         provider: 'alibaba',
         type: 'video',
-        desc: '通义万相文生视频，5s，720P，快速低价，适合尝鲜。'
+        desc: '通义万相文生视频，5s，720P，快速低价，适合尝鲜。',
+        docsUrl: 'https://help.aliyun.com/zh/model-studio/wan2.1-video-generation'
       },
       {
         id: 'wan2.1-t2v-plus',
         name: 'Wan2.1 Plus 文生视频',
         provider: 'alibaba',
         type: 'video',
-        desc: '通义万相文生视频，5s，720P，画质增强。'
+        desc: '通义万相文生视频，5s，720P，画质增强。',
+        docsUrl: 'https://help.aliyun.com/zh/model-studio/wan2.1-video-generation'
       },
       {
         id: 'qwen-max',
         name: 'Qwen-Max',
         provider: 'alibaba',
         type: 'text',
-        desc: '通义千问通用大语言模型。'
+        desc: '通义千问通用大语言模型。',
+        docsUrl: 'https://help.aliyun.com/zh/model-studio/getting-started/models'
       }
     ]
   },
@@ -64,6 +72,7 @@ export const PROVIDERS: Provider[] = [
     name: '火山引擎 (豆包 Seedance)',
     keyHint: '',
     url: 'https://www.volcengine.com/product/ark',
+    apiKeyUrl: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
     models: [
       {
         id: 'doubao-seedance-2-5',
@@ -71,7 +80,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '字节最新 Seedance 2.5，文生/图生视频，支持多模态参考，最长 30s。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://www.volcengine.com/docs/82379/1521657'
       },
       {
         id: 'doubao-seedance-2-0-260128',
@@ -79,7 +89,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '豆包 Seedance 2.0 标准版，文/图生视频，原生音频，最长 15s。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://www.volcengine.com/docs/82379/1521657'
       },
       {
         id: 'doubao-seedance-2-0-fast-260128',
@@ -87,7 +98,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '豆包 Seedance 2.0 快速版，速度更快成本更低（不支持 1080p）。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://www.volcengine.com/docs/82379/1521657'
       },
       {
         id: 'doubao-seedance-1-5-pro-251215',
@@ -95,7 +107,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '豆包 Seedance 1.5 Pro，文/图生视频，4-12s。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://www.volcengine.com/docs/82379/1399079'
       },
       {
         id: 'doubao-seedance-1-0-pro-fast-251015',
@@ -103,14 +116,16 @@ export const PROVIDERS: Provider[] = [
         provider: 'volcengine',
         type: 'video',
         desc: '豆包 Seedance 1.0 Pro Fast，文/图生视频，2-12s，快速。仅支持参考图模式。',
-        supportsI2V: true, supportsFirstLast: false, supportsReference: true
+        supportsI2V: true, supportsFirstLast: false, supportsReference: true,
+        docsUrl: 'https://www.volcengine.com/docs/82379/1339149'
       },
       {
         id: 'doubao-pro',
         name: 'Doubao Pro',
         provider: 'volcengine',
         type: 'text',
-        desc: '豆包通用文本对话模型。'
+        desc: '豆包通用文本对话模型。',
+        docsUrl: 'https://www.volcengine.com/docs/82379/1263482'
       }
     ]
   },
@@ -119,6 +134,7 @@ export const PROVIDERS: Provider[] = [
     name: '快手可灵 (Kling)',
     keyHint: 'AccessKey:SecretKey',
     url: 'https://klingai.com/',
+    apiKeyUrl: 'https://klingai.com/dev/api-key',
     models: [
       {
         id: 'kling-v3',
@@ -126,7 +142,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'kling',
         type: 'video',
         desc: '可灵最新一代文生视频，画质与一致性最佳，支持更长时长。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://docs.qingque.cn/d/home/eZQB2yTMbVOeS6Ouk0tIBZbCG'
       },
       {
         id: 'kling-v2-master',
@@ -134,7 +151,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'kling',
         type: 'video',
         desc: '可灵 2.0 高质量文生视频，1080p，最长 10s。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://docs.qingque.cn/d/home/eZQB2yTMbVOeS6Ouk0tIBZbCG'
       },
       {
         id: 'kling-v2-5-turbo',
@@ -142,7 +160,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'kling',
         type: 'video',
         desc: '可灵 2.5 Turbo，速度更快成本更低，适合快速尝鲜。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://docs.qingque.cn/d/home/eZQB2yTMbVOeS6Ouk0tIBZbCG'
       },
       {
         id: 'kling-v1-6',
@@ -150,7 +169,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'kling',
         type: 'video',
         desc: '可灵上一代视频模型，性价比高。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://docs.qingque.cn/d/home/eZQB2yTMbVOeS6Ouk0tIBZbCG'
       }
     ]
   },
@@ -159,20 +179,23 @@ export const PROVIDERS: Provider[] = [
     name: 'MiniMax',
     keyHint: '',
     url: 'https://www.minimaxi.com/',
+    apiKeyUrl: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
     models: [
       {
         id: 'video-01',
         name: 'MiniMax Video-01',
         provider: 'minimax',
         type: 'video',
-        desc: 'MiniMax 视频生成，擅长人物与运镜。'
+        desc: 'MiniMax 视频生成，擅长人物与运镜。',
+        docsUrl: 'https://platform.minimaxi.com/document/Video%20Generation'
       },
       {
         id: 'abab6-5',
         name: 'abab6.5',
         provider: 'minimax',
         type: 'text',
-        desc: 'MiniMax 通用大语言模型。'
+        desc: 'MiniMax 通用大语言模型。',
+        docsUrl: 'https://platform.minimaxi.com/document/Text%20Generation'
       }
     ]
   },
@@ -181,6 +204,7 @@ export const PROVIDERS: Provider[] = [
     name: 'Runway',
     keyHint: '',
     url: 'https://runwayml.com/',
+    apiKeyUrl: 'https://runwayml.com/api',
     models: [
       {
         id: 'gen-3-alpha',
@@ -188,7 +212,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'runway',
         type: 'video',
         desc: 'Runway Gen-3，高质量文生/图生视频。',
-        supportsI2V: true, supportsFirstLast: true, supportsReference: true
+        supportsI2V: true, supportsFirstLast: true, supportsReference: true,
+        docsUrl: 'https://docs.runwayml.com/'
       }
     ]
   },
@@ -197,6 +222,7 @@ export const PROVIDERS: Provider[] = [
     name: 'Pika',
     keyHint: '',
     url: 'https://pika.art/',
+    apiKeyUrl: 'https://pika.art/profile',
     models: [
       {
         id: 'pika-1-5',
@@ -204,7 +230,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'pika',
         type: 'video',
         desc: 'Pika 视频生成，特效与 Pikaffects。',
-        supportsI2V: true, supportsFirstLast: false, supportsReference: true
+        supportsI2V: true, supportsFirstLast: false, supportsReference: true,
+        docsUrl: 'https://pika.art/faq'
       }
     ]
   },
@@ -213,6 +240,7 @@ export const PROVIDERS: Provider[] = [
     name: 'Luma AI',
     keyHint: '',
     url: 'https://lumalabs.ai/',
+    apiKeyUrl: 'https://lumalabs.ai/api',
     models: [
       {
         id: 'dream-machine',
@@ -220,7 +248,8 @@ export const PROVIDERS: Provider[] = [
         provider: 'luma',
         type: 'video',
         desc: 'Luma Dream Machine，文/图生视频。',
-        supportsI2V: true, supportsFirstLast: false, supportsReference: true
+        supportsI2V: true, supportsFirstLast: false, supportsReference: true,
+        docsUrl: 'https://docs.lumalabs.ai/docs/api'
       }
     ]
   },
@@ -229,20 +258,23 @@ export const PROVIDERS: Provider[] = [
     name: '智谱 AI',
     keyHint: '',
     url: 'https://www.zhipuai.cn/',
+    apiKeyUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
     models: [
       {
         id: 'cogvideox',
         name: 'CogVideoX',
         provider: 'zhipu',
         type: 'video',
-        desc: '智谱开源视频生成模型。'
+        desc: '智谱开源视频生成模型。',
+        docsUrl: 'https://open.bigmodel.cn/dev/api/video-generation'
       },
       {
         id: 'glm-4',
         name: 'GLM-4',
         provider: 'zhipu',
         type: 'text',
-        desc: '智谱通用大语言模型。'
+        desc: '智谱通用大语言模型。',
+        docsUrl: 'https://open.bigmodel.cn/dev/api/normal-model/glm-4'
       }
     ]
   },
@@ -251,27 +283,31 @@ export const PROVIDERS: Provider[] = [
     name: 'OpenAI',
     keyHint: 'sk-',
     url: 'https://openai.com/',
+    apiKeyUrl: 'https://platform.openai.com/api-keys',
     models: [
       {
         id: 'sora',
         name: 'Sora',
         provider: 'openai',
         type: 'video',
-        desc: 'OpenAI Sora 视频生成模型。'
+        desc: 'OpenAI Sora 视频生成模型。',
+        docsUrl: 'https://platform.openai.com/docs/guides/video'
       },
       {
         id: 'dall-e-3',
         name: 'DALL·E 3',
         provider: 'openai',
         type: 'image',
-        desc: 'OpenAI 图像生成。'
+        desc: 'OpenAI 图像生成。',
+        docsUrl: 'https://platform.openai.com/docs/guides/image-generation'
       },
       {
         id: 'gpt-4o',
         name: 'GPT-4o',
         provider: 'openai',
         type: 'text',
-        desc: 'OpenAI 通用对话模型。'
+        desc: 'OpenAI 通用对话模型。',
+        docsUrl: 'https://platform.openai.com/docs/models/gpt-4o'
       }
     ]
   }

@@ -7,17 +7,22 @@ import LoginModal from './components/LoginModal'
 import SettingsModal from './components/SettingsModal'
 import FeedbackModal from './components/FeedbackModal'
 import StandaloneUpdateModal from './components/StandaloneUpdateModal'
+import RecommendationAssistantModal from './components/RecommendationAssistantModal'
 import { type UpdatePhase } from './components/UpdateModal'
 
-// 检查是否为独立弹窗模式（URL 含 ?modal=update）
-function isStandaloneUpdateMode(): boolean {
-  return new URLSearchParams(window.location.search).get('modal') === 'update'
+// 检查是否为独立弹窗模式（URL 含 ?modal=xxx）
+function getStandaloneModal(): string | null {
+  return new URLSearchParams(window.location.search).get('modal')
 }
 
 export default function App() {
-  // 独立弹窗模式：仅渲染更新弹窗
-  if (isStandaloneUpdateMode()) {
+  const modal = getStandaloneModal()
+  // 独立弹窗模式：仅渲染对应弹窗
+  if (modal === 'update') {
     return <StandaloneUpdateModal />
+  }
+  if (modal === 'recommendation') {
+    return <RecommendationAssistantModal />
   }
 
   return <MainApp />

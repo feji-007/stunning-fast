@@ -348,18 +348,31 @@ export default function VideoGeneration() {
   return (
     <div className="flex h-full flex-col gap-3">
       <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={onFileChange} className="hidden" />
-      {mode === 'auto' && (
-        <div className="flex items-center gap-1.5">
-          <div className="inline-flex rounded-lg border border-black/10 bg-gray-50 p-0.5 text-[11px]">
+      <div className="flex items-center gap-2">
+        {mode === 'auto' && (
+          <div className="inline-flex shrink-0 rounded-lg border border-black/10 bg-gray-50 p-0.5 text-[11px]">
             {([{ v: 'quality' as AutoPriority, label: '清晰度优先' }, { v: 'speed' as AutoPriority, label: '速度优先' }, { v: 'price' as AutoPriority, label: '价格优先' }]).map((o) => (
               <button key={o.v} onClick={() => setVideoForm({ autoPriority: o.v })} className={'rounded-md px-2.5 py-1 ' + (autoPriority === o.v ? 'bg-white font-medium text-brand-600 shadow-sm' : 'text-gray-500')}>{o.label}</button>
             ))}
           </div>
-        </div>
-      )}
+        )}
+        <button
+          onClick={() => window.api?.openRecommendationWindow?.()}
+          className="group flex shrink-0 items-center gap-1.5"
+          title="不知道选什么模型？让AI助手帮你推荐"
+        >
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-500 text-white shadow-sm transition group-hover:scale-105 group-hover:shadow-md group-hover:from-brand-500 group-hover:to-brand-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/>
+              <path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>
+            </svg>
+          </span>
+          <span className="text-[10px] text-gray-400 transition group-hover:text-brand-500">AI帮你匹配最合适的大模型</span>
+        </button>
+      </div>
       <div className="flex items-center gap-2">
         <ModeSwitch mode={mode} onChange={(m) => setVideoForm({ mode: m })} />
-        {!needLogin && (<div className="ml-auto text-[11px] text-gray-400">可用供应商：{providers.length > 0 ? providers.map((p) => p.name).join('、') : '无'}</div>)}
+        {!needLogin && (<div className="text-[11px] text-gray-400">可用供应商：{providers.length > 0 ? providers.map((p) => p.name).join('、') : '无'}</div>)}
       </div>
       {needLogin && (
         <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700">

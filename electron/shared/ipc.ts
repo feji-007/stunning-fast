@@ -27,7 +27,10 @@ export const IPC = {
   UPDATER_INSTALL: 'updater:install',
   UPDATER_GET_VERSION: 'updater:get-version',
   UPDATE_WINDOW_CLOSE: 'update-window:close',
-  UPDATE_WINDOW_EVENT: 'update-window:event'
+  UPDATE_WINDOW_EVENT: 'update-window:event',
+  // ===== 模型推荐助手弹窗 =====
+  RECOMMENDATION_WINDOW_OPEN: 'recommendation-window:open',
+  RECOMMENDATION_WINDOW_CLOSE: 'recommendation-window:close'
 } as const
  
 export interface ExposedAPI {
@@ -91,6 +94,11 @@ export interface ExposedAPI {
   closeUpdateWindow: () => Promise<void>
   /** 主进程推送更新事件到弹窗窗口（phase / progress / version / error） */
   onUpdateWindowEvent: (cb: (data: { phase: string; progress?: number; version?: string; releaseNotes?: string; currentVersion?: string; errorMsg?: string }) => void) => () => void
+  // ===== 模型推荐助手弹窗 =====
+  /** 打开模型推荐助手独立窗口 */
+  openRecommendationWindow: () => Promise<void>
+  /** 关闭模型推荐助手独立窗口 */
+  closeRecommendationWindow: () => Promise<void>
 }
  
 export interface GenerateVideoParams {
