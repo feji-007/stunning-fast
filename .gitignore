@@ -24,6 +24,10 @@ deploy/releases/*
 !.env.production
 !.env.production.example
 
+# 天翼云 ZOS 凭证（含 AccessKey/Secret，绝不提交；模板 .oss.env.example 可提交）
+**/.oss.env
+!.oss.env.example
+
 # 系统/编辑器
 *.local
 Thumbs.db

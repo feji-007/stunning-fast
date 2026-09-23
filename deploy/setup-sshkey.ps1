@@ -20,7 +20,7 @@
 
 param(
     [string]$RemoteUser = "root",
-    [string]$RemoteHost = "8.219.219.110"
+    [string]$RemoteHost = "1.194.28.136"
 )
 
 # --------------------------

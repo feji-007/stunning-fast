@@ -3,9 +3,9 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 const PROJECT_DIR = resolve(import.meta.dirname, '..')
-const RELEASE_DIR = resolve(process.env.RELEASE_DIR || `${PROJECT_DIR}/deploy/releases`)
+const RELEASE_DIR = resolve(process.env.RELEASE_DIR || `${PROJECT_DIR}/deploy/release`)
 const DOWNLOAD_MD = resolve(process.env.DOWNLOAD_MD || `${PROJECT_DIR}/site/download.md`)
-const BASE_URL = (process.env.RELEASE_PUBLIC_BASE || 'http://8.219.219.110/releases').replace(/\/$/, '')
+const BASE_URL = (process.env.RELEASE_PUBLIC_BASE || 'https://bucket-5620.zhengzhou5.zos.ctyun.cn/release').replace(/\/$/, '')
 const START = '<!-- AUTO-GENERATED-DOWNLOADS:START -->'
 const END = '<!-- AUTO-GENERATED-DOWNLOADS:END -->'
 

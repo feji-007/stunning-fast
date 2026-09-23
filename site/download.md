@@ -1,14 +1,14 @@
 # 下载安装
 
 ::: tip 下载地址
-所有安装包与自动更新清单（`latest.yml` / `latest-mac.yml` / `latest-linux.yml`）托管在 Cloudflare R2 + CDN。
-下载基址：`https://cdn.juese.app/releases/`（部署时替换为实际 CDN 地址）
+所有安装包与自动更新清单（`latest.yml` / `latest-mac.yml` / `latest-linux.yml`）托管在天翼云 ZOS 对象存储。
+下载基址：`https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/`
 :::
 
 ## Windows
 
 <!-- AUTO-GENERATED-DOWNLOADS:START -->
-- **在线安装器（推荐）：**[下载](http://8.219.219.110/releases/juese-1.0.3-setup.exe)
+- **在线安装器（推荐）：**[下载](https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/juese-1.0.3-setup.exe)
 
   约 2 MB，运行后自动从 CDN 拉取完整程序（约 80 MB）并安装，**需联网**。完成后从开始菜单启动「绝色」。
 
@@ -38,9 +38,9 @@ chmod +x 绝色-*.AppImage
 安装版内置 electron-updater。客户端启动后会自动检测 CDN 上的 `latest.yml`，有新版本时静默下载并在下次启动应用更新。
 
 ::: warning 自定义更新源
-企业内部部署可修改客户端打包配置中的 `publish.url`，指向私有 R2 桶或内网 Nginx 静态服务地址（协议兼容 generic provider）。
+企业内部部署可修改客户端打包配置中的 `publish.url`，指向私有对象存储桶或内网 Nginx 静态服务地址（协议兼容 generic provider）。
 :::
 
-::: tip 测试环境
-当前测试环境（`http://8.219.219.110/releases/`）用云服务器公网 IP + Nginx 托管，未配 CDN。转正式环境后切换到 `https://cdn.juese.app/releases/`，详见 [部署运维](/guide/deploy)。
+::: tip 存储方案
+当前安装包托管在天翼云 ZOS 对象存储（`bucket-5620/release/`），客户端启动后从该地址拉取 `latest.yml` 检测更新。后续可绑定自定义 CDN 域名加速，详见 [部署运维](/guide/deploy)。
 :::

@@ -28,7 +28,7 @@ $ErrorActionPreference = 'Stop'
 # ---------- 配置区 ----------
 $ProjectDir    = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $ReleaseDir     = Join-Path $ProjectDir 'release'
-$DeployReleases = Join-Path $ProjectDir 'deploy\releases'
+$DeployReleases = Join-Path $ProjectDir 'deploy\release'
 
 function Info($m) { Write-Host "[pack] $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "[warn] $m" -ForegroundColor Yellow }
@@ -115,7 +115,7 @@ function Do-Pack {
   }
 }
 
-# ---------- 2. 同步到 deploy\releases ----------
+# ---------- 2. 同步到 deploy\release ----------
 function Do-Upload {
   Step "2/3 同步到 $DeployReleases"
 
@@ -188,20 +188,20 @@ function Update-DownloadPage {
 function Print-Summary {
   Step "4/4 完成"
   Write-Host ''
-  Info "deploy\releases 当前内容："
+  Info "deploy\release 当前内容："
   Get-ChildItem -Path $DeployReleases -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -ne '.gitkeep' } |
     Format-Table Name, Length, LastWriteTime -AutoSize
   Write-Host ''
-  Info "下一步："
+  Info "下一步（旧方案：服务器 Nginx 托管；推荐改用天翼云 OSS：powershell -File scripts\release-to-oss.ps1）："
   Write-Host "  1. 推送到服务器："
-  Write-Host "     powershell -File deploy\docker-deploy.ps1        # 会同步 deploy\ 到服务器（包含 releases\）"
-  Write-Host "     或仅同步 releases\："
-  Write-Host "     scp -r deploy\releases\* root@8.219.219.110:/opt/juese/releases/"
+  Write-Host "     powershell -File deploy\docker-deploy.ps1        # 会同步 deploy\ 到服务器（包含 release\）"
+  Write-Host "     或仅同步 release\："
+  Write-Host "     scp -r deploy\release\* root@1.194.28.136:/opt/juese/release/"
   Write-Host ''
   Write-Host "  2. 验证下载："
-  Write-Host "     curl.exe -sI http://8.219.219.110/releases/latest.yml"
-  Write-Host "     curl.exe -sI http://8.219.219.110/releases/"
+  Write-Host "     curl.exe -sI http://1.194.28.136/release/latest.yml"
+  Write-Host "     curl.exe -sI http://1.194.28.136/release/"
   Write-Host ''
   Write-Host "  3. 客户端 electron-updater 会拉取 latest.yml 检查更新"
   Write-Host "  4. 发布官网：npm run publish:site"

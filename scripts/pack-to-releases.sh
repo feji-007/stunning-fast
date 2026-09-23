@@ -20,7 +20,7 @@ set -euo pipefail
 # ---------- 配置区 ----------
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_DIR="$PROJECT_DIR/release"
-DEPLOY_RELEASES="$PROJECT_DIR/deploy/releases"
+DEPLOY_RELEASES="$PROJECT_DIR/deploy/release"
 
 # 颜色
 C_GREEN='\033[0;32m'; C_RED='\033[0;31m'; C_YELLOW='\033[0;33m'; C_CYAN='\033[0;36m'; C_RESET='\033[0m'
@@ -166,15 +166,15 @@ print_summary() {
   log "deploy/releases 当前内容："
   ls -la "$DEPLOY_RELEASES" 2>/dev/null | grep -v '^total' | grep -v '\.gitkeep$' || true
   echo ""
-  log "下一步："
+  log "下一步（旧方案：服务器 Nginx 托管；推荐改用天翼云 OSS：bash scripts/release-to-oss.sh）："
   echo "  1. 推送到服务器："
   echo "     bash deploy/docker-deploy.sh        # 会同步 deploy/ 到服务器（包含 releases/）"
   echo "     或仅同步 releases/："
-  echo "     rsync -az deploy/releases/ root@8.219.219.110:/opt/juese/releases/"
+  echo "     rsync -az deploy/releases/ root@1.194.28.136:/opt/juese/releases/"
   echo ""
   echo "  2. 验证下载："
-  echo "     curl -sI http://8.219.219.110/releases/latest.yml"
-  echo "     curl -sI http://8.219.219.110/releases/"
+  echo "     curl -sI http://1.194.28.136/releases/latest.yml"
+  echo "     curl -sI http://1.194.28.136/releases/"
   echo ""
   echo "  3. 客户端 electron-updater 会拉取 latest.yml 检查更新"
   echo "  4. 发布官网：npm run publish:site"

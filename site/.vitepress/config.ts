@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitepress'
 
-// 下载分发基址：测试环境用云服务器公网 IP + Nginx 托管
-// 正式环境换 CDN 域名，如 https://cdn.juese.app/releases/
-const DOWNLOAD_BASE = 'http://8.219.219.110/releases/'
+// 下载分发基址：天翼云 ZOS 对象存储 bucket-5620/release/
+// 旧方案：云服务器 Nginx 托管 releases/；现切换到天翼云 ZOS + CDN
+const DOWNLOAD_BASE = 'https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/'
 
 export default defineConfig({
   lang: 'zh-CN',

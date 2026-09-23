@@ -1,6 +1,6 @@
 # 绝色测试环境 - Docker 部署
 
-服务器：公网 `8.219.219.110` / 内网 `172.29.234.8` · 系统 CentOS 7.9 64位 · 测试环境
+服务器：公网 `1.194.28.136` · 系统 Ubuntu Server 26.04 64位 · 域名 `jueseai.com`（未 ICP 备案，暂用 IP）· 测试环境
 
 ## 文件清单
 
@@ -16,30 +16,34 @@
 
 ## 一次性准备
 
-### 服务器端（CentOS 7.9，仅做一次）
+### 服务器端（Ubuntu Server 26.04，仅做一次）
 
-脚本已内置 `--setup` 子命令，会通过 `yum` 安装 docker-ce 全套环境：
+脚本已内置 `--setup` 子命令，会通过 `apt-get` 安装 docker-ce 全套环境：
 
 ```bash
-# 方式 A：用脚本内置命令（推荐，自动用 yum 装 docker-ce + compose 插件 + rsync）
+# 方式 A：用脚本内置命令（推荐，自动用 apt-get 装 docker-ce + compose 插件 + rsync + unzip）
 bash deploy/docker-deploy.sh --setup
 # Windows 本地：powershell -File deploy\docker-deploy.ps1 -Setup
 ```
 
 ```bash
 # 方式 B：手动执行等价命令
-yum remove -y docker docker-client docker-common docker-latest docker-logrotate docker-engine 2>/dev/null || true
-yum install -y yum-utils device-mapper-persistent-data lvm2
-yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-yum-config-manager --enable docker-ce-stable
-yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin rsync
+apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+apt-get update
+apt-get install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin rsync unzip
 systemctl enable docker && systemctl start docker
 docker --version && docker compose version
 ```
 
 ### 本地（仅做一次）
 
-- 配 SSH 免密：`ssh-copy-id root@8.219.219.110`
+- 配 SSH 免密：`ssh-copy-id root@1.194.28.136`
 
 ## 部署方式
 
@@ -77,9 +81,9 @@ bash deploy/docker-deploy.sh --rebuild
 
 | 项 | 地址 |
 |---|---|
-| API | `http://8.219.219.110/api` |
-| 管理后台 | `http://8.219.219.110/admin` |
-| 健康检查 | `http://8.219.219.110/api/health` |
+| API | `http://1.194.28.136/api` |
+| 管理后台 | `http://1.194.28.136/admin` |
+| 健康检查 | `http://1.194.28.136/api/health` |
 
 ## 常用命令
 
@@ -96,7 +100,7 @@ bash deploy/docker-deploy.sh --rebuild
 ## 架构
 
 ```
-公网 8.219.219.110:80
+公网 1.194.28.136:80
         │
         ▼
 ┌─────────────────────────────────────────┐
@@ -137,12 +141,17 @@ bash deploy/docker-deploy.sh --rebuild
 - CDN 地址与 [site/.vitepress/config.ts](file:///e:/projects/stunning-fast/site/.vitepress/config.ts) 的下载基址**未修改**，因为安装包分发属于客户端分发链路，与后端测试部署解耦，可保留原样不动
 - 后续转正式环境，再调整 `JWT_SECRET`、`CORS_ORIGIN`、`CLIENT_API_BASE` 并启用 HTTPS
 
-## 升级 HTTPS（后续有域名时）
+## 升级 HTTPS（jueseai.com 备案后）
 
-修改 `deploy/nginx.juese.conf`：
-```nginx
-listen 443 ssl http2;
-ssl_certificate     /etc/letsencrypt/live/api.yourdomain.com/fullchain.pem;
-ssl_certificate_key /etc/letsencrypt/live/api.yourdomain.com/privkey.pem;
-```
-并在 compose 的 nginx 服务挂载证书目录。然后把 `.env` 的 `CLIENT_API_BASE` 改为 `https://api.yourdomain.com`，重跑部署脚本。
+1. 在天翼云控制台完成 `jueseai.com` 的 ICP 备案
+2. 修改 `deploy/nginx.juese.conf`：
+   ```nginx
+   server_name jueseai.com www.jueseai.com;
+   ```
+3. 配置 HTTPS（可选，用 Let's Encrypt）：
+   ```nginx
+   listen 443 ssl http2;
+   ssl_certificate     /etc/letsencrypt/live/jueseai.com/fullchain.pem;
+   ssl_certificate_key /etc/letsencrypt/live/jueseai.com/privkey.pem;
+   ```
+4. 把 `.env` 的 `CLIENT_API_BASE` 改为 `https://jueseai.com`，重跑部署脚本。

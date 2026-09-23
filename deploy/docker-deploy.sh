@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# 绝色测试环境 Docker 一键部署脚本（CentOS 7.9 服务器）
+# 绝色测试环境 Docker 一键部署脚本（Ubuntu Server 26.04 服务器）
 # ------------------------------------------------------------
 # 用法（在项目根目录本地执行）：
 #   bash deploy/docker-deploy.sh            # 上传源码并在服务器构建
@@ -11,8 +11,9 @@
 #   bash deploy/docker-deploy.sh --setup    # 首次：在服务器安装 Docker 环境
 #   bash deploy/docker-deploy.sh --reset    # 危险：清库重置（删 volume）
 # ------------------------------------------------------------
-# 服务器信息：公网 8.219.219.110
-# 服务器系统：CentOS 7.9 64位
+# 服务器信息：公网 1.194.28.136
+# 服务器系统：Ubuntu Server 26.04 64位
+# 域名：jueseai.com（未 ICP 备案，暂用 IP；备案后改 nginx server_name + CLIENT_API_BASE）
 # 场景：测试环境
 # ============================================================
 set -euo pipefail
@@ -21,7 +22,7 @@ set -euo pipefail
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$DEPLOY_DIR/.." && pwd)"
 REMOTE_USER="root"
-REMOTE_HOST="8.219.219.110"
+REMOTE_HOST="1.194.28.136"
 REMOTE_DIR="/opt/juese"
 APP_NAME="juese-test"
 
@@ -66,32 +67,32 @@ $1
 REMOTE
 }
 
-# ---------- 首次环境安装（CentOS 7.9） ----------
+# ---------- 首次环境安装（Ubuntu Server 26.04） ----------
 do_setup() {
-  log "在 CentOS 7.9 服务器上安装 Docker 环境"
-  step "1/4 移除旧版 docker / docker-engine（如存在）"
+  log "在 Ubuntu Server 26.04 服务器上安装 Docker 环境（Ubuntu 官方仓库）"
+  # 说明：放弃 Docker 官方仓库（download.docker.com），原因：
+  #   1. Ubuntu 26.04 (resolute) 太新，Docker 官方仓库尚未为 resolute 代号发布软件包
+  #   2. 国内访问 download.docker.com 不稳定，GPG 密钥下载经常 connection reset
+  #   3. 非交互式 SSH 下 gpg --dearmor 报 /dev/tty 错误
+  # 改用 Ubuntu 官方仓库的 docker.io + docker-compose-v2 + containerd 包：
+  #   - docker.io 29.1.3 提供 docker 命令
+  #   - docker-compose-v2 2.40.3 提供 docker compose 子命令（等效 docker-compose-plugin）
+  #   - containerd 2.2.2 提供容器运行时
+  step "1/3 移除旧版 docker / docker-engine（如存在）"
   remote_exec_heredoc '
-yum remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine 2>/dev/null || true
+apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
 '
 
-  step "2/4 安装 yum-utils（device-mapper-persistent-data / lvm2）"
+  step "2/3 apt update + 安装 docker.io + docker-compose-v2 + containerd + rsync + unzip"
   remote_exec_heredoc '
-yum install -y yum-utils device-mapper-persistent-data lvm2
+apt-get update
+apt-get install -y docker.io docker-compose-v2 containerd rsync unzip
 '
 
-  step "3/4 添加 CentOS 官方 docker-ce 仓库"
+  step "3/3 启动 docker 服务并设为开机自启"
   remote_exec_heredoc '
-yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-yum-config-manager --enable docker-ce-stable
-'
-
-  step "4/4 安装 docker-ce + docker-compose-plugin + rsync 并启动"
-  remote_exec_heredoc '
-yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin rsync
 systemctl enable docker
 systemctl start docker
-# 兼容旧版 docker-compose 命令（如本地脚本调用旧版）
-[[ -x /usr/local/bin/docker-compose ]] || ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose 2>/dev/null || true
 docker --version
 docker compose version
 '
@@ -103,7 +104,7 @@ docker compose version
 
 # ---------- 各动作 ----------
 do_up() {
-  log "部署到 ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR} (CentOS 7.9)"
+  log "部署到 ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR} (Ubuntu Server 26.04)"
   step "1/4 同步项目根目录到服务器"
   remote_exec "mkdir -p $REMOTE_DIR"
   rsync -az --delete \

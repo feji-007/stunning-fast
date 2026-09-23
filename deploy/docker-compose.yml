@@ -5,10 +5,11 @@
 #   mysql   : MySQL 8.x，数据持久化到 named volume
 #   server  : 绝色后端 + 管理后台 SPA，依赖 mysql
 #   nginx   : 反代到 server:4178，对外暴露 80
-# 服务器信息：内网 172.29.234.8 / 公网 8.219.219.110
+# 服务器信息：公网 1.194.28.136（Ubuntu Server 26.04）
+# 域名：jueseai.com（未 ICP 备案，暂用 IP；备案后改 nginx server_name + CLIENT_API_BASE）
 # 使用场景：测试环境（CDN/分发相关不在本编排内）
 # ============================================================
-version: "3.9"
+# 注意：docker compose v2 不再需要 version 字段（已过时，会被忽略并报警告）
 
 services:
   mysql:
@@ -61,7 +62,7 @@ services:
       # 测试环境放开 CORS
       CORS_ORIGIN: "*"
       # 客户端连接地址：公网 IP + Nginx 端口
-      CLIENT_API_BASE: ${CLIENT_API_BASE:-http://8.219.219.110}
+      CLIENT_API_BASE: ${CLIENT_API_BASE:-http://1.194.28.136}
     ports:
       # 不直接暴露公网，仅 Nginx 容器访问
       - "127.0.0.1:4178:4178"
@@ -90,8 +91,7 @@ services:
       # 覆盖镜像内置的 default.conf，避免其 server 块抢占 80 端口
       - /dev/null:/etc/nginx/conf.d/default.conf:ro
       - ./nginx.logs:/var/log/nginx
-      # 安装包分发目录：把本地 deploy/releases/ 挂载到 nginx，供 /releases/ 路径访问
-      - ./releases:/usr/share/nginx/releases:ro
+      # 分发下载已走天翼云 OSS（bucket-5620/release/），nginx 不再托管 releases 目录
     networks:
       - juese_net
 

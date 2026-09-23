@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env powershell
 # ============================================================
-# 绝色测试环境 Docker 一键部署脚本（Windows PowerShell 5.1 兼容版，目标 CentOS 7.9）
+# 绝色测试环境 Docker 一键部署脚本（Windows PowerShell 5.1 兼容版，目标 Ubuntu Server 26.04）
 # ------------------------------------------------------------
 # 用法（在项目根目录本地执行）：
 #   powershell -File deploy\docker-deploy.ps1                 # 上传源码并在服务器构建
@@ -8,11 +8,12 @@
 #   powershell -File deploy\docker-deploy.ps1 -Down           # 停止并移除容器（保留数据）
 #   powershell -File deploy\docker-deploy.ps1 -Logs           # 查看实时日志
 #   powershell -File deploy\docker-deploy.ps1 -Ps             # 查看容器状态
-#   powershell -File deploy\docker-deploy.ps1 -Setup          # 首次：在 CentOS 7.9 上安装 Docker
+#   powershell -File deploy\docker-deploy.ps1 -Setup          # 首次：在 Ubuntu 上安装 Docker
 #   powershell -File deploy\docker-deploy.ps1 -Reset          # 危险：清库重置（删 volume）
 # ------------------------------------------------------------
-# 服务器信息：公网 8.219.219.110
-# 服务器系统：CentOS 7.9 64位
+# 服务器信息：公网 1.194.28.136
+# 服务器系统：Ubuntu Server 26.04 64位
+# 域名：jueseai.com（未 ICP 备案，暂用 IP；备案后改 nginx server_name + CLIENT_API_BASE）
 # 场景：测试环境
 # ============================================================
 param(
@@ -30,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 $DeployDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectDir = Split-Path -Parent $DeployDir
 $RemoteUser = 'root'
-$RemoteHost = '8.219.219.110'
+$RemoteHost = '1.194.28.136'
 $RemoteDir  = '/opt/juese'
 
 function Info($m)  { Write-Host "[deploy] $m" -ForegroundColor Green }
@@ -55,20 +56,25 @@ function Ensure-EnvFile {
   }
 }
 
-# ---------- 首次环境安装（CentOS 7.9） ----------
+# ---------- 首次环境安装（Ubuntu Server 26.04） ----------
 function Deploy-Setup {
-  Info "在 CentOS 7.9 服务器上安装 Docker 环境"
-  Step "1/4 移除旧版 docker / docker-engine（如存在）"
-  Invoke-Remote "yum remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine 2>/dev/null; true"
+  Info "在 Ubuntu Server 26.04 服务器上安装 Docker 环境（Ubuntu 官方仓库）"
+  # 说明：放弃 Docker 官方仓库（download.docker.com），原因：
+  #   1. Ubuntu 26.04 (resolute) 太新，Docker 官方仓库尚未为 resolute 代号发布软件包
+  #   2. 国内访问 download.docker.com 不稳定，GPG 密钥下载经常 connection reset
+  #   3. 非交互式 SSH 下 gpg --dearmor 报 /dev/tty 错误
+  # 改用 Ubuntu 官方仓库的 docker.io + docker-compose-v2 + containerd 包：
+  #   - docker.io 29.1.3 提供 docker 命令
+  #   - docker-compose-v2 2.40.3 提供 docker compose 子命令（等效 docker-compose-plugin）
+  #   - containerd 2.2.2 提供容器运行时
+  Step "1/3 移除旧版 docker / docker-engine（如存在）"
+  Invoke-Remote "apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null; true"
 
-  Step "2/4 安装 yum-utils / device-mapper-persistent-data / lvm2"
-  Invoke-Remote "yum install -y yum-utils device-mapper-persistent-data lvm2"
+  Step "2/3 apt update + 安装 docker.io + docker-compose-v2 + containerd + rsync + unzip"
+  Invoke-Remote "apt-get update && apt-get install -y docker.io docker-compose-v2 containerd rsync unzip"
 
-  Step "3/4 添加 CentOS 官方 docker-ce 仓库"
-  Invoke-Remote "yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo; yum-config-manager --enable docker-ce-stable"
-
-  Step "4/4 安装 docker-ce + docker-compose-plugin + rsync 并启动"
-  Invoke-Remote "yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin rsync; systemctl enable docker; systemctl start docker; (ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose 2>/dev/null); docker --version; docker compose version"
+  Step "3/3 启动 docker 服务并设为开机自启"
+  Invoke-Remote "systemctl enable docker; systemctl start docker; docker --version; docker compose version"
 
   Info "Docker 环境安装完成。下一步："
   Write-Host "  1. powershell -File deploy\docker-deploy.ps1           # 部署应用"
@@ -77,19 +83,19 @@ function Deploy-Setup {
 
 # ---------- 各动作 ----------
 function Deploy-Up([bool]$rebuild) {
-  Info "部署到 $RemoteUser@$RemoteHost`:$RemoteDir (CentOS 7.9)"
+  Info "部署到 $RemoteUser@$RemoteHost`:$RemoteDir (Ubuntu Server 26.04)"
   Step "1/4 同步项目根目录到服务器"
   Invoke-Remote "mkdir -p $RemoteDir"
   $zipfile  = "$env:TEMP\juese-project-$(Get-Date -Format 'yyyyMMddHHmmss').zip"
   $staging  = "$env:TEMP\juese-staging-$(Get-Date -Format 'yyyyMMddHHmmss')"
   $null = New-Item -ItemType Directory -Path $staging -Force
-  & robocopy $ProjectDir $staging /E /XD node_modules dist dist-electron release build .cache electron scripts .git .github .vscode .idea nginx.logs /XF .env *.tsbuildinfo *.log *.bat *.ps1 .DS_Store Thumbs.db | Out-Null
+  & robocopy $ProjectDir $staging /E /XD node_modules dist dist-electron release build .cache electron scripts .git .github .vscode .idea nginx.logs /XF .env .oss* *.tsbuildinfo *.log *.bat *.ps1 .DS_Store Thumbs.db | Out-Null
   # Compress-Archive: PowerShell built-in zip
   Compress-Archive -Path "$staging\*" -DestinationPath $zipfile -Force
   & scp $zipfile "$RemoteUser@$RemoteHost`:/tmp/juese-project.zip"
   if ($LASTEXITCODE -ne 0) { throw "项目上传失败" }
   # remote: install unzip if missing, extract, cleanup
-  Invoke-Remote "which unzip >/dev/null 2>&1 || yum install -y unzip; if test -f $RemoteDir/deploy/.env; then cp $RemoteDir/deploy/.env /tmp/juese-deploy.env; fi; rm -rf $RemoteDir; mkdir -p $RemoteDir; unzip -o /tmp/juese-project.zip -d $RemoteDir; if test -f /tmp/juese-deploy.env; then mkdir -p $RemoteDir/deploy; mv /tmp/juese-deploy.env $RemoteDir/deploy/.env; fi; rm -f /tmp/juese-project.zip"
+  Invoke-Remote "which unzip >/dev/null 2>&1 || apt-get install -y unzip; if test -f $RemoteDir/deploy/.env; then cp $RemoteDir/deploy/.env /tmp/juese-deploy.env; fi; rm -rf $RemoteDir; mkdir -p $RemoteDir; unzip -o /tmp/juese-project.zip -d $RemoteDir; if test -f /tmp/juese-deploy.env; then mkdir -p $RemoteDir/deploy; mv /tmp/juese-deploy.env $RemoteDir/deploy/.env; fi; rm -f /tmp/juese-project.zip"
   Remove-Item $zipfile -Force
   Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
 
