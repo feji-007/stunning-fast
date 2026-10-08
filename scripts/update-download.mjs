@@ -1,4 +1,4 @@
-// 根据 deploy/releases 中的实际产物更新 site/download.md 的下载链接。
+// 根据 deploy/release 中的实际产物更新 site/download.md 的下载链接。
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 

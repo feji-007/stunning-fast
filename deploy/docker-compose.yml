@@ -28,7 +28,9 @@ services:
       - --default-authentication-plugin=mysql_native_password
     ports:
       # 仅内网监听；如需本机调试可注释
-      - "127.0.0.1:3306:3306"
+      #- "127.0.0.1:3306:3306"
+      # 远程调试端口，映射到宿主机 3306
+      - "3306:3306" 
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -85,7 +87,9 @@ services:
       - server
     ports:
       # 对外只暴露 80
-      - "80:80"
+      # - "80:80"
+      # 远程调试端口，映射到宿主机 90
+      - "90:90" 
     volumes:
       - ./nginx.juese.conf:/etc/nginx/conf.d/juese.conf:ro
       # 覆盖镜像内置的 default.conf，避免其 server 块抢占 80 端口
