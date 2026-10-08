@@ -177,7 +177,7 @@ function Print-Summary {
   Write-Host '  1. 修改 electron-builder.yml 的 publish.url 指向 OSS：'
   Write-Host '     publish:'
   Write-Host '       provider: generic'
-  Write-Host '       url: https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/'
+  Write-Host '       url: https://bucket-5620.zhengzhou5.zos.ctyun.cn/release'
   Write-Host '       channel: latest'
   Write-Host ''
   Write-Host '  2. 验证下载（curl）：'

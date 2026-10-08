@@ -8,7 +8,7 @@
 ## Windows
 
 <!-- AUTO-GENERATED-DOWNLOADS:START -->
-- **在线安装器（推荐）：**[下载](https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/juese-1.0.3-setup.exe)
+- **在线安装器（推荐）：**[下载](https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/juese-1.0.0-setup.exe)
 
   约 2 MB，运行后自动从 CDN 拉取完整程序（约 80 MB）并安装，**需联网**。完成后从开始菜单启动「绝色」。
 

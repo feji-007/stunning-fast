@@ -28,7 +28,7 @@ function loadEnv() {
   ]
   for (const p of candidates) {
     if (!existsSync(p)) continue
-    for (const line of readFileSync(p, 'utf8').split('\n')) {
+    for (const line of readFileSync(p, 'utf8').split(/\r?\n/)) {
       const m = line.match(/^\s*(OSS_[A-Z0-9_]+)\s*=\s*(.*)$/)
       if (!m) continue
       const val = m[2].trim().replace(/^["']|["']$/g, '')

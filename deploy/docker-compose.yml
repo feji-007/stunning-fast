@@ -4,7 +4,7 @@
 # 服务组成：
 #   mysql   : MySQL 8.x，数据持久化到 named volume
 #   server  : 绝色后端 + 管理后台 SPA，依赖 mysql
-#   nginx   : 反代到 server:4178，对外暴露 80
+#   nginx   : 反代到 server:4178，对外暴露 90
 # 服务器信息：公网 1.194.28.136（Ubuntu Server 26.04）
 # 域名：jueseai.com（未 ICP 备案，暂用 IP；备案后改 nginx server_name + CLIENT_API_BASE）
 # 使用场景：测试环境（CDN/分发相关不在本编排内）
@@ -28,7 +28,9 @@ services:
       - --default-authentication-plugin=mysql_native_password
     ports:
       # 仅内网监听；如需本机调试可注释
-      - "127.0.0.1:3306:3306"
+      #- "127.0.0.1:3306:3306"
+      # 远程调试端口，映射到宿主机 3306
+      - "3306:3306" 
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -62,7 +64,7 @@ services:
       # 测试环境放开 CORS
       CORS_ORIGIN: "*"
       # 客户端连接地址：公网 IP + Nginx 端口
-      CLIENT_API_BASE: ${CLIENT_API_BASE:-http://1.194.28.136}
+      CLIENT_API_BASE: ${CLIENT_API_BASE:-http://1.194.28.136:90}
     ports:
       # 不直接暴露公网，仅 Nginx 容器访问
       - "127.0.0.1:4178:4178"
@@ -84,8 +86,8 @@ services:
     depends_on:
       - server
     ports:
-      # 对外只暴露 80
-      - "80:80"
+      # 80/443/8080 需 ICP 备案，暂用 90 端口对外提供服务
+      - "90:90"
     volumes:
       - ./nginx.juese.conf:/etc/nginx/conf.d/juese.conf:ro
       # 覆盖镜像内置的 default.conf，避免其 server 块抢占 80 端口
