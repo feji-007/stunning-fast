@@ -1,4 +1,4 @@
-﻿// 模型管理:列表/新增/编辑/删除;分页;system 模型的能力字段只读,user 模型可修改
+// 模型管理:列表/新增/编辑/删除;分页;system 模型的能力字段只读,user 模型可修改
 import { useEffect, useMemo, useState } from 'react'
 import { modelsApi, providersApi } from '../api'
 import SortableTh from './SortableTh'
@@ -16,6 +16,7 @@ interface Model {
   resolution: string
   speed: string
   price: number | string
+  docs_url: string
   source: string
   sort_order: number
 }
@@ -37,6 +38,7 @@ interface Form {
   resolution: string
   speed: string
   price: number | string
+  docs_url: string
   source: string
   sort_order: number
 }
@@ -53,6 +55,7 @@ const EMPTY_FORM: Form = {
   resolution: '720p',
   speed: 'standard',
   price: '0',
+  docs_url: '',
   source: 'system',
   sort_order: 0
 }
@@ -167,6 +170,7 @@ export default function Models() {
       resolution: d.resolution,
       speed: d.speed,
       price: Number(d.price) || 0,
+      docsUrl: d.docs_url,
       source: d.source,
       sortOrder: Number(d.sort_order) || 0,
       isActive: true
@@ -315,7 +319,8 @@ export default function Models() {
                           description: m.description || '', supports_i2v: m.supports_i2v,
                           supports_first_last: m.supports_first_last, supports_reference: m.supports_reference,
                           resolution: m.resolution || '', speed: m.speed || '',
-                          price: String(m.price ?? '0'), source: m.source ?? 'system',
+                          price: String(m.price ?? '0'), docs_url: m.docs_url || '',
+                          source: m.source ?? 'system',
                           sort_order: m.sort_order ?? 0
                         }
                       })}
@@ -348,8 +353,9 @@ export default function Models() {
             </h3>
             {isSystemEdit && (
               <div className="mb-4 px-3 py-2 rounded-lg bg-amber-50 text-xs text-amber-700 border border-amber-200">
-                正在编辑【系统模型】。与代码生成逻辑强绑定的能力字段（图生视频 / 首尾帧 / 参考图）已自动锁定为只读。
-                如需修改来源,请切换【来源】为"用户"。
+                正在编辑【系统模型】。与代码生成逻辑强绑定的能力字段（图生视频 / 首尾帧 / 参考图）已自动锁定为只读；
+                名称 / 说明 / 分辨率 / 速度 / 价格 / 排序 / 「了解模型详情 URL」可修改。
+                如需修改来源,请切换【来源】为「用户」。
               </div>
             )}
             <div className="grid grid-cols-2 gap-4">
@@ -409,6 +415,17 @@ export default function Models() {
                   onChange={(e) => setModal({ ...modal, data: { ...modal.data, description: e.target.value } })}
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-700 mb-1">
+                  了解模型详情 URL {modal.mode === 'edit' && '(留空使用内置默认值)'}
+                </label>
+                <input
+                  value={modal.data.docs_url}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, docs_url: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="https://...(客户端「了解模型详情」按钮跳转地址，留空回退到内置默认)"
                 />
               </div>
               <div>

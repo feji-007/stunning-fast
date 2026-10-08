@@ -71,4 +71,23 @@ export type CardSize = 'compact' | 'standard' | 'loose'
 /** 主题：明色 / 暗色 */
 export type Theme = 'light' | 'dark'
 
+// 模型推荐助手
+export interface RecommendModel {
+  name: string
+  desc: string
+  tag: string
+}
+
+export interface RecommendOption {
+  label: string
+  models: string[]
+  note?: string
+}
+
+export interface RecommendQuestion {
+  layer: string
+  title: string
+  options: RecommendOption[]
+}
+
 

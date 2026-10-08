@@ -1,4 +1,4 @@
-﻿// 供应商管理:列表/新增/编辑/删除/启用停用切换。支持列排序+分页。
+// 供应商管理:列表/新增/编辑/删除/启用停用切换。支持列排序+分页。
 import { useEffect, useMemo, useState } from 'react'
 import { providersApi } from '../api'
 import SortableTh from './SortableTh'
@@ -9,6 +9,7 @@ interface Provider {
   name: string
   key_hint: string
   url: string
+  api_key_url: string
   source: string
   sort_order: number
   is_active: boolean
@@ -18,18 +19,20 @@ interface Form {
   name: string
   key_hint: string
   url: string
+  api_key_url: string
   source: string
   sort_order: number
   is_active: boolean
 }
 
-const EMPTY_FORM: Form = { name: '', key_hint: '', url: '', source: 'system', sort_order: 0, is_active: true }
+const EMPTY_FORM: Form = { name: '', key_hint: '', url: '', api_key_url: '', source: 'system', sort_order: 0, is_active: true }
 
 const PROVIDER_GETTERS: Record<string, (p: Provider) => string | number> = {
   id: (p) => p.id,
   name: (p) => p.name,
   key: (p) => p.key_hint,
   url: (p) => p.url,
+  apiKey: (p) => p.api_key_url,
   source: (p) => p.source ?? 'system',
   sort: (p) => p.sort_order ?? 0,
   status: (p) => (p.is_active ? 1 : 0)
@@ -104,6 +107,7 @@ export default function Providers() {
       name: d.name,
       keyHint: d.key_hint,
       url: d.url,
+      apiKeyUrl: d.api_key_url,
       source: d.source,
       sortOrder: Number(d.sort_order) || 0,
       isActive: d.is_active
@@ -178,7 +182,7 @@ export default function Providers() {
                       onClick={() => setModal({
                         mode: 'edit', id: p.id,
                         data: {
-                          name: p.name, key_hint: '', url: p.url || '',
+                          name: p.name, key_hint: '', url: p.url || '', api_key_url: p.api_key_url || '',
                           source: p.source ?? 'system', sort_order: p.sort_order ?? 0, is_active: p.is_active
                         }
                       })}
@@ -235,6 +239,17 @@ export default function Providers() {
                   onChange={(e) => setModal({ ...modal, data: { ...modal.data, url: e.target.value } })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">
+                  接入 API 地址 {modal.mode === 'edit' && '(留空使用内置默认值)'}
+                </label>
+                <input
+                  value={modal.data.api_key_url}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, api_key_url: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="https://...(客户端「接入API」按钮跳转地址，留空回退到内置默认)"
                 />
               </div>
               <div>

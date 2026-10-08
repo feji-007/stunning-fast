@@ -80,6 +80,8 @@ export const bootstrapApi = {
       providers: any[]
       features: any[]
       videoConfig: Record<string, Array<{ value: string; label: string }>>
+      recommendModels: Record<string, { name: string; desc: string; tag: string }>
+      recommendQuestions: Array<{ layer: string; title: string; options: Array<{ label: string; models: string[]; note?: string }> }>
     }>('/api/bootstrap')
 }
 

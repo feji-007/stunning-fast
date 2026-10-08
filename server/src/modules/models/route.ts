@@ -1,4 +1,4 @@
-﻿import { Router } from 'express'
+import { Router } from 'express'
 import { query, queryOne } from '../../db/pool'
 import { badRequest, notFound } from '../../utils/http'
 import { ok } from '../../utils/response'
@@ -22,7 +22,7 @@ router.get('/', async (req, res, next) => {
     const cnt = await queryOne<any>('SELECT COUNT(*) AS c FROM models')
     const total = Number(cnt?.c ?? 0)
     const r = await query(
-      `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference, resolution, speed, price, source, sort_order, is_active
+      `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference, resolution, speed, price, docs_url, source, sort_order, is_active
        FROM models ORDER BY sort_order, id
        LIMIT ? OFFSET ?`,
       [pageSize, offset]
@@ -45,12 +45,12 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
     const provider = await queryOne('SELECT 1 FROM providers WHERE id = ?', [b.providerId])
     if (!provider) throw notFound('供应商不存在')
     await queryOne(
-      `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference, resolution, speed, price, source, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference, resolution, speed, price, docs_url, source, sort_order, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
       [
         b.id, b.providerId, b.name, b.type ?? 'video', b.description ?? '',
         b.supportsI2V ?? false, b.supportsFirstLast ?? false, b.supportsReference ?? false,
-        b.resolution ?? 720, b.speed ?? 60, b.price ?? 2,
+        b.resolution ?? 720, b.speed ?? 60, b.price ?? 2, b.docsUrl ?? '',
         b.source ?? 'system', b.sortOrder ?? 0
       ]
     )
@@ -79,6 +79,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
          resolution = COALESCE(?, resolution),
          speed = COALESCE(?, speed),
          price = COALESCE(?, price),
+         docs_url = COALESCE(?, docs_url),
          source = COALESCE(?, source),
          sort_order = COALESCE(?, sort_order),
          is_active = COALESCE(?, is_active),
@@ -88,6 +89,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
         b.providerId, b.name, b.type, b.description,
         b.supportsI2V, b.supportsFirstLast, b.supportsReference,
         b.resolution, b.speed, b.price,
+        b.docsUrl,
         b.source, b.sortOrder, b.isActive, id
       ]
     )

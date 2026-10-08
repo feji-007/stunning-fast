@@ -10,6 +10,8 @@ import VideoConfig from './components/VideoConfig'
 import Users from './components/Users'
 import Tasks from './components/Tasks'
 import Feedback from './components/Feedback'
+import RecommendModels from './components/RecommendModels'
+import RecommendQuestions from './components/RecommendQuestions'
 import { authApi, getStoredUser, clearAuth, getToken, type AdminUser } from './api'
 
 export default function App() {
@@ -69,6 +71,8 @@ export default function App() {
       {view === 'users' && <Users />}
       {view === 'tasks' && <Tasks />}
       {view === 'feedback' && <Feedback />}
+      {view === 'recommendModels' && <RecommendModels />}
+      {view === 'recommendQuestions' && <RecommendQuestions />}
     </Layout>
   )
 }
