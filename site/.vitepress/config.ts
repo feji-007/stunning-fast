@@ -1,7 +1,6 @@
 import { defineConfig } from 'vitepress'
 
 // 下载分发基址：天翼云 ZOS 对象存储 bucket-5620/release/
-// 旧方案：云服务器 Nginx 托管 releases/；现切换到天翼云 ZOS + CDN
 const DOWNLOAD_BASE = 'https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/'
 
 export default defineConfig({
@@ -26,7 +25,6 @@ export default defineConfig({
           { text: '安装指南', link: '/guide/install' },
           { text: '部署运维', link: '/guide/deploy' },
           { text: '服务器配置建议', link: '/guide/server-spec' },
-          { text: 'Cloudflare 配置', link: '/guide/cloudflare-setup' },
           { text: 'API 接口', link: '/api/' }
         ]
       }
@@ -39,8 +37,7 @@ export default defineConfig({
           items: [
             { text: '安装指南', link: '/guide/install' },
             { text: '部署运维', link: '/guide/deploy' },
-            { text: '服务器配置建议', link: '/guide/server-spec' },
-            { text: 'Cloudflare 配置', link: '/guide/cloudflare-setup' }
+            { text: '服务器配置建议', link: '/guide/server-spec' }
           ]
         }
       ],

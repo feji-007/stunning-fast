@@ -2,7 +2,7 @@
 
 > AI 视频生成桌面助手 —— 悬浮窗模式 · 多模型聚合 · 后台统一管理 · 自动更新。
 
-**绝色**是基于 Electron 的轻量桌面应用，启动后以迷你悬浮窗驻留桌面，悬停展开主面板，离开自动折叠。内置视频生成、资源库、自定义三大功能，已接入通义万相 / 火山 Seedance / 快手可灵等多家视频生成 API。配套 **Node 后端 + MySQL** 统一管理供应商/模型/用户/密钥/视频参数，并提供 **VitePress 官网** 与 **Cloudflare R2+CDN 发布链路**。
+**绝色**是基于 Electron 的轻量桌面应用，启动后以迷你悬浮窗驻留桌面，悬停展开主面板，离开自动折叠。内置视频生成、资源库、自定义三大功能，已接入通义万相 / 火山 Seedance / 快手可灵等多家视频生成 API。配套 **Node 后端 + MySQL** 统一管理供应商/模型/用户/密钥/视频参数，并提供 **VitePress 官网** 与 **天翼云 ZOS 发布链路**。
 
 ## 功能特性
 
@@ -30,7 +30,7 @@
 | 数据库 | MySQL 8.x |
 | 管理后台 | React + Vite + Tailwind（托管于后端 `/admin`） |
 | 官网/文档 | VitePress（`site/`） |
-| 发布 | electron-builder（nsis-web）+ Cloudflare R2+CDN |
+| 发布 | electron-builder（nsis-web）+ 天翼云 ZOS |
 | CI/CD | GitHub Actions |
 
 ## 系统架构
@@ -55,7 +55,7 @@ stunning-fast/
 │   ├── admin/          #   管理后台源码
 │   └── sql/init.sql    #   建表脚本
 ├── site/               # VitePress 官网/文档
-├── scripts/            # R2 上传脚本（upload-release / upload-site / r2-client）
+├── scripts/            # 天翼云 ZOS 上传脚本（upload-site / release-to-oss / oss-client）
 ├── .github/workflows/  # CI/CD 自动发布
 ├── electron-builder.yml
 └── package.json
@@ -101,18 +101,18 @@ cd .. && npm install && npm run dev
 # 打包（生成 web installer + 7z + latest.yml）
 npm run dist
 
-# 上传到 R2（需先配 scripts/.env）
-npm run upload:release   # 上传安装包 + 清单 + 刷新 CDN
+# 上传到天翼云 ZOS（需先配 deploy/.oss.env）
+npm run upload:oss       # 上传安装包 + 清单到 bucket-5620/release/
 npm run upload:site      # 上传官网
 ```
 
 - Windows 产物：`release/nsis-web/juese-{version}-setup.exe`（约 676 KB web installer）+ `.nsis.7z`（完整包）
 - CI 自动发布：`git tag v1.2.3 && git push origin v1.2.3`（见 `.github/workflows/release.yml`）
-- 详见 [deploy/README.md](./deploy/README.md) 与 [site/guide/cloudflare-setup.md](./site/guide/cloudflare-setup.md)
+- 详见 [deploy/README.md](./deploy/README.md) 与 [site/guide/deploy.md](./site/guide/deploy.md)
 
 ## 自动更新
 
-客户端内置 electron-updater，启动后从 `https://cdn.juese.app/releases/latest.yml` 检测更新，有新版静默下载、退出时安装。仅打包后生效（开发模式跳过）。
+客户端内置 electron-updater，启动后从 `https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/latest.yml` 检测更新，有新版静默下载、退出时安装。仅打包后生效（开发模式跳过）。
 
 ## 主题色：绝色巴黎香槟
 
@@ -138,7 +138,7 @@ npm run upload:site      # 上传官网
 
 - [site/guide/install.md](./site/guide/install.md) — 安装与启动指南
 - [deploy/README.md](./deploy/README.md) — 部署运维（Docker 测试环境）
-- [site/guide/](./site/guide/) — 部署 / 服务器配置 / Cloudflare 配置
+- [site/guide/](./site/guide/) — 部署 / 服务器配置
 - [site/](./site/) — VitePress 官网（`cd site && npm run dev` 本地预览）
 
 ## License

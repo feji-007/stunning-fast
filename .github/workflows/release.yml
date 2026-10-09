@@ -1,6 +1,9 @@
 name: release
 
 # 触发：推送 v* 标签自动发布；或手动 workflow_dispatch
+# 凭据：仓库 Settings → Secrets 配置 OSS_*（OSS_ACCESS_KEY_ID /
+# OSS_SECRET_ACCESS_KEY / OSS_BUCKET / OSS_ENDPOINT / OSS_REGION /
+# OSS_PUBLIC_BASE / OSS_RELEASE_PREFIX / OSS_SITE_PREFIX）
 on:
   push:
     tags: ['v*']
@@ -13,13 +16,14 @@ jobs:
   release:
     runs-on: windows-latest   # 打包 Windows 安装包；扩展全平台时改 matrix
     env:
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      R2_BUCKET: ${{ secrets.R2_BUCKET }}
-      R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
-      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-      CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+      OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+      OSS_SECRET_ACCESS_KEY: ${{ secrets.OSS_SECRET_ACCESS_KEY }}
+      OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+      OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+      OSS_REGION: ${{ secrets.OSS_REGION }}
+      OSS_PUBLIC_BASE: ${{ secrets.OSS_PUBLIC_BASE }}
+      OSS_RELEASE_PREFIX: ${{ secrets.OSS_RELEASE_PREFIX }}
+      OSS_SITE_PREFIX: ${{ secrets.OSS_SITE_PREFIX }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,8 +40,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload installers to R2 + purge CDN
-        run: npm run upload:release
+      - name: Upload installers to 天翼云 ZOS
+        run: npm run upload:oss
 
       - name: Build site
         working-directory: site
@@ -45,7 +49,7 @@ jobs:
           npm ci
           npm run build
 
-      - name: Upload site to R2
+      - name: Upload site to 天翼云 ZOS
         run: npm run upload:site
 
       - name: Create GitHub Release (backup)

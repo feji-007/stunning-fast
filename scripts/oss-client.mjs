@@ -1,14 +1,8 @@
 // 天翼云 ZOS 对象存储 S3 兼容客户端封装
 // ------------------------------------------------------------
-// 镜像 scripts/r2-client.mjs 结构，仅替换：
-//   1. endpoint / 凭证变量名前缀 R2_* → OSS_*
-//   2. 去掉 Cloudflare CDN 缓存刷新（天翼云 ZOS 默认无 CDN，或后续按需扩展）
-//   3. 默认 forcePathStyle=false（虚拟主机风格），与截图中的
-//      https://bucket-5620.zhengzhou5.zos.ctyun.cn 一致
-//
 // 凭证加载顺序（不覆盖已存在的环境变量）：
 //   1. deploy/.oss.env       ← 推荐：与 deploy/.env 同目录，便于统一管理
-//   2. scripts/.env          ← 兼容：r2-client.mjs 的旧查找路径
+//   2. scripts/.env          ← 兼容：旧的查找路径
 //   3. 系统环境变量 OSS_*    ← CI / 部署机场景
 import { S3Client, PutObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { readFileSync, existsSync } from 'node:fs'
@@ -73,7 +67,7 @@ export function publicUrl(key) {
   return `${PUBLIC_BASE}/${key.replace(/^\//, '')}`
 }
 
-// 扩展名 → Content-Type（与 r2-client.mjs 保持一致）
+// 扩展名 → Content-Type
 const MIME = {
   '.exe': 'application/octet-stream',
   '.dmg': 'application/octet-stream',
