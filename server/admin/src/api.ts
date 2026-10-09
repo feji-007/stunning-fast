@@ -194,3 +194,15 @@ export const feedbackApi = {
   update: (id: number, b: any) => api.put(`/api/feedback/${id}`, b),
   remove: (id: number) => api.del(`/api/feedback/${id}`)
 }
+
+// ===== 模型推荐助手配置 =====
+export const recommendApi = {
+  listModels: () => api.get<{ models: any[]; total: number }>('/api/recommend/models'),
+  createModel: (b: any) => api.post('/api/recommend/models', b),
+  updateModel: (id: string, b: any) => api.put(`/api/recommend/models/${id}`, b),
+  removeModel: (id: string) => api.del(`/api/recommend/models/${id}`),
+  listQuestions: () => api.get<{ questions: any[]; total: number }>('/api/recommend/questions'),
+  createQuestion: (b: any) => api.post('/api/recommend/questions', b),
+  updateQuestion: (id: number, b: any) => api.put(`/api/recommend/questions/${id}`, b),
+  removeQuestion: (id: number) => api.del(`/api/recommend/questions/${id}`)
+}

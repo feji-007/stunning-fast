@@ -1,120 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-
-// ===== 数据定义 =====
-
-interface Option {
-  label: string
-  models: string[]
-  note?: string
-}
-
-interface Question {
-  layer: string
-  title: string
-  options: Option[]
-}
-
-const QUESTIONS: Question[] = [
-  {
-    layer: '第一层：核心用途',
-    title: '你制作这个视频，最主要的目标是什么？',
-    options: [
-      { label: '讲一个故事，有角色、有对话、有情节推进', models: ['可灵'] },
-      { label: '展示一个产品/服务，要快速、批量地产出', models: ['Seedance'] },
-      { label: '做一条有电影感、艺术感的短片，追求画面质感', models: ['Veo', 'Runway'] },
-      { label: '做竖屏短视频，要视觉冲击力、特效感强', models: ['Pika'] },
-      { label: '手头有现成素材（图/视频），想通过对话反复改', models: ['Gemini Omni'] },
-    ],
-  },
-  {
-    layer: '第二层：角色一致性',
-    title: '视频里是否会出现同一个角色/产品，并且需要在多个镜头里保持一致？',
-    options: [
-      { label: '是，角色/产品必须在不同场景里看起来完全一样', models: ['Runway', '可灵'] },
-      { label: '是，但只需要大致像，不要求像素级一致', models: ['可灵', 'Seedance'] },
-      { label: '不需要，每个镜头可以不一样', models: [] },
-    ],
-  },
-  {
-    layer: '第三层：镜头控制',
-    title: '你对镜头运动（推拉摇移、光影变化）的控制要求有多高？',
-    options: [
-      { label: '很高，我需要精确指定镜头怎么动、光怎么打', models: ['Veo'] },
-      { label: '中等，我描述大概感觉就行，模型自己发挥', models: ['可灵', 'Seedance'] },
-      { label: '不高，我主要靠后期剪辑，生成片段能用就行', models: ['Pika', 'Seedance'] },
-    ],
-  },
-  {
-    layer: '第四层：效率 vs 精细打磨',
-    title: '你更看重"快速出多个版本挑一个"，还是"反复调整打磨一个精品"？',
-    options: [
-      { label: '快速出多个版本，效率优先', models: ['Seedance', 'Pika'] },
-      { label: '反复调整，精细打磨，时间不是问题', models: ['可灵', 'Veo', 'Runway'] },
-      { label: '先用快的出草稿，再用好的精修', models: ['Seedance', '可灵', 'Veo'], note: '组合推荐：Seedance 草稿 + 可灵/Veo 精修' },
-    ],
-  },
-  {
-    layer: '第五层：输入素材',
-    title: '你手头已经有哪些素材？',
-    options: [
-      { label: '只有文字想法', models: [] },
-      { label: '有参考图片，想基于图生成', models: ['Runway', '可灵', 'Pika'] },
-      { label: '有现成视频/音频，想混合编辑', models: ['Gemini Omni'] },
-      { label: '有产品图，想做成动态广告', models: ['Seedance', 'Pika'] },
-    ],
-  },
-  {
-    layer: '第六层：时长与叙事复杂度',
-    title: '你需要的单条视频大概多长？',
-    options: [
-      { label: '几秒到十几秒，一个镜头就够', models: ['Pika', 'Seedance', 'Veo'] },
-      { label: '30秒左右，需要几个镜头切换', models: ['Seedance', '可灵'] },
-      { label: '1分钟以上，有完整叙事', models: ['可灵'], note: '可灵智能分镜能力强，或建议分段生成后剪辑' },
-    ],
-  },
-  {
-    layer: '第七层：音频需求',
-    title: '视频是否需要原生对话、音效或配乐？',
-    options: [
-      { label: '需要角色对话，且口型/语音要同步', models: ['Veo', '可灵'] },
-      { label: '只需要背景音乐/音效，后期加就行', models: [] },
-      { label: '不需要音频', models: [] },
-    ],
-  },
-]
-
-const MODEL_INFO: Record<string, { name: string; desc: string; tag: string }> = {
-  '可灵': {
-    name: '可灵 Kling',
-    desc: '擅长叙事性视频、角色一致性、智能分镜，多语言对话支持。适合有情节、需要多镜头切换的视频。',
-    tag: '叙事 · 角色一致 · 分镜',
-  },
-  'Seedance': {
-    name: 'Seedance',
-    desc: '快速批量产出，30秒单次生成，性价比高。适合产品展示、效率优先的场景。',
-    tag: '量产 · 快速 · 30秒',
-  },
-  'Veo': {
-    name: 'Veo',
-    desc: '对专业摄影术语理解极强，精确运镜控制，原生音频生成。适合追求电影感和画面质感的短片。',
-    tag: '电影感 · 运镜 · 原生音频',
-  },
-  'Runway': {
-    name: 'Runway',
-    desc: '世界一致性强，角色/场景在多镜头中保持高度一致。适合精细打磨、追求品质的项目。',
-    tag: '世界一致 · 精细打磨',
-  },
-  'Pika': {
-    name: 'Pika',
-    desc: '竖屏短视频利器，视觉冲击力强，特效感突出。适合短视频平台内容创作。',
-    tag: '竖屏 · 特效 · 视觉冲击',
-  },
-  'Gemini Omni': {
-    name: 'Gemini Omni',
-    desc: '多模态混合输入（图/视频/音频），对话式编辑。适合已有素材、想通过对话反复修改的场景。',
-    tag: '多模态 · 对话式编辑',
-  },
-}
+import { bootstrapApi } from '../api/client'
+import type { RecommendQuestion, RecommendModel } from '../types'
 
 // ===== 消息类型 =====
 interface ChatMessage {
@@ -125,6 +11,12 @@ interface ChatMessage {
 
 // ===== 组件 =====
 export default function RecommendationAssistantModal() {
+  // 推荐数据（从后端 bootstrap 拉取）
+  const [questions, setQuestions] = useState<RecommendQuestion[]>([])
+  const [modelInfo, setModelInfo] = useState<Record<string, RecommendModel>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [currentQ, setCurrentQ] = useState(0)
   const [scores, setScores] = useState<Record<string, number>>({})
@@ -132,15 +24,25 @@ export default function RecommendationAssistantModal() {
   const [comboNote, setComboNote] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // 初始化：发送第一条问题
+  // 拉取推荐配置（复用 /api/bootstrap 接口）
   useEffect(() => {
-    setMessages([
-      {
-        role: 'assistant',
-        text: QUESTIONS[0].title,
-        layer: QUESTIONS[0].layer,
-      },
-    ])
+    bootstrapApi.fetch()
+      .then((data) => {
+        const qs = data.recommendQuestions ?? []
+        setQuestions(qs)
+        setModelInfo(data.recommendModels ?? {})
+        setLoading(false)
+        // 数据就绪后初始化第一条问题
+        if (qs.length > 0) {
+          setMessages([
+            { role: 'assistant', text: qs[0].title, layer: qs[0].layer },
+          ])
+        }
+      })
+      .catch((e: Error) => {
+        setError(e.message || '加载失败')
+        setLoading(false)
+      })
   }, [])
 
   // 自动滚动到底部
@@ -148,14 +50,14 @@ export default function RecommendationAssistantModal() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, finished])
 
-  const handleAnswer = (opt: Option) => {
+  const handleAnswer = (opt: { label: string; models: string[]; note?: string }) => {
     // 记录用户回答
     setMessages((prev) => [
       ...prev,
       { role: 'user', text: opt.label },
     ])
 
-    // 累加模型得分
+    // 累加模型得分（投票算法，保留原逻辑）
     setScores((prev) => {
       const next = { ...prev }
       for (const m of opt.models) {
@@ -169,11 +71,11 @@ export default function RecommendationAssistantModal() {
 
     // 下一题或结束
     const nextQ = currentQ + 1
-    if (nextQ < QUESTIONS.length) {
+    if (nextQ < questions.length) {
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', text: QUESTIONS[nextQ].title, layer: QUESTIONS[nextQ].layer },
+          { role: 'assistant', text: questions[nextQ].title, layer: questions[nextQ].layer },
         ])
         setCurrentQ(nextQ)
       }, 300)
@@ -183,7 +85,8 @@ export default function RecommendationAssistantModal() {
   }
 
   const handleRestart = () => {
-    setMessages([{ role: 'assistant', text: QUESTIONS[0].title, layer: QUESTIONS[0].layer }])
+    if (questions.length === 0) return
+    setMessages([{ role: 'assistant', text: questions[0].title, layer: questions[0].layer }])
     setCurrentQ(0)
     setScores({})
     setFinished(false)
@@ -202,6 +105,32 @@ export default function RecommendationAssistantModal() {
   const topModel = ranked[0]?.[0]
   const runnerUps = ranked.slice(1, 3).map(([k]) => k)
 
+  // 加载中
+  if (loading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-3">
+        <div className="flex h-[600px] w-[400px] flex-col items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_10px_40px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+          <div className="text-gray-400">加载中…</div>
+        </div>
+      </div>
+    )
+  }
+
+  // 加载失败或无数据
+  if (error || questions.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-3">
+        <div className="flex h-[600px] w-[400px] flex-col items-center justify-center gap-4 overflow-hidden rounded-2xl bg-white shadow-[0_10px_40px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+          <div className="text-gray-500 text-sm">{error || '暂无推荐问题数据'}</div>
+          <button
+            onClick={handleClose}
+            className="rounded-xl bg-brand-400 px-6 py-2 text-xs font-medium text-white hover:bg-brand-500"
+          >关闭</button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full w-full items-center justify-center p-3">
       <div className="flex h-[600px] w-[400px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_10px_40px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
@@ -213,7 +142,7 @@ export default function RecommendationAssistantModal() {
           <div className="flex-1">
             <h2 className="text-sm font-semibold text-gray-800">模型推荐助手</h2>
             <p className="text-[10px] text-gray-400">
-              {finished ? '已完成' : `${currentQ + 1} / ${QUESTIONS.length}`}
+              {finished ? '已完成' : `${currentQ + 1} / ${questions.length}`}
             </p>
           </div>
           <button
@@ -229,7 +158,7 @@ export default function RecommendationAssistantModal() {
         <div className="h-0.5 bg-gray-100">
           <div
             className="h-full bg-brand-400 transition-all duration-300"
-            style={{ width: `${((finished ? QUESTIONS.length : currentQ) / QUESTIONS.length) * 100}%` }}
+            style={{ width: `${((finished ? questions.length : currentQ) / questions.length) * 100}%` }}
           />
         </div>
 
@@ -237,7 +166,7 @@ export default function RecommendationAssistantModal() {
         <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4 scroll-thin">
           {messages.map((msg, i) => (
             <div key={i} className={msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-              <div className={msg.role === 'user' ? 'max-w-[85%]' : 'max-w-[85%]'}>
+              <div className="max-w-[85%]">
                 {msg.layer && (
                   <p className="mb-1 text-[10px] font-medium text-brand-500">{msg.layer}</p>
                 )}
@@ -268,19 +197,19 @@ export default function RecommendationAssistantModal() {
                     )}
 
                     {/* 首推模型 */}
-                    {topModel && MODEL_INFO[topModel] && (
+                    {topModel && modelInfo[topModel] && (
                       <div className="mb-2 rounded-xl bg-white p-3 shadow-sm">
                         <div className="mb-1 flex items-center gap-2">
                           <span className="rounded-full bg-brand-400 px-2 py-0.5 text-[10px] font-medium text-white">
                             首推
                           </span>
-                          <span className="text-sm font-semibold text-gray-800">{MODEL_INFO[topModel].name}</span>
+                          <span className="text-sm font-semibold text-gray-800">{modelInfo[topModel].name}</span>
                         </div>
                         <p className="mb-1.5 text-[11px] leading-relaxed text-gray-500">
-                          {MODEL_INFO[topModel].desc}
+                          {modelInfo[topModel].desc}
                         </p>
                         <div className="flex flex-wrap gap-1">
-                          {MODEL_INFO[topModel].tag.split(' · ').map((t) => (
+                          {modelInfo[topModel].tag.split(' · ').map((t) => (
                             <span key={t} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
                               {t}
                             </span>
@@ -293,14 +222,14 @@ export default function RecommendationAssistantModal() {
                     {runnerUps.length > 0 && (
                       <div className="space-y-1.5">
                         <p className="text-[10px] text-gray-400">备选推荐</p>
-                        {runnerUps.map((m) => MODEL_INFO[m] && (
+                        {runnerUps.map((m) => modelInfo[m] && (
                           <div key={m} className="rounded-lg bg-white/70 px-3 py-2">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-medium text-gray-700">{MODEL_INFO[m].name}</span>
+                              <span className="text-xs font-medium text-gray-700">{modelInfo[m].name}</span>
                               <span className="text-[10px] text-gray-400">· {scores[m]} 票</span>
                             </div>
                             <p className="mt-0.5 text-[10px] leading-relaxed text-gray-400">
-                              {MODEL_INFO[m].tag}
+                              {modelInfo[m].tag}
                             </p>
                           </div>
                         ))}
@@ -321,9 +250,9 @@ export default function RecommendationAssistantModal() {
         </div>
 
         {/* 选项区域 */}
-        {!finished && (
+        {!finished && questions[currentQ] && (
           <div className="space-y-2 border-t border-gray-100 bg-gray-50/50 px-4 py-3">
-            {QUESTIONS[currentQ].options.map((opt, i) => (
+            {questions[currentQ].options.map((opt, i) => (
               <button
                 key={i}
                 onClick={() => handleAnswer(opt)}

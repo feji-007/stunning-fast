@@ -689,6 +689,7 @@ function registerIpc() {
 
   // ===== 模型推荐助手弹窗 =====
   ipcMain.handle(IPC.RECOMMENDATION_WINDOW_OPEN, () => {
+    console.log('[recommendation] IPC RECOMMENDATION_WINDOW_OPEN received')
     createRecommendationWindow()
   })
   ipcMain.handle(IPC.RECOMMENDATION_WINDOW_CLOSE, () => {

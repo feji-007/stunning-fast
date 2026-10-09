@@ -19,6 +19,7 @@ const SCHEMA_STATEMENTS: string[] = [
   name        VARCHAR(128) NOT NULL,
   key_hint    VARCHAR(64)  NOT NULL DEFAULT '',
   url         VARCHAR(256) NOT NULL DEFAULT '',
+  api_key_url VARCHAR(256) NOT NULL DEFAULT '',
   source      VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order  INT          NOT NULL DEFAULT 0,
   is_active   TINYINT(1)   NOT NULL DEFAULT 1,
@@ -39,6 +40,7 @@ const SCHEMA_STATEMENTS: string[] = [
   resolution    INT          NOT NULL DEFAULT 720,
   speed         INT          NOT NULL DEFAULT 60,
   price         INT          NOT NULL DEFAULT 2,
+  docs_url      VARCHAR(256) NOT NULL DEFAULT '',
   source        VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order    INT          NOT NULL DEFAULT 0,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
@@ -164,6 +166,32 @@ const SCHEMA_STATEMENTS: string[] = [
   INDEX idx_feedbacks_status (status),
   INDEX idx_feedbacks_created (created_at),
   CONSTRAINT fk_feedbacks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+  // ========== 模型推荐助手配置表（管理员可编辑问答字段） ==========
+
+  `CREATE TABLE IF NOT EXISTS recommend_models (
+  id          VARCHAR(64)  NOT NULL,
+  name        VARCHAR(128) NOT NULL,
+  description TEXT         NOT NULL,
+  tag         VARCHAR(128) NOT NULL DEFAULT '',
+  sort_order  INT          NOT NULL DEFAULT 0,
+  is_active   TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+  `CREATE TABLE IF NOT EXISTS recommend_questions (
+  id          INT          NOT NULL AUTO_INCREMENT,
+  layer       VARCHAR(64)  NOT NULL,
+  title       VARCHAR(256) NOT NULL,
+  options     TEXT         NOT NULL,
+  sort_order  INT          NOT NULL DEFAULT 0,
+  is_active   TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
 ]
 
@@ -194,6 +222,9 @@ export async function ensureSchema(): Promise<void> {
   await addColumnIfMissing('tasks', 'image_url', 'LONGTEXT NULL')
   await addColumnIfMissing('models', 'supports_first_last', 'TINYINT(1) NOT NULL DEFAULT 0')
   await addColumnIfMissing('models', 'supports_reference', 'TINYINT(1) NOT NULL DEFAULT 0')
+  // 迁移：为已有 providers/models 表补充 URL 字段（管理员可在后台覆盖默认跳转地址）
+  await addColumnIfMissing('providers', 'api_key_url', "VARCHAR(256) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('models', 'docs_url', "VARCHAR(256) NOT NULL DEFAULT ''")
   console.log('[db] 表结构检查完成（已存在则跳过）')
 }
 

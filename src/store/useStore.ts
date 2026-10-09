@@ -84,6 +84,9 @@ interface AppState {
   videoConfig: Record<string, Array<{ value: string; label: string }>>
   bootstrapped: boolean
   bootstrapError: string
+  // 模型推荐助手配置（从 bootstrap 拉取）
+  recommendModels: Record<string, { name: string; desc: string; tag: string }>
+  recommendQuestions: Array<{ layer: string; title: string; options: Array<{ label: string; models: string[]; note?: string }> }>
 
   // Actions
   setExpanded: (v: boolean) => void
@@ -189,6 +192,8 @@ export const useStore = create<AppState>()(
       videoConfig: DEFAULT_VIDEO_CONFIG,
       bootstrapped: false,
       bootstrapError: '',
+      recommendModels: {},
+      recommendQuestions: [],
 
       // 视频生成表单状态：内存级（不在 partialize 中，不写入 localStorage）
       videoForm: {
@@ -391,23 +396,28 @@ export const useStore = create<AppState>()(
         try {
           const data = await bootstrapApi.fetch()
           // 构建 models.ts 中系统模型的查找表（用于覆盖数据库中的默认值）
+          // 注意：能力字段（supportsI2V 等）与代码生成逻辑强绑定，仍以本地为准覆盖数据库
           const modelCapMap = new Map<string, Partial<ProviderModel>>()
           PROVIDERS.forEach((pp) => pp.models.forEach((mm) => {
             const patch: Partial<ProviderModel> = {}
             if (mm.supportsI2V !== undefined)      patch.supportsI2V = mm.supportsI2V
             if (mm.supportsFirstLast !== undefined) patch.supportsFirstLast = mm.supportsFirstLast
             if (mm.supportsReference !== undefined) patch.supportsReference = mm.supportsReference
-            if (mm.docsUrl)                         patch.docsUrl = mm.docsUrl
             if (patch) modelCapMap.set(mm.id, patch)
           }))
-          // 系统供应商的 apiKeyUrl 以 models.ts 为准
-          const providerApiKeyMap = new Map<string, string>()
+          // URL 字段改为"数据库优先，本地兜底"：管理员可在后台覆盖默认跳转地址
+          const modelDocsFallback = new Map<string, string>()
+          PROVIDERS.forEach((pp) => pp.models.forEach((mm) => {
+            if (mm.docsUrl) modelDocsFallback.set(mm.id, mm.docsUrl)
+          }))
+          const providerApiKeyFallback = new Map<string, string>()
           PROVIDERS.forEach((pp) => {
-            if (pp.apiKeyUrl) providerApiKeyMap.set(pp.id, pp.apiKeyUrl)
+            if (pp.apiKeyUrl) providerApiKeyFallback.set(pp.id, pp.apiKeyUrl)
           })
 
           // 映射后端 snake_case → 客户端类型；provider_id → provider，description → desc
           // 系统模型(source=system)的能力字段以 models.ts 为准，覆盖数据库默认值
+          // URL 字段（apiKeyUrl / docsUrl）以数据库为准，数据库为空时回退到 models.ts
           const providers: Provider[] = (data.providers ?? []).map((p: any) => {
             const pSource = (p.source as 'system' | 'user') ?? 'system'
             return {
@@ -415,7 +425,7 @@ export const useStore = create<AppState>()(
             name: p.name,
             keyHint: p.key_hint || '',
             url: p.url || '',
-            apiKeyUrl: pSource === 'system' ? (providerApiKeyMap.get(p.id) || p.api_key_url || undefined) : (p.api_key_url || undefined),
+            apiKeyUrl: p.api_key_url || providerApiKeyFallback.get(p.id) || undefined,
             source: pSource,
             models: (p.models ?? []).map((m: any) => {
               const base: ProviderModel = {
@@ -427,7 +437,7 @@ export const useStore = create<AppState>()(
                 supportsI2V: !!m.supports_i2v,
                 supportsFirstLast: !!m.supports_first_last,
                 supportsReference: !!m.supports_reference,
-                docsUrl: m.docs_url || undefined,
+                docsUrl: m.docs_url || modelDocsFallback.get(m.id) || undefined,
                 source: (m.source as 'system' | 'user') ?? 'system'
               }
               const override = modelCapMap.get(m.id)
@@ -451,6 +461,8 @@ export const useStore = create<AppState>()(
             providers: providers.length > 0 ? providers : PROVIDERS,
             features: features.length > 0 ? features : get().features,
             videoConfig,
+            recommendModels: data.recommendModels ?? {},
+            recommendQuestions: data.recommendQuestions ?? [],
             bootstrapped: true,
             bootstrapError: ''
           })

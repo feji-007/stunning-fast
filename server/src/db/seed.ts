@@ -124,6 +124,98 @@ const VIDEO_CONFIG_SEED: Array<{
   { key: 'priority', value: 'price', label: '价格优先', sort: 3 }
 ]
 
+// 模型推荐助手：6 个模型的展示信息（从客户端 RecommendationAssistantModal.tsx 迁移）
+const RECOMMEND_MODELS_SEED: Array<{
+  id: string; name: string; desc: string; tag: string; sort: number
+}> = [
+  { id: '可灵', name: '可灵 Kling', desc: '擅长叙事性视频、角色一致性、智能分镜，多语言对话支持。适合有情节、需要多镜头切换的视频。', tag: '叙事 · 角色一致 · 分镜', sort: 1 },
+  { id: 'Seedance', name: 'Seedance', desc: '快速批量产出，30秒单次生成，性价比高。适合产品展示、效率优先的场景。', tag: '量产 · 快速 · 30秒', sort: 2 },
+  { id: 'Veo', name: 'Veo', desc: '对专业摄影术语理解极强，精确运镜控制，原生音频生成。适合追求电影感和画面质感的短片。', tag: '电影感 · 运镜 · 原生音频', sort: 3 },
+  { id: 'Runway', name: 'Runway', desc: '世界一致性强，角色/场景在多镜头中保持高度一致。适合精细打磨、追求品质的项目。', tag: '世界一致 · 精细打磨', sort: 4 },
+  { id: 'Pika', name: 'Pika', desc: '竖屏短视频利器，视觉冲击力强，特效感突出。适合短视频平台内容创作。', tag: '竖屏 · 特效 · 视觉冲击', sort: 5 },
+  { id: 'Gemini Omni', name: 'Gemini Omni', desc: '多模态混合输入（图/视频/音频），对话式编辑。适合已有素材、想通过对话反复修改的场景。', tag: '多模态 · 对话式编辑', sort: 6 }
+]
+
+// 模型推荐助手：7 层问题及选项（options 字段会 JSON.stringify 后存入 TEXT 列）
+const RECOMMEND_QUESTIONS_SEED: Array<{
+  layer: string; title: string; sort: number
+  options: Array<{ label: string; models: string[]; note?: string }>
+}> = [
+  {
+    layer: '第一层：核心用途',
+    title: '你制作这个视频，最主要的目标是什么？',
+    sort: 1,
+    options: [
+      { label: '讲一个故事，有角色、有对话、有情节推进', models: ['可灵'] },
+      { label: '展示一个产品/服务，要快速、批量地产出', models: ['Seedance'] },
+      { label: '做一条有电影感、艺术感的短片，追求画面质感', models: ['Veo', 'Runway'] },
+      { label: '做竖屏短视频，要视觉冲击力、特效感强', models: ['Pika'] },
+      { label: '手头有现成素材（图/视频），想通过对话反复改', models: ['Gemini Omni'] }
+    ]
+  },
+  {
+    layer: '第二层：角色一致性',
+    title: '视频里是否会出现同一个角色/产品，并且需要在多个镜头里保持一致？',
+    sort: 2,
+    options: [
+      { label: '是，角色/产品必须在不同场景里看起来完全一样', models: ['Runway', '可灵'] },
+      { label: '是，但只需要大致像，不要求像素级一致', models: ['可灵', 'Seedance'] },
+      { label: '不需要，每个镜头可以不一样', models: [] }
+    ]
+  },
+  {
+    layer: '第三层：镜头控制',
+    title: '你对镜头运动（推拉摇移、光影变化）的控制要求有多高？',
+    sort: 3,
+    options: [
+      { label: '很高，我需要精确指定镜头怎么动、光怎么打', models: ['Veo'] },
+      { label: '中等，我描述大概感觉就行，模型自己发挥', models: ['可灵', 'Seedance'] },
+      { label: '不高，我主要靠后期剪辑，生成片段能用就行', models: ['Pika', 'Seedance'] }
+    ]
+  },
+  {
+    layer: '第四层：效率 vs 精细打磨',
+    title: '你更看重「快速出多个版本挑一个」，还是「反复调整打磨一个精品」？',
+    sort: 4,
+    options: [
+      { label: '快速出多个版本，效率优先', models: ['Seedance', 'Pika'] },
+      { label: '反复调整，精细打磨，时间不是问题', models: ['可灵', 'Veo', 'Runway'] },
+      { label: '先用快的出草稿，再用好的精修', models: ['Seedance', '可灵', 'Veo'], note: '组合推荐：Seedance 草稿 + 可灵/Veo 精修' }
+    ]
+  },
+  {
+    layer: '第五层：输入素材',
+    title: '你手头已经有哪些素材？',
+    sort: 5,
+    options: [
+      { label: '只有文字想法', models: [] },
+      { label: '有参考图片，想基于图生成', models: ['Runway', '可灵', 'Pika'] },
+      { label: '有现成视频/音频，想混合编辑', models: ['Gemini Omni'] },
+      { label: '有产品图，想做成动态广告', models: ['Seedance', 'Pika'] }
+    ]
+  },
+  {
+    layer: '第六层：时长与叙事复杂度',
+    title: '你需要的单条视频大概多长？',
+    sort: 6,
+    options: [
+      { label: '几秒到十几秒，一个镜头就够', models: ['Pika', 'Seedance', 'Veo'] },
+      { label: '30秒左右，需要几个镜头切换', models: ['Seedance', '可灵'] },
+      { label: '1分钟以上，有完整叙事', models: ['可灵'], note: '可灵智能分镜能力强，或建议分段生成后剪辑' }
+    ]
+  },
+  {
+    layer: '第七层：音频需求',
+    title: '视频是否需要原生对话、音效或配乐？',
+    sort: 7,
+    options: [
+      { label: '需要角色对话，且口型/语音要同步', models: ['Veo', '可灵'] },
+      { label: '只需要背景音乐/音效，后期加就行', models: [] },
+      { label: '不需要音频', models: [] }
+    ]
+  }
+]
+
 async function tableEmpty(table: string): Promise<boolean> {
   const r = await query(`SELECT 1 FROM ${table} LIMIT 1`)
   return r.rowCount === 0
@@ -172,6 +264,30 @@ async function seedVideoConfig() {
   console.log(`[seed] video_config_options 已初始化（${VIDEO_CONFIG_SEED.length} 项）`)
 }
 
+async function seedRecommendModels() {
+  if (!(await tableEmpty('recommend_models'))) return
+  for (const m of RECOMMEND_MODELS_SEED) {
+    await query(
+      `INSERT INTO recommend_models (id, name, description, tag, sort_order, is_active)
+       VALUES (?, ?, ?, ?, ?, TRUE)`,
+      [m.id, m.name, m.desc, m.tag, m.sort]
+    )
+  }
+  console.log(`[seed] recommend_models 已初始化（${RECOMMEND_MODELS_SEED.length} 个模型）`)
+}
+
+async function seedRecommendQuestions() {
+  if (!(await tableEmpty('recommend_questions'))) return
+  for (const q of RECOMMEND_QUESTIONS_SEED) {
+    await query(
+      `INSERT INTO recommend_questions (layer, title, options, sort_order, is_active)
+       VALUES (?, ?, ?, ?, TRUE)`,
+      [q.layer, q.title, JSON.stringify(q.options), q.sort]
+    )
+  }
+  console.log(`[seed] recommend_questions 已初始化（${RECOMMEND_QUESTIONS_SEED.length} 个问题）`)
+}
+
 async function seedAdminUser() {
   // 管理员按 username 唯一判断，已存在则跳过
   const exists = await queryOne('SELECT 1 FROM users WHERE username = ?', [config.adminUsername])
@@ -191,4 +307,6 @@ export async function seedAll(): Promise<void> {
   await seedFeatures()
   await seedVideoConfig()
   await seedAdminUser()
+  await seedRecommendModels()
+  await seedRecommendQuestions()
 }
