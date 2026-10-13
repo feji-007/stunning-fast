@@ -81,6 +81,7 @@ function ProviderRow({
 }) {
   const [value, setValue] = useState('')
   const [editing, setEditing] = useState(false)
+  const [showKey, setShowKey] = useState(false)
 
   const masked = existingKey
     ? existingKey.slice(0, 4) + '••••••' + existingKey.slice(-4)
@@ -126,13 +127,24 @@ function ProviderRow({
 
       {(!existingKey || editing) && (
         <div className="mt-2 flex items-center gap-2">
-          <input
-            type="password"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={keyHint ? `密钥以 ${keyHint} 开头` : '粘贴 API Key'}
-            className="flex-1 rounded-md border border-black/10 px-2.5 py-1.5 text-xs outline-none focus:border-brand-400"
-          />
+          <div className="relative flex-1">
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={keyHint ? `密钥以 ${keyHint} 开头` : '粘贴 API Key'}
+              className="w-full rounded-md border border-black/10 px-2.5 py-1.5 pr-8 text-xs outline-none focus:border-brand-400"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+              tabIndex={-1}
+              title={showKey ? '隐藏密钥' : '显示密钥'}
+            >
+              {showKey ? '🙈' : '👁'}
+            </button>
+          </div>
           <button
             onClick={() => {
               if (value.trim()) {

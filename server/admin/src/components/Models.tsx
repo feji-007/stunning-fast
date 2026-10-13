@@ -399,14 +399,10 @@ export default function Models() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">来源</label>
-                <select
-                  value={modal.data.source}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, source: e.target.value } })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                >
-                  <option value="system">系统（能力字段锁定）</option>
-                  <option value="user">用户（所有字段可修改）</option>
-                </select>
+                <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500">
+                  {modal.data.source === 'user' ? '用户（历史数据，所有字段可修改）' : '系统（能力字段锁定）'}
+                </div>
+                <p className="mt-1 text-xs text-gray-400">用户自定义资源仅存客户端本地，后台新增固定为系统来源</p>
               </div>
               <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">说明</label>

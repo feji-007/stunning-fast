@@ -15,6 +15,7 @@ export default function MainPanel() {
   const user = useStore((s) => s.user)
   const setModal = useStore((s) => s.setModal)
   const featureViewMode = useStore((s) => s.featureViewMode)
+  const modal = useStore((s) => s.modal)
   const toggleFeatureViewMode = useStore((s) => s.toggleFeatureViewMode)
   const panelOpacity = useStore((s) => s.panelOpacity)
 
@@ -163,13 +164,14 @@ export default function MainPanel() {
   }, [showUserMenu])
 
   // 用户菜单关闭时恢复窗口（仅 toolbar 细长栏模式曾扩展过）
+  // 但若有 modal 打开（如设置），modal 自身的 expandWindowTo 已处理窗口尺寸，跳过
   useEffect(() => {
-    if (!showUserMenu && !featureViewMode && activeFeature === null) {
+    if (!showUserMenu && !featureViewMode && activeFeature === null && modal === 'none') {
       try {
         ;(window as any).api?.closeDropdown?.()
       } catch {}
     }
-  }, [showUserMenu, featureViewMode, activeFeature])
+  }, [showUserMenu, featureViewMode, activeFeature, modal])
 
   // 计算"更多"菜单位置
   useEffect(() => {
@@ -217,12 +219,12 @@ export default function MainPanel() {
 
   // "更多"菜单关闭时恢复窗口（仅 toolbar 细长栏模式曾扩展过）
   useEffect(() => {
-    if (!showAll && !featureViewMode && activeFeature === null) {
+    if (!showAll && !featureViewMode && activeFeature === null && modal === 'none') {
       try {
         ;(window as any).api?.closeDropdown?.()
       } catch {}
     }
-  }, [showAll, featureViewMode, activeFeature])
+  }, [showAll, featureViewMode, activeFeature, modal])
 
   const renderFeaturePage = (id: FeatureId) => {
     switch (id) {
@@ -276,6 +278,18 @@ export default function MainPanel() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* AI 模型推荐助手：打开独立弹窗 */}
+          <button
+            onClick={() => window.api?.openRecommendationWindow?.()}
+            className="group grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-500 text-white shadow-sm transition hover:scale-105 hover:shadow-md"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            title="AI帮你匹配最合适的大模型"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/>
+              <path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>
+            </svg>
+          </button>
           {/* 用户菜单：按钮 + Portal 下拉 */}
           <div className="shrink-0">
             <button

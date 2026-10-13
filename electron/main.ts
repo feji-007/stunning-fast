@@ -208,17 +208,18 @@ function createUpdateWindow(info: { version: string; releaseNotes?: string }) {
   const currentVersion = app.getVersion()
   const [mx, my] = mainWindow ? mainWindow.getPosition() : [100, 100]
   const [mw] = mainWindow ? mainWindow.getSize() : [450, 100]
-  // 计算窗口位置：居中于主窗口上方，但确保在屏幕内
+  // 计算窗口位置：紧贴主窗口正上方
   const winW = 360
   const winH = 480
   let wx = mx + Math.round((mw - winW) / 2)
-  let wy = my - winH - 10
-  // 确保窗口在屏幕可见区域内
+  let wy = my - winH
+  // 确保窗口水平方向在屏幕内
   const display = screen.getDisplayNearestPoint({ x: mx, y: my })
   const wa = display.workArea
-  if (wy < wa.y) wy = my + 30 // 不够上方空间则显示在主窗口下方
   if (wx < wa.x) wx = wa.x + 10
   if (wx + winW > wa.x + wa.width) wx = wa.x + wa.width - winW - 10
+  // 上方空间不足时，优先贴主窗口顶部并对齐到屏幕上方可见区
+  if (wy < wa.y) wy = wa.y
 
   const win = new BrowserWindow({
     width: winW,

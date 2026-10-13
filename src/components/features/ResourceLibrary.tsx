@@ -1,41 +1,55 @@
-﻿import { useMemo, useState } from 'react'
+﻿﻿import { useMemo, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore'
 import type { ProviderModel } from '../../types'
 
 // 资源库：罗列主流常用模型，帮用户搜索更适配的资源。
-// 供应商/模型来自后端 bootstrap（运行时 store.providers），不再使用硬编码。
-// 登录用户可通过「添加」按钮自定义供应商和模型，source='user' 写入后端。
-// 可见性规则：
-//  - 未登录：展示所有「来源=系统 (source='system')」的供应商与模型网格，
-//    便于用户离线浏览模型目录；隐藏用户自定义的供应商/模型。
-//  - 已登录：展示全部资源（system + user，含自定义供应商/模型），不再按 API 密钥过滤。
+// 系统供应商/模型来自后端 bootstrap；用户自定义供应商/模型仅保存在本地
+// （localStorage），不上传服务器，可通过「导出/导入」跨设备迁移。
 export default function ResourceLibrary() {
   const providers = useStore((s) => s.providers)
-  const keys = useStore((s) => s.keys)
-  const user = useStore((s) => s.user)
-  const setModal = useStore((s) => s.setModal)
+  const exportCustomResources = useStore((s) => s.exportCustomResources)
+  const importCustomResources = useStore((s) => s.importCustomResources)
+  const hasCustom = useStore((s) => s.customProviders.length + s.customModels.length > 0)
   const [q, setQ] = useState('')
   const [type, setType] = useState<'all' | 'video' | 'image' | 'audio' | 'text'>('all')
   const [showAdd, setShowAdd] = useState(false)
+  const [toast, setToast] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  // —— 可见性第一层：按登录态 / 来源 / API Key 筛选可展示的模型 ——
+  const showToast = (msg: string) => {
+    setToast(msg)
+    window.setTimeout(() => setToast(''), 2500)
+  }
+
+  const handleExport = () => {
+    const blob = new Blob([exportCustomResources()], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'custom-resources.json'
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('已导出自定义资源')
+  }
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      importCustomResources(await file.text())
+      showToast('导入成功')
+    } catch (err: any) {
+      showToast(err?.message ?? '导入失败')
+    }
+  }
+
+  // 系统模型 + 本地自定义模型统一展示，不再按登录态过滤
   const visibleModels = useMemo<ProviderModel[]>(() => {
-    if (!user.loggedIn) {
-      // 未登录：只暴露系统来源的供应商 + 系统来源的模型
-      return providers
-        .filter((p) => p.source === 'system')
-        .flatMap((p) => p.models.filter((m) => m.source === 'system'))
-    }
-    // 已登录：展示全部供应商 + 全部模型（含 system + user），不再按 API key 过滤
     return providers.flatMap((p) => p.models)
-  }, [user.loggedIn, providers, keys])
+  }, [providers])
 
-  const visibleProviderCount = useMemo(() => {
-    if (!user.loggedIn) {
-      return providers.filter((p) => p.source === 'system').length
-    }
-    return providers.length
-  }, [user.loggedIn, providers, keys])
+  const visibleProviderCount = useMemo(() => providers.length, [providers])
 
   // —— 可见性第二层：用户搜索 + 类型筛选 ——
   const filtered = useMemo(() => {
@@ -56,20 +70,48 @@ export default function ResourceLibrary() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-gray-800">模型资源库</h2>
-          {user.loggedIn && (
-            <p className="mt-0.5 text-[11px] text-gray-400">
-              共 {visibleProviderCount} 家供应商 · {visibleModels.length} 个模型
-            </p>
-          )}
+          <p className="mt-0.5 text-[11px] text-gray-400">
+            共 {visibleProviderCount} 家供应商 · {visibleModels.length} 个模型
+          </p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="rounded-lg border border-brand-300 bg-brand-50/50 px-2.5 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-100"
-          title={user.loggedIn ? '添加自定义供应商或模型' : '需登录后使用'}
-        >
-          + 添加
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="rounded-lg border border-gray-200 px-2 py-1 text-[11px] text-gray-500 transition-colors hover:border-brand-300 hover:text-brand-600"
+            title="从 JSON 文件导入本地自定义资源"
+          >
+            导入
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={!hasCustom}
+            className="rounded-lg border border-gray-200 px-2 py-1 text-[11px] text-gray-500 transition-colors hover:border-brand-300 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
+            title="将本地自定义资源导出为 JSON 文件，用于跨设备迁移"
+          >
+            导出
+          </button>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="rounded-lg border border-brand-300 bg-brand-50/50 px-2.5 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-100"
+            title="添加自定义供应商或模型（仅保存在本机）"
+          >
+            + 添加
+          </button>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={handleImportFile}
+        />
       </div>
+
+      {toast && (
+        <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-[11px] text-brand-700">
+          {toast}
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <input
@@ -93,29 +135,19 @@ export default function ResourceLibrary() {
 
       <div className="flex-1 overflow-auto scroll-thin pr-1">
         {visibleModels.length === 0 ? (
-          user.loggedIn ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-              <span className="text-2xl">📦</span>
-              <p className="text-xs font-medium text-gray-600">暂无模型</p>
-              <p className="max-w-xs text-[11px] leading-relaxed text-gray-400">
-                点击右上角「添加」创建自定义供应商与模型。
-              </p>
-              <button
-                onClick={() => setShowAdd(true)}
-                className="mt-1 rounded-lg border border-brand-300 bg-brand-50/50 px-3 py-1 text-[11px] text-brand-600 hover:bg-brand-100"
-              >
-                添加自定义资源
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-              <span className="text-2xl">📦</span>
-              <p className="text-xs font-medium text-gray-600">暂未收录系统模型</p>
-              <p className="max-w-xs text-[11px] leading-relaxed text-gray-400">
-                登录后可查看你已配置的专属模型，或添加自定义供应商资源。
-              </p>
-            </div>
-          )
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+            <span className="text-2xl">📦</span>
+            <p className="text-xs font-medium text-gray-600">暂无模型</p>
+            <p className="max-w-xs text-[11px] leading-relaxed text-gray-400">
+              点击右上角「添加」创建自定义供应商与模型，仅保存在本机。
+            </p>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="mt-1 rounded-lg border border-brand-300 bg-brand-50/50 px-3 py-1 text-[11px] text-brand-600 hover:bg-brand-100"
+            >
+              添加自定义资源
+            </button>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {filtered.map((m) => (
@@ -184,7 +216,7 @@ function ModelCard({ model }: { model: ProviderModel }) {
             onClick={() => openExternal(provider.apiKeyUrl!)}
             className="inline-flex items-center gap-0.5 rounded-md bg-brand-500 px-2 py-0.5 text-[10px] font-medium text-white transition-colors hover:bg-brand-600"
           >
-            接入API ↗
+            获取 API Key ↗
           </button>
         )}
         {model.docsUrl && (
@@ -200,13 +232,11 @@ function ModelCard({ model }: { model: ProviderModel }) {
   )
 }
 
-// ===== 添加自定义供应商/模型弹窗 =====
+// ===== 添加自定义供应商/模型弹窗（数据仅保存本机） =====
 function AddResourceModal({ onClose }: { onClose: () => void }) {
   const providers = useStore((s) => s.providers)
-  const user = useStore((s) => s.user)
   const addCustomProvider = useStore((s) => s.addCustomProvider)
   const addCustomModel = useStore((s) => s.addCustomModel)
-  const setModal = useStore((s) => s.setModal)
 
   const [tab, setTab] = useState<'provider' | 'model'>('provider')
 
@@ -225,34 +255,6 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  // 未登录时提示登录
-  if (!user.loggedIn) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-        <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg">
-          <p className="text-sm text-gray-700">添加自定义资源需要先登录</p>
-          <div className="mt-4 flex justify-end gap-2">
-            <button
-              onClick={onClose}
-              className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200"
-            >
-              取消
-            </button>
-            <button
-              onClick={() => {
-                onClose()
-                setModal('login')
-              }}
-              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs text-white hover:bg-brand-700"
-            >
-              去登录
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   const handleSaveProvider = async () => {
     setError('')

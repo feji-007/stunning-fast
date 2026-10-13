@@ -225,7 +225,7 @@ export default function Providers() {
                   API Key 提示 {modal.mode === 'edit' && '(留空不修改)'}
                 </label>
                 <input
-                  type="password"
+                  type="text"
                   value={modal.data.key_hint}
                   onChange={(e) => setModal({ ...modal, data: { ...modal.data, key_hint: e.target.value } })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -243,25 +243,22 @@ export default function Providers() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">
-                  接入 API 地址 {modal.mode === 'edit' && '(留空使用内置默认值)'}
+                  API Key 获取地址 {modal.mode === 'edit' && '(留空使用内置默认值)'}
                 </label>
                 <input
                   value={modal.data.api_key_url}
                   onChange={(e) => setModal({ ...modal, data: { ...modal.data, api_key_url: e.target.value } })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  placeholder="https://...(客户端「接入API」按钮跳转地址，留空回退到内置默认)"
+                  placeholder="https://..."
                 />
+                <p className="mt-1 text-xs text-gray-400">客户端「接入API」按钮点击后跳转的网页，通常为该平台控制台的密钥管理页；非 API 调用地址</p>
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">来源</label>
-                <select
-                  value={modal.data.source}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, source: e.target.value } })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                >
-                  <option value="system">系统</option>
-                  <option value="user">用户</option>
-                </select>
+                <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500">
+                  {modal.data.source === 'user' ? '用户（历史数据）' : '系统'}
+                </div>
+                <p className="mt-1 text-xs text-gray-400">用户自定义资源仅存客户端本地，后台新增固定为系统来源</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
