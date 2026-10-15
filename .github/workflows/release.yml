@@ -23,6 +23,7 @@ jobs:
       OSS_REGION: ${{ secrets.OSS_REGION }}
       OSS_PUBLIC_BASE: ${{ secrets.OSS_PUBLIC_BASE }}
       OSS_RELEASE_PREFIX: ${{ secrets.OSS_RELEASE_PREFIX }}
+      OSS_SITE_PREFIX: ${{ secrets.OSS_SITE_PREFIX }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +42,15 @@ jobs:
 
       - name: Upload installers to 天翼云 ZOS
         run: npm run upload:oss
+
+      - name: Build site
+        working-directory: site
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload site to 天翼云 ZOS
+        run: npm run upload:site
 
       - name: Create GitHub Release (backup)
         if: startsWith(github.ref, 'refs/tags/')

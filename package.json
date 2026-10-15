@@ -10,8 +10,8 @@
     "build": "vite build && tsc -p electron/tsconfig.json",
     "preview": "vite preview",
     "start": "cross-env NODE_ENV=production electron .",
-    "dist": "npm run build && electron-builder",
-    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder --win --x64",
+    "pack": "npm run build && electron-builder --win --x64 --dir",
     "pack:to-releases": "bash scripts/pack-to-releases.sh",
     "update:download": "node scripts/update-download.mjs",
     "upload:site": "node scripts/upload-site.mjs",
@@ -22,8 +22,8 @@
     "upload:all": "npm run upload:site && npm run upload:oss",
     "build:local": "vite build --mode development && tsc -p electron/tsconfig.json",
     "build:prod": "vite build --mode production && tsc -p electron/tsconfig.json",
-    "dist:local": "npm run build:local && electron-builder",
-    "dist:prod": "npm run build && electron-builder"
+    "dist:local": "npm run build:local && electron-builder --win --x64",
+    "dist:prod": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "auto-launch": "^5.0.6",

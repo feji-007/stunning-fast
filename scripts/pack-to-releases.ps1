@@ -93,15 +93,28 @@ function Do-Pack {
       Invoke-Native 'npx' @('electron-builder', '--linux', '--x64')
     }
     elseif ($Target -eq 'all') {
-      Info "构建全平台（win + mac + linux）"
+      Info "构建全平台"
       Invoke-Native 'npm' @('run', 'build')
-      Invoke-Native 'npx' @('electron-builder', '--win', '--x64', '--linux', '--x64')
       $platform = Detect-Platform
-      if ($platform -eq 'mac') {
-        Invoke-Native 'npx' @('electron-builder', '--mac', '--x64', '--arm64')
+      # Windows 上只能打 Windows 包（Linux AppImage 需要 Linux 原生工具 Cshfs，不存在于 Windows）
+      if ($platform -eq 'win') {
+        Info "当前 Windows 环境：构建 win 包"
+        Invoke-Native 'npx' @('electron-builder', '--win', '--x64')
+        Warn "Windows 无法构建 Linux AppImage（需 Cshfs），跳过 linux；如需 AppImage 请在 Linux/WSL 上执行"
+        Warn "Windows 无法构建 mac dmg，跳过 mac；如需 dmg 请在 mac 上执行"
+      }
+      elseif ($platform -eq 'linux') {
+        Info "当前 Linux 环境：构建 win + linux 包"
+        Invoke-Native 'npx' @('electron-builder', '--win', '--x64', '--linux', '--x64')
+        Warn "Linux 无法构建 mac dmg，跳过 mac；如需 dmg 请在 mac 上执行"
+      }
+      elseif ($platform -eq 'mac') {
+        Info "当前 macOS 环境：构建 win + mac + linux 包"
+        Invoke-Native 'npx' @('electron-builder', '--win', '--x64', '--mac', '--x64', '--arm64', '--linux', '--x64')
       }
       else {
-        Warn "当前非 macOS，跳过 mac 包；如需 mac dmg 请在 mac 上执行 powershell -File scripts\pack-to-releases.ps1 -Mac"
+        Err "未知平台：$platform，无法执行 -All"
+        exit 1
       }
     }
     else {
