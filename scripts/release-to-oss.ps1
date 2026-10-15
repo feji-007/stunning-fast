@@ -105,7 +105,7 @@ function Do-Pack {
   }
   if ($Check) { return }
 
-  Step "1/3 打包 Electron 应用（target=$Target）"
+  Step "1/4 打包 Electron 应用（target=$Target）"
   Push-Location $ProjectDir
   try {
     if ($Target -eq 'win') {
@@ -151,9 +151,9 @@ function Do-Upload {
   if ($Check) {
     Step "校验 OSS 凭证与 Bucket 可达性"
   } elseif ($Dry) {
-    Step "2/3 上传到天翼云 ZOS（DRY 模式，不实际传输）"
+    Step "2/4 上传到天翼云 ZOS（DRY 模式，不实际传输）"
   } else {
-    Step "2/3 上传到天翼云 ZOS bucket-5620/release/"
+    Step "2/4 上传到天翼云 ZOS bucket-5620/release/"
   }
 
   $nodeArgs = @('scripts\release-to-oss.mjs')
@@ -168,10 +168,16 @@ function Do-Upload {
   }
 }
 
+# ---------- 3. 更新下载文档 ----------
+function Update-DownloadPage {
+  Step "3/4 根据实际产物更新 site\download.md"
+  Invoke-Native 'node' @((Join-Path $ProjectDir 'scripts\update-download.mjs'))
+}
+
 # ---------- 3. 打印发布提示 ----------
 function Print-Summary {
   if ($Check) { return }
-  Step "3/3 完成"
+  Step "4/4 完成"
   Write-Host ''
   Info '下一步：'
   Write-Host '  1. 修改 electron-builder.yml 的 publish.url 指向 OSS：'
@@ -200,4 +206,5 @@ function Print-Summary {
 Ensure-OssEnv
 Do-Pack
 Do-Upload
+Update-DownloadPage
 Print-Summary
