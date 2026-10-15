@@ -117,25 +117,4 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   }
 })
 
-/**
- * 用户自定义供应商：登录用户可添加自定义供应商，source 固定为 'user'。
- * 与 admin POST 区别：不需要管理员权限，且 source 强制为 'user'。
- */
-router.post('/user', requireAuth, async (req, res, next) => {
-  try {
-    const { id, name, keyHint = '', url = '', sortOrder = 0 } = req.body ?? {}
-    if (!id || !name) throw badRequest('id 和 name 必填')
-    const exists = await queryOne('SELECT 1 FROM providers WHERE id = ?', [id])
-    if (exists) throw badRequest('供应商 ID 已存在')
-    await queryOne(
-      `INSERT INTO providers (id, name, key_hint, url, source, sort_order, is_active)
-       VALUES (?, ?, ?, ?, 'user', ?, TRUE)`,
-      [id, name, keyHint, url, sortOrder]
-    )
-    ok(res, { provider: { id, name, source: 'user' } }, '已创建自定义供应商')
-  } catch (e) {
-    next(e)
-  }
-})
-
 export default router

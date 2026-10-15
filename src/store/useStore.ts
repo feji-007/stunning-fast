@@ -20,9 +20,7 @@ import {
   clearToken,
   setToken,
   userApiKeysApi,
-  userConfigsApi,
-  userProvidersApi,
-  userModelsApi
+  userConfigsApi
 } from '../api/client'
 
 type Modal = 'none' | 'login' | 'settings' | 'feedback'
@@ -68,6 +66,8 @@ interface AppState {
   savedFeature: FeatureId | null
   savedFeatureViewMode: boolean
   savedModal: Modal // 收起前打开的模态框（展开后恢复）
+  // 设置弹窗从工具栏模式打开时记录的恢复标志
+  settingsFromToolbar: boolean
   // 工具栏模式下球的位置（由主进程通过 IPC 事件设置）
   ballSide: 'left' | 'right'
   // Modals
@@ -118,7 +118,9 @@ interface AppState {
   pullUserConfig: () => Promise<void>
   pushUserConfig: () => Promise<void>
 
-  // 用户自定义供应商/模型
+  // 用户自定义供应商/模型（仅本地持久化到 localStorage，不上传服务器）
+  customProviders: Provider[]
+  customModels: ProviderModel[] // 挂在系统供应商下的自定义模型
   addCustomProvider: (b: {
     id: string
     name: string
@@ -133,6 +135,10 @@ interface AppState {
     description?: string
     supportsI2V?: boolean
   }) => Promise<void>
+  /** 导出本地自定义资源为 JSON 字符串（用于跨设备备份/迁移） */
+  exportCustomResources: () => string
+  /** 从 JSON 字符串导入本地自定义资源（同 id 覆盖） */
+  importCustomResources: (json: string) => void
 
   // 视频生成表单状态（内存级别，不持久化到 localStorage，
   // 避免大体积 base64 图片撑爆 localStorage 配额；
@@ -163,6 +169,29 @@ function schedulePush(get: () => AppState) {
   }, 800)
 }
 
+/**
+ * 将本地自定义供应商/模型合并进系统（bootstrap）供应商列表。
+ * 自定义数据只存在 localStorage，不上传服务器，避免污染后台数据库。
+ */
+function mergeCustomProviders(base: Provider[], customProviders: Provider[], customModels: ProviderModel[]): Provider[] {
+  const map = new Map<string, Provider>(base.map((p) => [p.id, { ...p, models: [...p.models] }]))
+  for (const cp of customProviders) {
+    const existing = map.get(cp.id)
+    if (existing) {
+      const mm = new Map(existing.models.map((m) => [m.id, m]))
+      for (const m of cp.models) mm.set(m.id, m)
+      map.set(cp.id, { ...existing, models: Array.from(mm.values()) })
+    } else {
+      map.set(cp.id, { ...cp, models: [...cp.models] })
+    }
+  }
+  for (const m of customModels) {
+    const p = map.get(m.provider)
+    if (p && !p.models.some((x) => x.id === m.id)) p.models.push(m)
+  }
+  return Array.from(map.values())
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -182,6 +211,7 @@ export const useStore = create<AppState>()(
       savedFeature: null,
       savedFeatureViewMode: false,
       savedModal: 'none',
+      settingsFromToolbar: false,
       ballSide: 'left',
       modal: 'none',
       user: { loggedIn: false, userId: null, username: '', token: '' },
@@ -189,6 +219,8 @@ export const useStore = create<AppState>()(
       autoLaunch: false,
       // 运行时配置默认回退到硬编码（bootstrap 成功后被后端数据覆盖）
       providers: PROVIDERS,
+      customProviders: [],
+      customModels: [],
       videoConfig: DEFAULT_VIDEO_CONFIG,
       bootstrapped: false,
       bootstrapError: '',
@@ -457,8 +489,9 @@ export const useStore = create<AppState>()(
             ...DEFAULT_VIDEO_CONFIG,
             ...(data.videoConfig ?? {})
           }
+          const baseProviders = providers.length > 0 ? providers : PROVIDERS
           set({
-            providers: providers.length > 0 ? providers : PROVIDERS,
+            providers: mergeCustomProviders(baseProviders, get().customProviders, get().customModels),
             features: features.length > 0 ? features : get().features,
             videoConfig,
             recommendModels: data.recommendModels ?? {},
@@ -527,12 +560,14 @@ export const useStore = create<AppState>()(
         }
       },
 
-      // ===== 用户自定义供应商/模型 =====
+      // ===== 用户自定义供应商/模型（纯本地存储，不写服务器） =====
       addCustomProvider: async (b) => {
-        // 先写入后端，成功后更新本地 store
-        await userProvidersApi.create(b)
+        const id = b.id.trim()
+        if (get().providers.some((p) => p.id === id)) {
+          throw new Error('供应商 ID 已存在')
+        }
         const newProvider: Provider = {
-          id: b.id as ProviderId,
+          id: id as ProviderId,
           name: b.name,
           keyHint: b.keyHint ?? '',
           url: b.url ?? '',
@@ -540,14 +575,19 @@ export const useStore = create<AppState>()(
           models: []
         }
         set((s) => ({
-          providers: [...s.providers.filter((p) => p.id !== b.id), newProvider]
+          customProviders: [...s.customProviders, newProvider],
+          providers: [...s.providers, newProvider]
         }))
       },
 
       addCustomModel: async (b) => {
-        await userModelsApi.create(b)
-        const newModel = {
-          id: b.id,
+        const target = get().providers.find((p) => p.id === b.providerId)
+        if (!target) throw new Error('供应商不存在')
+        if (target.models.some((m) => m.id === b.id.trim())) {
+          throw new Error('该供应商下模型 ID 已存在')
+        }
+        const newModel: ProviderModel = {
+          id: b.id.trim(),
           name: b.name,
           provider: b.providerId as ProviderId,
           type: (b.type as ProviderModel['type']) ?? 'video',
@@ -555,13 +595,96 @@ export const useStore = create<AppState>()(
           supportsI2V: b.supportsI2V ?? false,
           source: 'user' as const
         }
-        set((s) => ({
-          providers: s.providers.map((p) =>
-            p.id === b.providerId
-              ? { ...p, models: [...p.models.filter((m) => m.id !== b.id), newModel] }
-              : p
-          )
-        }))
+        set((s) => {
+          const isCustomProvider = s.customProviders.some((p) => p.id === b.providerId)
+          return {
+            providers: s.providers.map((p) =>
+              p.id === b.providerId ? { ...p, models: [...p.models, newModel] } : p
+            ),
+            // 挂在自定义供应商下的模型随供应商一起持久化；
+            // 挂在系统供应商下的模型进入 customModels
+            customProviders: isCustomProvider
+              ? s.customProviders.map((p) =>
+                  p.id === b.providerId ? { ...p, models: [...p.models, newModel] } : p
+                )
+              : s.customProviders,
+            customModels: isCustomProvider ? s.customModels : [...s.customModels, newModel]
+          }
+        })
+      },
+
+      exportCustomResources: () => {
+        const s = get()
+        return JSON.stringify(
+          { version: 1, providers: s.customProviders, models: s.customModels },
+          null,
+          2
+        )
+      },
+
+      importCustomResources: (json) => {
+        let data: any
+        try {
+          data = JSON.parse(json)
+        } catch {
+          throw new Error('文件不是有效的 JSON')
+        }
+        const inProviders: any[] = Array.isArray(data?.providers) ? data.providers : []
+        const inModels: any[] = Array.isArray(data?.models) ? data.models : []
+        const validProviders: Provider[] = inProviders
+          .filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string')
+          .map((p) => ({
+            id: p.id as ProviderId,
+            name: String(p.name),
+            keyHint: String(p.keyHint ?? ''),
+            url: String(p.url ?? ''),
+            source: 'user' as const,
+            models: Array.isArray(p.models)
+              ? p.models
+                  .filter((m: any) => m && typeof m.id === 'string' && typeof m.name === 'string')
+                  .map((m: any) => ({
+                    id: String(m.id),
+                    name: String(m.name),
+                    provider: p.id as ProviderId,
+                    type: (m.type as ProviderModel['type']) ?? 'video',
+                    desc: String(m.desc ?? ''),
+                    supportsI2V: !!m.supportsI2V,
+                    source: 'user' as const
+                  }))
+              : []
+          }))
+        const validModels: ProviderModel[] = inModels
+          .filter((m) => m && typeof m.id === 'string' && typeof m.name === 'string' && typeof m.provider === 'string')
+          .map((m) => ({
+            id: String(m.id),
+            name: String(m.name),
+            provider: m.provider as ProviderId,
+            type: (m.type as ProviderModel['type']) ?? 'video',
+            desc: String(m.desc ?? ''),
+            supportsI2V: !!m.supportsI2V,
+            source: 'user' as const
+          }))
+        if (validProviders.length === 0 && validModels.length === 0) {
+          throw new Error('文件中没有可导入的自定义资源')
+        }
+        set((s) => {
+          // 同 id 覆盖：以导入文件为准
+          const pMap = new Map(s.customProviders.map((p) => [p.id, p]))
+          for (const p of validProviders) pMap.set(p.id, p)
+          const mMap = new Map(s.customModels.map((m) => [`${m.provider}/${m.id}`, m]))
+          for (const m of validModels) mMap.set(`${m.provider}/${m.id}`, m)
+          const customProviders = Array.from(pMap.values())
+          const customModels = Array.from(mMap.values())
+          // 以"去掉所有自定义数据"的纯净系统列表为基准重新合并，保证导入可覆盖旧值
+          const strippedBase = s.providers
+            .filter((p) => p.source !== 'user')
+            .map((p) => ({ ...p, models: p.models.filter((m) => m.source !== 'user') }))
+          return {
+            customProviders,
+            customModels,
+            providers: mergeCustomProviders(strippedBase, customProviders, customModels)
+          }
+        })
       }
     }),
     {
@@ -577,8 +700,23 @@ export const useStore = create<AppState>()(
         panelWidth: s.panelWidth,
         panelHeight: s.panelHeight,
         panelOpacity: s.panelOpacity,
-        theme: s.theme
-      })
+        theme: s.theme,
+        customProviders: s.customProviders,
+        customModels: s.customModels
+      }),
+      // localStorage 水合完成后，把持久化的自定义供应商/模型合并回运行时 providers
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        useStore.setState((s) => ({
+          providers: mergeCustomProviders(
+            s.providers
+              .filter((p) => p.source !== 'user')
+              .map((p) => ({ ...p, models: p.models.filter((m) => m.source !== 'user') })),
+            s.customProviders,
+            s.customModels
+          )
+        }))
+      }
     }
   )
 )

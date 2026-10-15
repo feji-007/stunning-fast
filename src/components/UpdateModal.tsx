@@ -44,7 +44,7 @@ export default function UpdateModal({
   const isError = phase === 'error'
 
   return (
-    <div className="flex h-full w-full items-center justify-center bg-black/30">
+    <div className="flex h-full w-full items-center justify-center">
       <div className="w-80 rounded-2xl bg-white p-5">
         <div className="mb-4 flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-full bg-brand-50 text-xl">

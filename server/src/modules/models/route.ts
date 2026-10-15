@@ -110,31 +110,4 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   }
 })
 
-/**
- * 用户自定义模型：登录用户可添加自定义模型，source 固定为 'user'。
- * 与 admin POST 区别：不需要管理员权限，且 source 强制为 'user'。
- */
-router.post('/user', requireAuth, async (req, res, next) => {
-  try {
-    const b = req.body ?? {}
-    if (!b.id || !b.providerId || !b.name) throw badRequest('id / providerId / name 必填')
-    const provider = await queryOne('SELECT 1 FROM providers WHERE id = ?', [b.providerId])
-    if (!provider) throw notFound('供应商不存在')
-    const exists = await queryOne('SELECT 1 FROM models WHERE id = ?', [b.id])
-    if (exists) throw badRequest('模型 ID 已存在')
-    await queryOne(
-      `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference, resolution, speed, price, source, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, TRUE)`,
-      [
-        b.id, b.providerId, b.name, b.type ?? 'video', b.description ?? '',
-        b.supportsI2V ?? false, b.supportsFirstLast ?? false, b.supportsReference ?? false,
-        b.resolution ?? 720, b.speed ?? 60, b.price ?? 2, b.sortOrder ?? 0
-      ]
-    )
-    ok(res, { model: { id: b.id, source: 'user' } }, '已创建自定义模型')
-  } catch (e) {
-    next(e)
-  }
-})
-
 export default router

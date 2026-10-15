@@ -1,4 +1,4 @@
-﻿// 客户端后端 API：封装 fetch + JWT，对接 server。
+// 客户端后端 API：封装 fetch + JWT，对接 server。
 // 默认地址可通过环境变量 VITE_API_BASE_URL 在打包时覆盖（生产部署指向云服务器），
 // 未设置时回退到 http://localhost:4178（本地开发）。
 // 所有响应走 { code, message, data } 结构；401 自动清理本地登录态。
@@ -141,31 +141,6 @@ export const tasksApi = {
   /** 删除当前用户全部失败任务（status = 'fail'） */
   deleteFailedMine: () =>
     api.post<{ deleted: number }>('/api/tasks/mine/delete-failed', {})
-}
-
-// ===== 用户自定义供应商与模型（登录用户可添加，source='user'） =====
-export const userProvidersApi = {
-  create: (b: {
-    id: string
-    name: string
-    keyHint?: string
-    url?: string
-    sortOrder?: number
-  }) => api.post<{ provider: { id: string; name: string; source: 'user' } }>('/api/providers/user', b)
-}
-export const userModelsApi = {
-  create: (b: {
-    id: string
-    providerId: string
-    name: string
-    type?: string
-    description?: string
-    supportsI2V?: boolean
-    resolution?: number
-    speed?: number
-    price?: number
-    sortOrder?: number
-  }) => api.post<{ model: { id: string; source: 'user' } }>('/api/models/user', b)
 }
 
 // ===== 用户意见反馈（客户端提交，管理员查看） =====
