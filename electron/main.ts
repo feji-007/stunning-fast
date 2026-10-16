@@ -28,6 +28,10 @@ let isMiniMode = false
 let savedBallPos: { x: number; y: number } | null = null
 // Track the base window height so dropdowns can temporarily extend it.
 let baseWindowHeight = PANEL.height
+// 窗口预期尺寸：所有主动 setSize/setBounds 的地方同步更新它。
+// clamp 和 resize 守卫必须以它为基准 —— 若用 getSize() 读到的实际尺寸，
+// DPI 缩放下 OS 每次撑大的 1px 会被当作新基准写回，窗口越拖越大。
+let expectedSize = { width: PANEL.width, height: PANEL.height }
 // 独立更新弹窗窗口
 let updateWindow: BrowserWindow | null = null
 // 独立模型推荐助手弹窗窗口
@@ -35,6 +39,11 @@ let recommendationWindow: BrowserWindow | null = null
 // 拖拽进行中标志：moveWindow IPC 设置，避免 onMove 二次 clamp 造成窗口跳动
 let isUserDragging = false
 let dragClampTimer: NodeJS.Timeout | null = null
+// TEMP DEBUG（仅 dev）：尺寸取证日志，用于定位拖向屏幕边缘时窗口变大的真正源头
+const dbgSize = (...args: unknown[]) => {
+  if (process.env.NODE_ENV === 'development') console.log('[size]', ...args)
+}
+dbgSize('--- main.ts loaded ---', new Date().toISOString())
  
 const isDev = process.env.NODE_ENV === 'development'
  
@@ -87,7 +96,9 @@ function createWindow(): BrowserWindow {
     frame: false,
     transparent: true,
     hasShadow: false,
-    resizable: true,
+    // 禁用 OS 层 resize：窗口尺寸完全由程序通过 setSize/setBounds 控制，
+    // 杜绝 Windows 在 DPI 缩放下对透明无边框窗口的意外 resize（拖向屏幕边缘时）
+    resizable: false,
     maximizable: true,
     minimizable: true,
     fullscreenable: true,
@@ -107,23 +118,38 @@ function createWindow(): BrowserWindow {
   // Keep window inside the visible area of the current display, and remember
   // the last resting position so dragging is preserved across restarts.
   let moveSaveTimer: NodeJS.Timeout | null = null
-  const onMove = () => {
+  // 原生拖拽（WebkitAppRegion）期间 move 事件以 60fps 高频触发。
+  // 若每次 move 都同步 clamp，setBounds 会被高频重复调用 —— Windows 透明
+  // 无边框窗口在 DPI 缩放下，重复 setBounds 会被 OS 逐次撑大。
+  // 改为防抖：拖拽停止 120ms 后做一次 clamp，单次漂移由 resize 守卫兜底。
+  let moveClampTimer: NodeJS.Timeout | null = null
+  const clampToWorkArea = () => {
+    if (win.isDestroyed()) return
     const [wx, wy] = win.getPosition()
     const [ww, wh] = win.getSize()
-    // 拖拽中跳过 clamp —— clamp 已在 moveWindow IPC handler 内完成，
-    // 此处再次 clamp 会触发第二次 setPosition，导致窗口在目标位置与 clamp
-    // 位置之间反复跳动（即"异常移动"）
+    dbgSize('clampToWorkArea', { pos: [wx, wy], actual: [ww, wh], expected: expectedSize })
+    const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
+    const wa = display.workArea
+    // 用预期尺寸做 clamp 基准，而不是 getSize() 的实际尺寸：
+    // 否则 OS 意外撑大的尺寸会被逐次当作新基准，窗口持续变大
+    const cw = expectedSize.width
+    const ch = expectedSize.height
+    const nx = Math.min(Math.max(wx, wa.x), wa.x + wa.width - cw)
+    const ny = Math.min(Math.max(wy, wa.y), wa.y + wa.height - ch)
+    if (nx !== wx || ny !== wy || cw !== ww || ch !== wh) {
+      win.setBounds({ x: nx, y: ny, width: cw, height: ch })
+    }
+  }
+  const onMove = () => {
+    const [ww, wh] = win.getSize()
+    // 悬浮球 IPC 拖拽的 clamp 已在 moveWindow handler 内完成，此处跳过，
+    // 避免双重 setBounds 导致窗口在目标位置与 clamp 位置之间反复跳动
     if (!isUserDragging) {
-      const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
-      const wa = display.workArea
-      // mini 模式下用 MINI 尺寸 clamp，并用 setBounds 防止透明窗口被 OS resize
-      const cw = isMiniMode ? MINI.width : ww
-      const ch = isMiniMode ? MINI.height : wh
-      const nx = Math.min(Math.max(wx, wa.x), wa.x + wa.width - cw)
-      const ny = Math.min(Math.max(wy, wa.y), wa.y + wa.height - ch)
-      if (nx !== wx || ny !== wy || cw !== ww || ch !== wh) {
-        win.setBounds({ x: nx, y: ny, width: cw, height: ch })
-      }
+      if (moveClampTimer) clearTimeout(moveClampTimer)
+      moveClampTimer = setTimeout(() => {
+        moveClampTimer = null
+        clampToWorkArea()
+      }, 120)
     }
     // Throttle persistence while the mini window is being dragged.
     if (ww === MINI.width && wh === MINI.height) {
@@ -137,20 +163,44 @@ function createWindow(): BrowserWindow {
   }
   win.on('move', onMove)
 
-  // 透明窗口在 Windows 上可能被 OS 意外 resize（尤其 DPI 缩放 + setPosition 时）。
-  // mini 模式下强制锁定尺寸为 MINI，任何 resize 立即纠正。
-  // 容差 5px：DPI 缩放下 getSize() 可能有 2-3px 取整偏差，不需要纠正。
+  // 透明窗口在 Windows 上可能被 OS 意外 resize（尤其 DPI 缩放 + 拖向屏幕边缘时）。
+  // 所有模式下都强制锁定尺寸为预期值，任何非预期 resize 立即纠正。
+  // 容差 1px：此前 5px 的容差会让每次几 px 的 OS 漂移从不触发纠正，
+  // 累积后表现为窗口越拖越大。
   let isCorrectingSize = false
+  let resizeLogCount = 0
   win.on('resize', () => {
-    if (!isMiniMode || isCorrectingSize) return
     const [cw, ch] = win.getSize()
-    if (Math.abs(cw - MINI.width) > 5 || Math.abs(ch - MINI.height) > 5) {
+    const deviates = Math.abs(cw - expectedSize.width) > 1 || Math.abs(ch - expectedSize.height) > 1
+    // TEMP DEBUG：只在尺寸偏离预期（或最大化/全屏）时记录，避免拖拽期间刷屏
+    if ((deviates || win.isMaximized() || win.isFullScreen()) && resizeLogCount < 200) {
+      resizeLogCount++
+      dbgSize(`resize#${resizeLogCount}`, { cw, ch, expected: expectedSize, max: win.isMaximized(), fs: win.isFullScreen(), correcting: isCorrectingSize })
+    }
+    if (isCorrectingSize) return
+    // 最大化/全屏/最小化是用户主动行为，尺寸合法，不纠正
+    // 最小化时 OS 会临时把窗口缩到极小尺寸，若此时纠正会打断最小化动画并导致窗口消失
+    if (win.isMaximized() || win.isFullScreen() || win.isMinimized()) return
+    if (deviates) {
+      dbgSize('resize -> CORRECT', { from: [cw, ch], to: expectedSize })
       isCorrectingSize = true
       const [px, py] = win.getPosition()
-      win.setBounds({ x: px, y: py, width: MINI.width, height: MINI.height })
-      isCorrectingSize = false
+      // 尺寸纠偏后位置可能越出工作区（漂移发生在边缘时），顺带重新 clamp
+      const display = screen.getDisplayNearestPoint({ x: px, y: py })
+      const wa = display.workArea
+      const nx = Math.min(Math.max(px, wa.x), wa.x + wa.width - expectedSize.width)
+      const ny = Math.min(Math.max(py, wa.y), wa.y + wa.height - expectedSize.height)
+      win.setBounds({ x: nx, y: ny, width: expectedSize.width, height: expectedSize.height })
+      // resize 事件是异步派发的，跨一个 tick 再解除标志，
+      // 忽略本次纠正自身触发的回声事件，避免纠正循环
+      setImmediate(() => {
+        isCorrectingSize = false
+      })
     }
   })
+  // TEMP DEBUG：Aero Snap / 最大化会改变尺寸，单独打点确认是否由它触发
+  win.on('maximize', () => dbgSize('event:maximize', win.getSize()))
+  win.on('unmaximize', () => dbgSize('event:unmaximize', win.getSize()))
  
   if (isDev) {
     win.loadURL('http://localhost:5173')
@@ -208,11 +258,11 @@ function createUpdateWindow(info: { version: string; releaseNotes?: string }) {
   const currentVersion = app.getVersion()
   const [mx, my] = mainWindow ? mainWindow.getPosition() : [100, 100]
   const [mw] = mainWindow ? mainWindow.getSize() : [450, 100]
-  // 计算窗口位置：紧贴主窗口正上方
-  const winW = 360
-  const winH = 480
+  // 计算窗口位置：紧贴主窗口正上方，宽度约主工具栏一半
+  const winW = 280
+  const winH = 52
   let wx = mx + Math.round((mw - winW) / 2)
-  let wy = my - winH
+  let wy = my - winH - 4
   // 确保窗口水平方向在屏幕内
   const display = screen.getDisplayNearestPoint({ x: mx, y: my })
   const wa = display.workArea
@@ -228,13 +278,15 @@ function createUpdateWindow(info: { version: string; releaseNotes?: string }) {
     y: wy,
     frame: false,
     transparent: true,
+    backgroundColor: '#00000000',
     hasShadow: false,
     resizable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    alwaysOnTop: true,
+    parent: mainWindow || undefined,
+    alwaysOnTop: false,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -260,6 +312,9 @@ function createUpdateWindow(info: { version: string; releaseNotes?: string }) {
   win.webContents.on('did-fail-load', (_e, errorCode, errorDesc) => {
     console.error('[updater] 更新弹窗加载失败:', errorCode, errorDesc, 'URL:', url)
   })
+  win.webContents.on('did-finish-load', () => {
+    console.log('[updater] 弹窗页面加载完成')
+  })
   win.on('closed', () => {
     updateWindow = null
   })
@@ -271,8 +326,8 @@ function positionRecommendationWindow() {
   if (!recommendationWindow || recommendationWindow.isDestroyed()) return
   const [mx, my] = mainWindow ? mainWindow.getPosition() : [100, 100]
   const [mw] = mainWindow ? mainWindow.getSize() : [450, 100]
-  const winW = 420
-  const winH = 620
+  const winW = 524
+  const winH = 624
   let wx = mx + Math.round((mw - winW) / 2)
   let wy = my - winH - 10
   const display = screen.getDisplayNearestPoint({ x: mx, y: my })
@@ -280,7 +335,15 @@ function positionRecommendationWindow() {
   if (wy < wa.y) wy = my + 30
   if (wx < wa.x) wx = wa.x + 10
   if (wx + winW > wa.x + wa.width) wx = wa.x + wa.width - winW - 10
-  recommendationWindow.setPosition(wx, wy)
+  // 推荐弹窗随主窗口 moved 事件高频重定位：坐标被 clamp 到屏幕边缘后，
+  // 相同坐标的 setPosition 会重复调用，透明无边框窗口会被 OS 逐步撑大。
+  // 位置尺寸都没变化时跳过；否则用 setBounds 同时锁定位置和尺寸。
+  const win = recommendationWindow
+  const [cx, cy] = win.getPosition()
+  const [cw, ch] = win.getSize()
+  if (cx !== wx || cy !== wy || cw !== winW || ch !== winH) {
+    win.setBounds({ x: wx, y: wy, width: winW, height: winH })
+  }
 }
 
 function createRecommendationWindow() {
@@ -290,8 +353,8 @@ function createRecommendationWindow() {
   }
   const [mx, my] = mainWindow ? mainWindow.getPosition() : [100, 100]
   const [mw] = mainWindow ? mainWindow.getSize() : [450, 100]
-  const winW = 420
-  const winH = 620
+  const winW = 524
+  const winH = 624
   let wx = mx + Math.round((mw - winW) / 2)
   let wy = my - winH - 10
   const display = screen.getDisplayNearestPoint({ x: mx, y: my })
@@ -357,12 +420,13 @@ function expandWindow() {
   ny = Math.min(Math.max(ny, wa.y), wa.y + wa.height - PANEL.height)
  
   win.setAlwaysOnTop(false)
-  // 先退出 mini 模式，防止 resize 守卫在 setSize 时将窗口纠正回 72x72
+  // 先退出 mini 模式并更新预期尺寸，防止 resize 守卫在 setSize 时纠正回旧尺寸
   isMiniMode = false
+  expectedSize = { width: PANEL.width, height: PANEL.height }
+  dbgSize('expandWindow', { from: [ww, wh], to: PANEL })
   win.setSize(PANEL.width, PANEL.height)
   win.setPosition(nx, ny)
   baseWindowHeight = PANEL.height
-  win.setResizable(true)
   try {
     win.setSkipTaskbar(false)
     win.setMinimizable(true)
@@ -374,6 +438,10 @@ function expandWindow() {
   if (recommendationWindow && !recommendationWindow.isDestroyed()) {
     positionRecommendationWindow()
     recommendationWindow.show()
+  }
+  // 展开后恢复更新弹窗（如果之前存在）
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.show()
   }
 }
  
@@ -402,10 +470,11 @@ function collapseWindow() {
   const clampedY = Math.min(Math.max(ny, wa.y), wa.y + wa.height - MINI.height)
  
   win.setAlwaysOnTop(true, 'floating')
+  expectedSize = { width: MINI.width, height: MINI.height }
+  dbgSize('collapseWindow', { from: [ww, wh], to: MINI })
   win.setSize(MINI.width, MINI.height)
   win.setPosition(clampedX, clampedY)
   try {
-    win.setResizable(false)
     win.setSkipTaskbar(true)
     win.setMinimizable(false)
   } catch {}
@@ -416,6 +485,10 @@ function collapseWindow() {
   // 折叠时隐藏推荐弹窗（不销毁，展开后恢复）
   if (recommendationWindow && !recommendationWindow.isDestroyed()) {
     recommendationWindow.hide()
+  }
+  // 折叠时隐藏更新弹窗（不销毁，展开后恢复）
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.hide()
   }
 }
  
@@ -450,16 +523,21 @@ function registerIpc() {
     // 在此处一次性 clamp 到工作区，onMove 不再重复 clamp
     const [ww, wh] = win.getSize()
     const [preX, preY] = win.getPosition()
-    // mini 模式下强制用 MINI 尺寸做 clamp 和 setBounds，防止透明窗口被 OS resize
-    const targetW = isMiniMode ? MINI.width : ww
-    const targetH = isMiniMode ? MINI.height : wh
+    // 用预期尺寸做 clamp 和 setBounds 基准：若用 getSize() 实际尺寸，
+    // OS 意外撑大的值会被当作新基准写回，窗口越拖越大
+    const targetW = expectedSize.width
+    const targetH = expectedSize.height
     const display = screen.getDisplayNearestPoint({ x: ix, y: iy })
     const wa = display.workArea
     const nx = Math.min(Math.max(ix, wa.x), wa.x + wa.width - targetW)
     const ny = Math.min(Math.max(iy, wa.y), wa.y + wa.height - targetH)
     // 使用 setBounds 而非 setPosition：Windows 透明无边框窗口在 setPosition
     // 时可能被 OS 意外 resize（DPI 缩放下尤为明显），setBounds 同时锁定位置和尺寸。
-    win.setBounds({ x: nx, y: ny, width: targetW, height: targetH })
+    // 注意：位置尺寸都没变化时必须跳过 setBounds —— 窗口被 clamp 在屏幕边缘后，
+    // 拖拽会以 60fps 重复发送相同 bounds，重复 setBounds 会被 OS 逐步撑大窗口。
+    if (nx !== preX || ny !== preY || targetW !== ww || targetH !== wh) {
+      win.setBounds({ x: nx, y: ny, width: targetW, height: targetH })
+    }
     // 诊断日志：前 30 次拖拽 move，每 3 次记一条
     if (dragLogCount < 30 && dragLogCount % 3 === 0) {
       const [postX, postY] = win.getPosition()
@@ -498,6 +576,7 @@ function registerIpc() {
  
   ipcMain.handle(IPC.WINDOW_TOGGLE_MAXIMIZE, () => {
     if (!mainWindow) return
+    dbgSize('ipc:TOGGLE_MAXIMIZE', { before: mainWindow.isMaximized(), size: mainWindow.getSize() })
     if (mainWindow.isMaximized()) mainWindow.unmaximize()
     else mainWindow.maximize()
   })
@@ -523,8 +602,10 @@ function registerIpc() {
     let ny = Math.round(centerY - dims.height / 2)
     nx = Math.min(Math.max(nx, wa.x), wa.x + wa.width - dims.width)
     ny = Math.min(Math.max(ny, wa.y), wa.y + wa.height - dims.height)
-    // 先退出 mini 模式，防止 resize 守卫在 setSize 时将窗口纠正回 72x72
+    // 先退出 mini 模式并更新预期尺寸，防止 resize 守卫在 setSize 时纠正回旧尺寸
     isMiniMode = false
+    expectedSize = { width: dims.width, height: dims.height }
+    dbgSize('expandWindowTo', { from: [ww, wh], to: dims })
     win.setSize(dims.width, dims.height)
     win.setPosition(nx, ny)
     baseWindowHeight = dims.height
@@ -535,7 +616,6 @@ function registerIpc() {
     } catch {}
     try {
       win.setAlwaysOnTop(false)
-      win.setResizable(true)
       win.setSkipTaskbar(false)
       win.setMinimizable(true)
     } catch {}
@@ -589,7 +669,6 @@ function registerIpc() {
     if (isMiniMode) return
     const win = mainWindow
     const [wx, wy] = win.getPosition()
-    const [ww] = win.getSize()
     const newHeight = baseWindowHeight + dropdownHeight
     const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
     const wa = display.workArea
@@ -601,7 +680,8 @@ function registerIpc() {
     if (newBottom > wa.y + wa.height) {
       ny = Math.max(wa.y, bottom - newHeight)
     }
-    win.setSize(ww, newHeight)
+    expectedSize = { width: expectedSize.width, height: newHeight }
+    win.setSize(expectedSize.width, newHeight)
     win.setPosition(wx, ny)
     // 强制重绘：transparent 窗口在 Windows 上 resize 后需要切换一次合成模式
     // 否则新增区域不会渲染，导致下拉框被裁剪
@@ -617,7 +697,6 @@ function registerIpc() {
     if (isMiniMode) return
     const win = mainWindow
     const [wx, wy] = win.getPosition()
-    const [ww] = win.getSize()
     const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
     const wa = display.workArea
     let ny = wy
@@ -627,7 +706,8 @@ function registerIpc() {
     if (bottom > wa.y + wa.height) {
       ny = Math.max(wa.y, wa.y + wa.height - baseWindowHeight)
     }
-    win.setSize(ww, baseWindowHeight)
+    expectedSize = { width: expectedSize.width, height: baseWindowHeight }
+    win.setSize(expectedSize.width, baseWindowHeight)
     win.setPosition(wx, ny)
     // 强制重绘
     try {
@@ -709,6 +789,7 @@ app.whenReady().then(() => {
     tray.setContextMenu(menu)
   }
   mainWindow = createWindow()
+
 
   // 每 2 秒输出窗口位置，观察是否有漂移
   setInterval(() => {

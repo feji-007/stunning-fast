@@ -215,6 +215,20 @@ CREATE TABLE IF NOT EXISTS recommend_questions (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ========== AI 助手「使用指南」问答表（管理员可编辑） ==========
+
+CREATE TABLE IF NOT EXISTS guide_questions (
+  id          INT          NOT NULL AUTO_INCREMENT,
+  category    VARCHAR(64)  NOT NULL DEFAULT '',
+  question    VARCHAR(256) NOT NULL,
+  answer      TEXT         NOT NULL,
+  sort_order  INT          NOT NULL DEFAULT 0,
+  is_active   TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================
 -- 说明：
 --  1. 本脚本仅建表，不含种子数据。

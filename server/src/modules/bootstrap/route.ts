@@ -35,6 +35,9 @@ router.get('/', async (_req, res, next) => {
     const recQuestions = await query(
       `SELECT layer, title, options FROM recommend_questions WHERE is_active = TRUE ORDER BY sort_order, id`
     )
+    const guideQuestions = await query(
+      `SELECT id, category, question, answer FROM guide_questions WHERE is_active = TRUE ORDER BY sort_order, id`
+    )
 
     const providersTree = providers.rows.map((p: any) => ({
       ...p,
@@ -65,7 +68,8 @@ router.get('/', async (_req, res, next) => {
       features: features.rows,
       videoConfig,
       recommendModels,
-      recommendQuestions
+      recommendQuestions,
+      guideQuestions: guideQuestions.rows
     })
   } catch (e) {
     next(e)

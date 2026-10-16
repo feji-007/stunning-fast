@@ -1,6 +1,6 @@
-﻿﻿import { useMemo, useRef, useState } from 'react'
+﻿import { useMemo, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore'
-import type { ProviderModel } from '../../types'
+import type { Provider, ProviderModel } from '../../types'
 
 // 资源库：罗列主流常用模型，帮用户搜索更适配的资源。
 // 系统供应商/模型来自后端 bootstrap；用户自定义供应商/模型仅保存在本地
@@ -10,15 +10,43 @@ export default function ResourceLibrary() {
   const exportCustomResources = useStore((s) => s.exportCustomResources)
   const importCustomResources = useStore((s) => s.importCustomResources)
   const hasCustom = useStore((s) => s.customProviders.length + s.customModels.length > 0)
+  const customProviders = useStore((s) => s.customProviders)
+  const removeCustomProvider = useStore((s) => s.removeCustomProvider)
+  const removeCustomModel = useStore((s) => s.removeCustomModel)
   const [q, setQ] = useState('')
   const [type, setType] = useState<'all' | 'video' | 'image' | 'audio' | 'text'>('all')
   const [showAdd, setShowAdd] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  // 当前正在编辑的资源（供应商或模型）；null 表示未打开编辑弹窗
+  const [editing, setEditing] = useState<null | { kind: 'provider' | 'model'; id: string; providerId?: string }>(null)
   const [toast, setToast] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const showToast = (msg: string) => {
     setToast(msg)
     window.setTimeout(() => setToast(''), 2500)
+  }
+
+  const handleDeleteModel = (m: ProviderModel) => {
+    if (!window.confirm(`确定删除自定义模型「${m.name}」吗？`)) return
+    void removeCustomModel({ id: m.id, providerId: m.provider })
+    // 若删的是某自定义供应商下的最后一个模型，询问是否连带删除该供应商
+    // （不静默级联：仅建了供应商、暂未加模型是合法空态）
+    const owner = customProviders.find((p) => p.id === m.provider)
+    if (owner && owner.models.length === 1) {
+      if (window.confirm(`「${owner.name}」下已无自定义模型，是否一并删除该自定义供应商？`)) {
+        void removeCustomProvider(owner.id)
+        showToast('已删除自定义模型与供应商')
+        return
+      }
+    }
+    showToast('已删除自定义模型')
+  }
+
+  const handleDeleteProvider = (p: Provider) => {
+    if (!window.confirm(`确定删除自定义供应商「${p.name}」及其下所有自定义模型吗？`)) return
+    void removeCustomProvider(p.id)
+    showToast('已删除自定义供应商')
   }
 
   const handleExport = () => {
@@ -76,6 +104,13 @@ export default function ResourceLibrary() {
         </div>
         <div className="flex items-center gap-1.5">
           <button
+            onClick={() => setShowHelp(!showHelp)}
+            className="flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-[10px] text-gray-400 transition-colors hover:border-brand-300 hover:text-brand-600"
+            title="查看导入导出操作指引"
+          >
+            ?
+          </button>
+          <button
             onClick={() => fileRef.current?.click()}
             className="rounded-lg border border-gray-200 px-2 py-1 text-[11px] text-gray-500 transition-colors hover:border-brand-300 hover:text-brand-600"
             title="从 JSON 文件导入本地自定义资源"
@@ -107,9 +142,66 @@ export default function ResourceLibrary() {
         />
       </div>
 
+      {/* 自定义供应商管理：仅列出用户自己添加的供应商，可编辑/删除 */}
+      {customProviders.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-gray-400">自定义供应商：</span>
+          {customProviders.map((p) => (
+            <span
+              key={p.id}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50/60 px-1.5 py-0.5 text-[11px] text-amber-700"
+            >
+              {p.name}
+              <button
+                onClick={() => setEditing({ kind: 'provider', id: p.id })}
+                className="text-amber-500 transition-colors hover:text-amber-700"
+                title="编辑该供应商"
+              >
+                ✎
+              </button>
+              <button
+                onClick={() => handleDeleteProvider(p)}
+                className="text-amber-500 transition-colors hover:text-red-600"
+                title="删除该供应商及其自定义模型"
+              >
+                🗑
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {toast && (
         <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-[11px] text-brand-700">
           {toast}
+        </div>
+      )}
+
+      {showHelp && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/80 p-3 text-[11px] text-gray-600">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="font-medium text-gray-700">导入 / 导出操作指引</span>
+            <button onClick={() => setShowHelp(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <p className="font-medium text-gray-700">📤 导出自定义资源</p>
+              <ol className="ml-4 list-decimal space-y-0.5 text-gray-500">
+                <li>点击「导出」按钮</li>
+                <li>浏览器自动下载 <code className="rounded bg-gray-100 px-1">custom-resources.json</code></li>
+                <li>将该文件复制到新设备</li>
+              </ol>
+            </div>
+            <div>
+              <p className="font-medium text-gray-700">📥 导入自定义资源</p>
+              <ol className="ml-4 list-decimal space-y-0.5 text-gray-500">
+                <li>点击「导入」按钮</li>
+                <li>选择之前导出的 JSON 文件</li>
+                <li>同名资源会自动覆盖，不同名则新增</li>
+              </ol>
+            </div>
+            <p className="text-gray-400">自定义数据仅保存在本机 localStorage，不会上传服务器。</p>
+          </div>
         </div>
       )}
 
@@ -151,7 +243,12 @@ export default function ResourceLibrary() {
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {filtered.map((m) => (
-              <ModelCard key={m.id} model={m} />
+              <ModelCard
+                key={m.id}
+                model={m}
+                onEdit={(mm) => setEditing({ kind: 'model', id: mm.id, providerId: mm.provider })}
+                onDelete={handleDeleteModel}
+              />
             ))}
           </div>
         )}
@@ -161,11 +258,20 @@ export default function ResourceLibrary() {
       </div>
 
       {showAdd && <AddResourceModal onClose={() => setShowAdd(false)} />}
+      {editing && <EditResourceModal editing={editing} onClose={() => setEditing(null)} />}
     </div>
   )
 }
 
-function ModelCard({ model }: { model: ProviderModel }) {
+function ModelCard({
+  model,
+  onEdit,
+  onDelete
+}: {
+  model: ProviderModel
+  onEdit: (m: ProviderModel) => void
+  onDelete: (m: ProviderModel) => void
+}) {
   const providers = useStore((s) => s.providers)
   const provider = providers.find((p) => p.id === model.provider)
   const typeLabel: Record<ProviderModel['type'], string> = {
@@ -226,6 +332,25 @@ function ModelCard({ model }: { model: ProviderModel }) {
           >
             了解模型详情 ↗
           </button>
+        )}
+        {/* 仅自定义模型可编辑/删除 */}
+        {model.source === 'user' && (
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => onEdit(model)}
+              className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 transition-colors hover:border-brand-300 hover:text-brand-600"
+              title="编辑该自定义模型"
+            >
+              ✎ 编辑
+            </button>
+            <button
+              onClick={() => onDelete(model)}
+              className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 transition-colors hover:border-red-300 hover:text-red-600"
+              title="删除该自定义模型"
+            >
+              🗑 删除
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -470,6 +595,202 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
             className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs text-white hover:bg-brand-700 disabled:opacity-60"
           >
             {saving ? '保存中…' : '确认添加'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== 编辑自定义供应商/模型弹窗（数据仅保存本机） =====
+function EditResourceModal({
+  editing,
+  onClose
+}: {
+  editing: { kind: 'provider' | 'model'; id: string; providerId?: string }
+  onClose: () => void
+}) {
+  const providers = useStore((s) => s.providers)
+  const updateCustomProvider = useStore((s) => s.updateCustomProvider)
+  const updateCustomModel = useStore((s) => s.updateCustomModel)
+
+  const isProvider = editing.kind === 'provider'
+  const provider = providers.find((p) => p.id === (isProvider ? editing.id : editing.providerId))
+  const model = isProvider ? undefined : provider?.models.find((m) => m.id === editing.id)
+
+  const [name, setName] = useState(provider?.name ?? '')
+  const [url, setUrl] = useState(provider?.url ?? '')
+  const [keyHint, setKeyHint] = useState(provider?.keyHint ?? '')
+  const [type, setType] = useState<ProviderModel['type']>(model?.type ?? 'video')
+  const [desc, setDesc] = useState(model?.desc ?? '')
+  const [supportsI2V, setSupportsI2V] = useState(!!model?.supportsI2V)
+
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async () => {
+    setError('')
+    if (!name.trim()) {
+      setError(isProvider ? '供应商名称必填' : '模型名称必填')
+      return
+    }
+    setSaving(true)
+    try {
+      if (isProvider) {
+        await updateCustomProvider({
+          id: editing.id,
+          name: name.trim(),
+          url: url.trim(),
+          keyHint: keyHint.trim()
+        })
+      } else {
+        await updateCustomModel({
+          id: editing.id,
+          providerId: editing.providerId!,
+          name: name.trim(),
+          type,
+          description: desc.trim(),
+          supportsI2V
+        })
+      }
+      onClose()
+    } catch (e: any) {
+      setError(e?.message ?? '保存失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl bg-white p-5 shadow-lg">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-800">
+            {isProvider ? '编辑自定义供应商' : '编辑自定义模型'}
+          </h3>
+          <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600">
+            ✕
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+            {error}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-auto scroll-thin">
+          {isProvider ? (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">供应商 ID（不可修改）</label>
+                <input
+                  value={editing.id}
+                  disabled
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-400 outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">供应商名称</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">官网地址 (可选)</label>
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">API Key 前缀提示 (可选)</label>
+                <input
+                  value={keyHint}
+                  onChange={(e) => setKeyHint(e.target.value)}
+                  placeholder="如 sk-"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">所在供应商（不可修改）</label>
+                <input
+                  value={provider?.name ?? editing.providerId ?? ''}
+                  disabled
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-400 outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">模型 ID（不可修改）</label>
+                <input
+                  value={editing.id}
+                  disabled
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-400 outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">模型名称</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">模型类型</label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as ProviderModel['type'])}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                >
+                  <option value="video">视频</option>
+                  <option value="image">图像</option>
+                  <option value="audio">音频</option>
+                  <option value="text">文本</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">模型描述 (可选)</label>
+                <textarea
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  rows={2}
+                  placeholder="模型能力说明"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={supportsI2V}
+                  onChange={(e) => setSupportsI2V(e.target.checked)}
+                />
+                支持图生视频（image-to-video）
+              </label>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200"
+          >
+            取消
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            {saving ? '保存中…' : '保存修改'}
           </button>
         </div>
       </div>

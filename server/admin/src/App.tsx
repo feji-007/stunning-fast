@@ -12,6 +12,7 @@ import Tasks from './components/Tasks'
 import Feedback from './components/Feedback'
 import RecommendModels from './components/RecommendModels'
 import RecommendQuestions from './components/RecommendQuestions'
+import GuideQuestions from './components/GuideQuestions'
 import { authApi, getStoredUser, clearAuth, getToken, type AdminUser } from './api'
 
 export default function App() {
@@ -73,6 +74,7 @@ export default function App() {
       {view === 'feedback' && <Feedback />}
       {view === 'recommendModels' && <RecommendModels />}
       {view === 'recommendQuestions' && <RecommendQuestions />}
+      {view === 'guideQuestions' && <GuideQuestions />}
     </Layout>
   )
 }

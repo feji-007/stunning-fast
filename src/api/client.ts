@@ -3,6 +3,8 @@
 // 未设置时回退到 http://localhost:4178（本地开发）。
 // 所有响应走 { code, message, data } 结构；401 自动清理本地登录态。
 
+import type { GuideQuestion } from '../types'
+
 const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4178').replace(/\/+$/, '')
 const API_BASE_KEY = 'stunning-fast-api-base'
 const TOKEN_KEY = 'stunning-fast-token'
@@ -82,6 +84,7 @@ export const bootstrapApi = {
       videoConfig: Record<string, Array<{ value: string; label: string }>>
       recommendModels: Record<string, { name: string; desc: string; tag: string }>
       recommendQuestions: Array<{ layer: string; title: string; options: Array<{ label: string; models: string[]; note?: string }> }>
+      guideQuestions: GuideQuestion[]
     }>('/api/bootstrap')
 }
 

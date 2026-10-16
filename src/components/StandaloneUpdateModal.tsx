@@ -18,6 +18,13 @@ export default function StandaloneUpdateModal() {
     setCurrentVersion(params.get('currentVersion') ?? '')
     const notes = params.get('releaseNotes')
     if (notes) setReleaseNotes(decodeURIComponent(notes))
+    // 开发调试用：支持 ?phase=available|downloading|downloaded|error 强制切换阶段
+    const p = params.get('phase')
+    if (p === 'available' || p === 'downloading' || p === 'downloaded' || p === 'error') {
+      setPhase(p)
+      if (p === 'downloading') setProgress(45)
+      if (p === 'error') setErrorMsg('网络连接失败，请检查网络后重试')
+    }
   }, [])
 
   // 监听主进程推送的更新事件

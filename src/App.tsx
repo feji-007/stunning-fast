@@ -123,8 +123,8 @@ function MainApp() {
   // 模态框打开/关闭时调整窗口尺寸
   useEffect(() => {
     if (modal !== 'none') {
-      // 设置弹窗使用 1200×720，其他弹窗（登录/反馈）使用 700×520
-      const dims = modal === 'settings' ? { width: 1200, height: 720 } : { width: 700, height: 520 }
+      // 设置/登录/反馈弹窗统一使用 1200×720
+      const dims = { width: 1200, height: 720 }
       try {
         ;(window as any).api?.expandWindowTo?.(dims)
       } catch {}

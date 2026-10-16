@@ -206,3 +206,11 @@ export const recommendApi = {
   updateQuestion: (id: number, b: any) => api.put(`/api/recommend/questions/${id}`, b),
   removeQuestion: (id: number) => api.del(`/api/recommend/questions/${id}`)
 }
+
+// ===== AI 助手「使用指南」问答配置 =====
+export const guideApi = {
+  listQuestions: () => api.get<{ questions: any[]; total: number }>('/api/guide/questions'),
+  createQuestion: (b: any) => api.post('/api/guide/questions', b),
+  updateQuestion: (id: number, b: any) => api.put(`/api/guide/questions/${id}`, b),
+  removeQuestion: (id: number) => api.del(`/api/guide/questions/${id}`)
+}

@@ -90,4 +90,12 @@ export interface RecommendQuestion {
   options: RecommendOption[]
 }
 
+// AI 助手「使用指南」问答
+export interface GuideQuestion {
+  id: number
+  category: string
+  question: string
+  answer: string
+}
+
 

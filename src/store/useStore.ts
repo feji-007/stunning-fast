@@ -135,6 +135,26 @@ interface AppState {
     description?: string
     supportsI2V?: boolean
   }) => Promise<void>
+  /** 编辑本地自定义供应商（id 不可改） */
+  updateCustomProvider: (b: {
+    id: string
+    name?: string
+    keyHint?: string
+    url?: string
+  }) => Promise<void>
+  /** 删除本地自定义供应商（连同其下自定义模型一并删除） */
+  removeCustomProvider: (id: string) => Promise<void>
+  /** 编辑本地自定义模型（id / provider 不可改） */
+  updateCustomModel: (b: {
+    id: string
+    providerId: string
+    name?: string
+    type?: string
+    description?: string
+    supportsI2V?: boolean
+  }) => Promise<void>
+  /** 删除本地自定义模型 */
+  removeCustomModel: (b: { id: string; providerId: string }) => Promise<void>
   /** 导出本地自定义资源为 JSON 字符串（用于跨设备备份/迁移） */
   exportCustomResources: () => string
   /** 从 JSON 字符串导入本地自定义资源（同 id 覆盖） */
@@ -683,6 +703,80 @@ export const useStore = create<AppState>()(
             customProviders,
             customModels,
             providers: mergeCustomProviders(strippedBase, customProviders, customModels)
+          }
+        })
+      },
+
+      updateCustomProvider: async (b) => {
+        const patch: Partial<Provider> = {}
+        if (b.name !== undefined) patch.name = b.name
+        if (b.keyHint !== undefined) patch.keyHint = b.keyHint
+        if (b.url !== undefined) patch.url = b.url
+        set((s) => ({
+          providers: s.providers.map((p) => (p.id === b.id ? { ...p, ...patch } : p)),
+          customProviders: s.customProviders.map((p) => (p.id === b.id ? { ...p, ...patch } : p))
+        }))
+      },
+
+      removeCustomProvider: async (id) => {
+        set((s) => ({
+          providers: s.providers.filter((p) => !(p.id === id && p.source === 'user')),
+          customProviders: s.customProviders.filter((p) => p.id !== id),
+          // 该供应商下的自定义模型随供应商一并移除
+          customModels: s.customModels.filter((m) => m.provider !== id)
+        }))
+      },
+
+      updateCustomModel: async (b) => {
+        const patch: Partial<ProviderModel> = {}
+        if (b.name !== undefined) patch.name = b.name
+        if (b.type !== undefined) patch.type = b.type as ProviderModel['type']
+        if (b.description !== undefined) patch.desc = b.description
+        if (b.supportsI2V !== undefined) patch.supportsI2V = b.supportsI2V
+        set((s) => {
+          const isCustomProvider = s.customProviders.some((p) => p.id === b.providerId)
+          return {
+            providers: s.providers.map((p) =>
+              p.id === b.providerId
+                ? { ...p, models: p.models.map((m) => (m.id === b.id ? { ...m, ...patch } : m)) }
+                : p
+            ),
+            // 挂在自定义供应商下的模型随供应商一起持久化；挂在系统供应商下的模型存于 customModels
+            customProviders: isCustomProvider
+              ? s.customProviders.map((p) =>
+                  p.id === b.providerId
+                    ? { ...p, models: p.models.map((m) => (m.id === b.id ? { ...m, ...patch } : m)) }
+                    : p
+                )
+              : s.customProviders,
+            customModels: isCustomProvider
+              ? s.customModels
+              : s.customModels.map((m) =>
+                  m.provider === b.providerId && m.id === b.id ? { ...m, ...patch } : m
+                )
+          }
+        })
+      },
+
+      removeCustomModel: async (b) => {
+        set((s) => {
+          const isCustomProvider = s.customProviders.some((p) => p.id === b.providerId)
+          return {
+            providers: s.providers.map((p) =>
+              p.id === b.providerId
+                ? { ...p, models: p.models.filter((m) => !(m.id === b.id && m.source === 'user')) }
+                : p
+            ),
+            customProviders: isCustomProvider
+              ? s.customProviders.map((p) =>
+                  p.id === b.providerId
+                    ? { ...p, models: p.models.filter((m) => m.id !== b.id) }
+                    : p
+                )
+              : s.customProviders,
+            customModels: isCustomProvider
+              ? s.customModels
+              : s.customModels.filter((m) => !(m.provider === b.providerId && m.id === b.id))
           }
         })
       }

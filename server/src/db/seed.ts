@@ -216,6 +216,84 @@ const RECOMMEND_QUESTIONS_SEED: Array<{
   }
 ]
 
+// AI 助手「使用指南」问答（客户端侧栏「使用指南」展示，按 category 分组）
+const GUIDE_QUESTIONS_SEED: Array<{
+  category: string; question: string; answer: string; sort: number
+}> = [
+  {
+    category: '快速上手',
+    question: '如何安装并启动这款软件？',
+    answer: '桌面端：在下载页选择对应平台安装包，Windows 双击 .exe 安装、macOS 拖拽 .dmg、Linux 赋予执行权限后运行 .AppImage。启动后客户端会自动连接后台服务（默认 http://localhost:4178）并拉取系统配置；未登录也可浏览资源库，登录后可同步个人配置。',
+    sort: 1
+  },
+  {
+    category: '快速上手',
+    question: '首次使用需要配置 API Key 吗？',
+    answer: '需要。要真正调用模型生成内容，需在「资源库」中找到对应供应商并填写你自己的 API Key。未配置 Key 时仍可浏览模型信息，但无法发起生成任务。',
+    sort: 2
+  },
+  {
+    category: 'API 密钥与配置',
+    question: '在哪里填写 API Key？',
+    answer: '打开「资源库」功能，找到对应供应商，点击填写密钥即可。未登录时密钥仅保存在本地；登录后可按当前账号同步到后台，其他用户无法查看你的密钥。',
+    sort: 3
+  },
+  {
+    category: 'API 密钥与配置',
+    question: '如何添加自己的供应商或模型？',
+    answer: '在「资源库」页点击「添加」，可新增自定义供应商或自定义模型。自定义资源仅保存在本地，不上传服务器，会与系统自带资源一起展示和搜索。',
+    sort: 4
+  },
+  {
+    category: '功能使用',
+    question: '「模型推荐助手」是做什么的？怎么用？',
+    answer: '点击主面板右上角的星标按钮即可打开，弹窗侧栏的「模型推荐」就是该功能。它会通过几个分层问题了解你的用途（叙事、角色一致性、镜头控制、效率等），最后用投票算法为你推荐最合适的视频模型。',
+    sort: 5
+  },
+  {
+    category: '功能使用',
+    question: '视频生成支持哪些参数？',
+    answer: '支持设置分辨率（720P / 1080P）、宽高比（16:9、9:16、1:1、4:3、3:4）、时长（2s–30s），以及自动匹配的优先级（清晰度 / 速度 / 价格优先）。',
+    sort: 6
+  },
+  {
+    category: '功能使用',
+    question: '如何查看我生成过的任务记录？',
+    answer: '每次生成都会写入后台任务记录（含生成模式、分辨率、时长、状态等）。登录后可在任务记录列表查看自己的历史任务。',
+    sort: 7
+  },
+  {
+    category: '常见问题',
+    question: '提示「无法连接后台服务」怎么办？',
+    answer: '一般是后台服务未启动或端口不对。请先在 server 目录执行 npm run dev 启动后端（默认端口 4178），再启动客户端。',
+    sort: 8
+  },
+  {
+    category: '常见问题',
+    question: '自定义供应商 / 模型的数据存在哪里？会同步到服务器吗？',
+    answer: '只保存在本地 localStorage（键名 stunning-fast-store，字段 customProviders / customModels），不会写入后台数据库。换设备请使用「导出 / 导入」功能迁移。',
+    sort: 9
+  },
+  {
+    category: '常见问题',
+    question: '如何把自定义资源迁移到另一台设备？',
+    answer: '在「资源库」页点击「导出」生成 JSON 文件，在新设备上点击「导入」选择该文件即可。同 id 的资源会被覆盖。',
+    sort: 10
+  },
+  {
+    category: '常见问题',
+    question: '改了后台系统配置，但客户端没生效？',
+    answer: '客户端在启动时拉取一次系统配置，重启客户端即可刷新；或重新进入对应功能页会读取已加载的配置。',
+    sort: 11
+  },
+  {
+    category: '常见问题',
+    question: '管理后台打不开 / 提示「管理后台未构建」？',
+    answer: '访问 /admin 提示未构建时，先在 server 目录执行 npm run admin:build 生成后台产物。默认管理员账号 admin / admin123，首次登录后请及时修改密码。',
+    sort: 12
+  }
+]
+
 async function tableEmpty(table: string): Promise<boolean> {
   const r = await query(`SELECT 1 FROM ${table} LIMIT 1`)
   return r.rowCount === 0
@@ -288,6 +366,18 @@ async function seedRecommendQuestions() {
   console.log(`[seed] recommend_questions 已初始化（${RECOMMEND_QUESTIONS_SEED.length} 个问题）`)
 }
 
+async function seedGuideQuestions() {
+  if (!(await tableEmpty('guide_questions'))) return
+  for (const q of GUIDE_QUESTIONS_SEED) {
+    await query(
+      `INSERT INTO guide_questions (category, question, answer, sort_order, is_active)
+       VALUES (?, ?, ?, ?, TRUE)`,
+      [q.category, q.question, q.answer, q.sort]
+    )
+  }
+  console.log(`[seed] guide_questions 已初始化（${GUIDE_QUESTIONS_SEED.length} 条问答）`)
+}
+
 async function seedAdminUser() {
   // 管理员按 username 唯一判断，已存在则跳过
   const exists = await queryOne('SELECT 1 FROM users WHERE username = ?', [config.adminUsername])
@@ -309,4 +399,5 @@ export async function seedAll(): Promise<void> {
   await seedAdminUser()
   await seedRecommendModels()
   await seedRecommendQuestions()
+  await seedGuideQuestions()
 }
