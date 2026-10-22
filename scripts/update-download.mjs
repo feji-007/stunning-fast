@@ -1,9 +1,21 @@
 // 根据 deploy/release 中的实际产物更新 site/download.md 的下载链接。
-import { readdir, readFile, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { readdir, readFile, writeFile, stat } from 'node:fs/promises'
+import { resolve, join, basename } from 'node:path'
+
+// 递归扫描目录，返回所有文件的文件名字（不含路径），与原 readdir 单目录行为兼容
+async function walkFileNames(dir) {
+  const names = []
+  for (const entry of await readdir(dir)) {
+    const p = join(dir, entry)
+    const s = await stat(p)
+    if (s.isDirectory()) names.push(...(await walkFileNames(p)))
+    else if (s.isFile()) names.push(entry)
+  }
+  return names
+}
 
 const PROJECT_DIR = resolve(import.meta.dirname, '..')
-const RELEASE_DIR = resolve(process.env.RELEASE_DIR || `${PROJECT_DIR}/deploy/release`)
+const RELEASE_DIR = resolve(process.env.RELEASE_DIR || `${PROJECT_DIR}/release`)
 const DOWNLOAD_MD = resolve(process.env.DOWNLOAD_MD || `${PROJECT_DIR}/site/download.md`)
 const BASE_URL = (process.env.RELEASE_PUBLIC_BASE || 'https://bucket-5620.zhengzhou5.zos.ctyun.cn/release').replace(/\/$/, '')
 const START = '<!-- AUTO-GENERATED-DOWNLOADS:START -->'
@@ -11,7 +23,7 @@ const END = '<!-- AUTO-GENERATED-DOWNLOADS:END -->'
 
 const packageJson = JSON.parse(await readFile(resolve(PROJECT_DIR, 'package.json'), 'utf8'))
 const version = packageJson.version
-const files = await readdir(RELEASE_DIR)
+const files = await walkFileNames(RELEASE_DIR)
 
 const findFile = (predicate) => files.find(predicate)
 
