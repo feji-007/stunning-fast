@@ -9,6 +9,7 @@ interface Provider {
   name: string
   key_hint: string
   url: string
+  api_base_url: string
   api_key_url: string
   source: string
   sort_order: number
@@ -19,19 +20,21 @@ interface Form {
   name: string
   key_hint: string
   url: string
+  api_base_url: string
   api_key_url: string
   source: string
   sort_order: number
   is_active: boolean
 }
 
-const EMPTY_FORM: Form = { name: '', key_hint: '', url: '', api_key_url: '', source: 'system', sort_order: 0, is_active: true }
+const EMPTY_FORM: Form = { name: '', key_hint: '', url: '', api_base_url: '', api_key_url: '', source: 'system', sort_order: 0, is_active: true }
 
 const PROVIDER_GETTERS: Record<string, (p: Provider) => string | number> = {
   id: (p) => p.id,
   name: (p) => p.name,
   key: (p) => p.key_hint,
   url: (p) => p.url,
+  apiBase: (p) => p.api_base_url,
   apiKey: (p) => p.api_key_url,
   source: (p) => p.source ?? 'system',
   sort: (p) => p.sort_order ?? 0,
@@ -101,12 +104,13 @@ export default function Providers() {
     if (!modal) return
     if (!modal.data.name.trim()) { alert('请填写供应商名称'); return }
     setSaving(true)
-    // 后端接收 camelCase: id / name / keyHint / url / source / sortOrder / isActive
+    // 后端接收 camelCase: id / name / keyHint / url / apiBaseUrl / apiKeyUrl / source / sortOrder / isActive
     const d = modal.data
     const body: any = {
       name: d.name,
       keyHint: d.key_hint,
       url: d.url,
+      apiBaseUrl: d.api_base_url,
       apiKeyUrl: d.api_key_url,
       source: d.source,
       sortOrder: Number(d.sort_order) || 0,
@@ -149,7 +153,7 @@ export default function Providers() {
                 <SortableTh label="ID" field="id" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="名称" field="name" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="密钥提示" field="key" current={sortField} order={sortOrder} onSort={onSort} />
-                <SortableTh label="URL" field="url" current={sortField} order={sortOrder} onSort={onSort} />
+                <SortableTh label="官网/API端点" field="apiBase" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="来源" field="source" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="排序" field="sort" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="状态" field="status" current={sortField} order={sortOrder} onSort={onSort} />
@@ -162,7 +166,12 @@ export default function Providers() {
                   <td className="px-4 py-3 text-gray-500 font-mono text-xs">{p.id}</td>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
                   <td className="px-4 py-3 text-gray-600 font-mono text-xs">{p.key_hint || '-'}</td>
-                  <td className="px-4 py-3 text-gray-600">{p.url || '-'}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    <div className="text-gray-700">{p.url || '-'}</div>
+                    {p.api_base_url && (
+                      <div className="text-[11px] text-gray-400 mt-0.5" title="API 调用端点">{p.api_base_url}</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs ${p.source === 'user' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
                       {p.source === 'user' ? '用户' : '系统'}
@@ -182,7 +191,7 @@ export default function Providers() {
                       onClick={() => setModal({
                         mode: 'edit', id: p.id,
                         data: {
-                          name: p.name, key_hint: '', url: p.url || '', api_key_url: p.api_key_url || '',
+                          name: p.name, key_hint: '', url: p.url || '', api_base_url: p.api_base_url || '', api_key_url: p.api_key_url || '',
                           source: p.source ?? 'system', sort_order: p.sort_order ?? 0, is_active: p.is_active
                         }
                       })}
@@ -240,6 +249,18 @@ export default function Providers() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="https://..."
                 />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">
+                  API 调用端点 {modal.mode === 'edit' && '(留空使用内置默认值)'}
+                </label>
+                <input
+                  value={modal.data.api_base_url}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, api_base_url: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="https://..."
+                />
+                <p className="mt-1 text-xs text-gray-400">主进程发起真实生成请求时使用的基础地址；可改为代理/替代端点，留空则使用代码内置默认值</p>
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">

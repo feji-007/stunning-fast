@@ -16,7 +16,7 @@ const router = Router()
 router.get('/', async (_req, res, next) => {
   try {
     const providers = await query(
-      `SELECT id, name, key_hint, url, api_key_url, source FROM providers WHERE is_active = TRUE ORDER BY sort_order, id`
+      `SELECT id, name, key_hint, url, api_base_url, api_key_url, source FROM providers WHERE is_active = TRUE ORDER BY sort_order, id`
     )
     const models = await query(
       `SELECT id, provider_id, name, type, description, supports_i2v, resolution, speed, price, docs_url, source

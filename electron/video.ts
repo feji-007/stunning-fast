@@ -1,4 +1,4 @@
-﻿import crypto from 'crypto'
+﻿﻿import crypto from 'crypto'
 import type {
   GenerateVideoParams,
   GenerateVideoResult,
@@ -13,6 +13,14 @@ import type {
 //   - kling     快手可灵：JWT(AK+SK) 鉴权，kling-v3/v2-master/v2.5-turbo/v1.6
 // 其他供应商可在 generateVideo 的 switch 中扩展。
 
+// 各供应商 API 基础地址的内置兜底值（在后端 bootstrap 未下发 api_base_url 或字段为空时使用）。
+// 管理员可在后台「供应商管理」覆盖为代理/替代端点。
+const FALLBACK: Record<string, string> = {
+  alibaba: 'https://dashscope.aliyuncs.com/api/v1',
+  volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
+  kling: 'https://api-beijing.klingai.com/v1'
+}
+
 const POLL_INTERVAL = 5000
 const MAX_WAIT = 10 * 60 * 1000
 
@@ -22,7 +30,6 @@ type ProgressCb = (p: VideoProgress) => void
 /* 通义万相 (DashScope)                                                */
 /* ------------------------------------------------------------------ */
 
-const DASHSCOPE_BASE = 'https://dashscope.aliyuncs.com/api/v1'
 const DASHSCOPE_SUBMIT = '/services/aigc/video-generation/video-synthesis'
 
 // wan2.1-2.6 旧版协议用 size="宽*高"；按 UI 的 resolution+ratio 推算。
@@ -80,8 +87,9 @@ async function generateDashScopeVideo(
   params: GenerateVideoParams,
   onProgress?: ProgressCb
 ): Promise<GenerateVideoResult> {
+  const base = (params.apiBaseUrl && params.apiBaseUrl.trim()) || FALLBACK.alibaba
   onProgress?.({ status: 'PENDING', message: '提交生成任务…' })
-  const res = await fetch(`${DASHSCOPE_BASE}${DASHSCOPE_SUBMIT}`, {
+  const res = await fetch(`${base}${DASHSCOPE_SUBMIT}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -109,7 +117,7 @@ async function generateDashScopeVideo(
     await new Promise((r) => setTimeout(r, POLL_INTERVAL))
     let resp: any
     try {
-      const q = await fetch(`${DASHSCOPE_BASE}/tasks/${taskId}`, {
+      const q = await fetch(`${base}/tasks/${taskId}`, {
         headers: { Authorization: `Bearer ${params.apiKey}` }
       })
       if (!q.ok) throw new Error(`查询失败 (${q.status})`)
@@ -136,7 +144,6 @@ async function generateDashScopeVideo(
 /* 火山引擎 Seedance (Ark)                                            */
 /* ------------------------------------------------------------------ */
 
-const ARK_BASE = 'https://ark.cn-beijing.volces.com/api/v3'
 const ARK_SUBMIT = '/contents/generations/tasks'
 
 // Seedance 状态 -> 统一 VideoProgress.status
@@ -181,8 +188,9 @@ async function generateSeedanceVideo(
   params: GenerateVideoParams,
   onProgress?: ProgressCb
 ): Promise<GenerateVideoResult> {
+  const base = (params.apiBaseUrl && params.apiBaseUrl.trim()) || FALLBACK.volcengine
   onProgress?.({ status: 'PENDING', message: '提交生成任务…' })
-  const res = await fetch(`${ARK_BASE}${ARK_SUBMIT}`, {
+  const res = await fetch(`${base}${ARK_SUBMIT}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -211,7 +219,7 @@ async function generateSeedanceVideo(
     await new Promise((r) => setTimeout(r, POLL_INTERVAL))
     let resp: any
     try {
-      const q = await fetch(`${ARK_BASE}${ARK_SUBMIT}/${taskId}`, {
+      const q = await fetch(`${base}${ARK_SUBMIT}/${taskId}`, {
         headers: { Authorization: `Bearer ${params.apiKey}` }
       })
       if (!q.ok) throw new Error(`查询失败 (${q.status})`)
@@ -239,7 +247,6 @@ async function generateSeedanceVideo(
 /* 快手可灵 (Kling)                                                    */
 /* ------------------------------------------------------------------ */
 
-const KLING_BASE = 'https://api-beijing.klingai.com/v1'
 const KLING_T2V = '/videos/text2video'
 
 // 可灵状态 -> 统一 VideoProgress.status
@@ -328,9 +335,10 @@ async function generateKlingVideo(
   params: GenerateVideoParams,
   onProgress?: ProgressCb
 ): Promise<GenerateVideoResult> {
+  const base = (params.apiBaseUrl && params.apiBaseUrl.trim()) || FALLBACK.kling
   onProgress?.({ status: 'PENDING', message: '提交生成任务…' })
   const endpoint = klingEndpoint(params)
-  const res = await fetch(`${KLING_BASE}${endpoint}`, {
+  const res = await fetch(`${base}${endpoint}`, {
     method: 'POST',
     headers: klingHeaders(params.apiKey),
     body: JSON.stringify(klingBuildBody(params))
@@ -356,7 +364,7 @@ async function generateKlingVideo(
     await new Promise((r) => setTimeout(r, POLL_INTERVAL))
     let resp: any
     try {
-      const q = await fetch(`${KLING_BASE}${endpoint}/${taskId}`, {
+      const q = await fetch(`${base}${endpoint}/${taskId}`, {
         headers: klingHeaders(params.apiKey)
       })
       if (!q.ok) throw new Error(`查询失败 (${q.status})`)

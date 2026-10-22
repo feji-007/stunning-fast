@@ -19,6 +19,7 @@ const SCHEMA_STATEMENTS: string[] = [
   name        VARCHAR(128) NOT NULL,
   key_hint    VARCHAR(64)  NOT NULL DEFAULT '',
   url         VARCHAR(256) NOT NULL DEFAULT '',
+  api_base_url VARCHAR(256) NOT NULL DEFAULT '',
   api_key_url VARCHAR(256) NOT NULL DEFAULT '',
   source      VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order  INT          NOT NULL DEFAULT 0,
@@ -239,6 +240,8 @@ export async function ensureSchema(): Promise<void> {
   // 迁移：为已有 providers/models 表补充 URL 字段（管理员可在后台覆盖默认跳转地址）
   await addColumnIfMissing('providers', 'api_key_url', "VARCHAR(256) NOT NULL DEFAULT ''")
   await addColumnIfMissing('models', 'docs_url', "VARCHAR(256) NOT NULL DEFAULT ''")
+  // 迁移：为已有 providers 表补充 api_base_url 字段（管理员可在后台覆盖 API 调用端点）
+  await addColumnIfMissing('providers', 'api_base_url', "VARCHAR(256) NOT NULL DEFAULT ''")
   console.log('[db] 表结构检查完成（已存在则跳过）')
 }
 

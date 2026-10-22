@@ -9,7 +9,7 @@ import { hashPassword } from '../utils/password'
 
 // 从客户端 src/data/models.ts 迁移的供应商 + 模型
 const PROVIDERS_SEED: Array<{
-  id: string; name: string; keyHint: string; url: string; sort: number
+  id: string; name: string; keyHint: string; url: string; apiBaseUrl?: string; sort: number
   models: Array<{
     id: string; name: string; type: string; desc: string
     supportsI2V?: boolean; res: number; speed: number; price: number; sort: number
@@ -17,7 +17,7 @@ const PROVIDERS_SEED: Array<{
 }> = [
   {
     id: 'alibaba', name: '通义万相 (DashScope)', keyHint: 'sk-',
-    url: 'https://dashscope.aliyun.com/', sort: 1,
+    url: 'https://dashscope.aliyun.com/', apiBaseUrl: 'https://dashscope.aliyuncs.com/api/v1', sort: 1,
     models: [
       { id: 'wan2.7-t2v', name: 'Wan2.7 文生视频', type: 'video', desc: '通义万相最新文生视频，2-15s，720P/1080P，含音频，支持多镜头叙事。', res: 1080, speed: 120, price: 3, sort: 1 },
       { id: 'wan2.7-t2v-2026-06-12', name: 'Wan2.7 (2026-06-12 快照)', type: 'video', desc: '通义万相 wan2.7 固定版本快照，结果更稳定可复现。', res: 1080, speed: 120, price: 3, sort: 2 },
@@ -30,7 +30,7 @@ const PROVIDERS_SEED: Array<{
   },
   {
     id: 'volcengine', name: '火山引擎 (豆包 Seedance)', keyHint: '',
-    url: 'https://www.volcengine.com/product/ark', sort: 2,
+    url: 'https://www.volcengine.com/product/ark', apiBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3', sort: 2,
     models: [
       { id: 'doubao-seedance-2-5', name: 'Seedance 2.5', type: 'video', desc: '字节最新 Seedance 2.5，文生/图生视频，支持多模态参考，最长 30s。', supportsI2V: true, res: 1080, speed: 60, price: 3, sort: 1 },
       { id: 'doubao-seedance-2-0-260128', name: 'Seedance 2.0', type: 'video', desc: '豆包 Seedance 2.0 标准版，文/图生视频，原生音频，最长 15s。', supportsI2V: true, res: 1080, speed: 45, price: 2, sort: 2 },
@@ -42,7 +42,7 @@ const PROVIDERS_SEED: Array<{
   },
   {
     id: 'kling', name: '快手可灵 (Kling)', keyHint: 'AccessKey:SecretKey',
-    url: 'https://klingai.com/', sort: 3,
+    url: 'https://klingai.com/', apiBaseUrl: 'https://api-beijing.klingai.com/v1', sort: 3,
     models: [
       { id: 'kling-v3', name: 'Kling 3.0', type: 'video', desc: '可灵最新一代文生视频，画质与一致性最佳，支持更长时长。', supportsI2V: true, res: 1080, speed: 120, price: 3, sort: 1 },
       { id: 'kling-v2-master', name: 'Kling 2.0 Master', type: 'video', desc: '可灵 2.0 高质量文生视频，1080p，最长 10s。', supportsI2V: true, res: 1080, speed: 90, price: 3, sort: 2 },
@@ -303,9 +303,9 @@ async function seedProvidersAndModels() {
   if (!(await tableEmpty('providers'))) return
   for (const p of PROVIDERS_SEED) {
     await query(
-      `INSERT INTO providers (id, name, key_hint, url, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, TRUE)`,
-      [p.id, p.name, p.keyHint, p.url, p.sort]
+      `INSERT INTO providers (id, name, key_hint, url, api_base_url, sort_order, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
+      [p.id, p.name, p.keyHint, p.url, p.apiBaseUrl ?? '', p.sort]
     )
     for (const m of p.models) {
       await query(
@@ -316,6 +316,21 @@ async function seedProvidersAndModels() {
     }
   }
   console.log(`[seed] providers + models 已初始化（${PROVIDERS_SEED.length} 供应商）`)
+}
+
+/** 迁移：为已存在但缺少 api_base_url 的系统供应商写入默认值（幂等）。 */
+async function backfillApiBaseUrls() {
+  const DEFAULTS: Record<string, string> = {
+    alibaba: 'https://dashscope.aliyuncs.com/api/v1',
+    volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
+    kling: 'https://api-beijing.klingai.com/v1'
+  }
+  for (const [id, url] of Object.entries(DEFAULTS)) {
+    await query(
+      `UPDATE providers SET api_base_url = ? WHERE id = ? AND (api_base_url = '' OR api_base_url IS NULL)`,
+      [url, id]
+    )
+  }
 }
 
 async function seedFeatures() {
@@ -400,4 +415,6 @@ export async function seedAll(): Promise<void> {
   await seedRecommendModels()
   await seedRecommendQuestions()
   await seedGuideQuestions()
+  // 为已存在的系统供应商补入 api_base_url 默认值（幂等，不覆盖管理员已配置的值）
+  await backfillApiBaseUrls()
 }

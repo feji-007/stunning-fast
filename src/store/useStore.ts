@@ -126,6 +126,7 @@ interface AppState {
     name: string
     keyHint?: string
     url?: string
+    apiBaseUrl?: string
   }) => Promise<void>
   addCustomModel: (b: {
     id: string
@@ -141,6 +142,7 @@ interface AppState {
     name?: string
     keyHint?: string
     url?: string
+    apiBaseUrl?: string
   }) => Promise<void>
   /** 删除本地自定义供应商（连同其下自定义模型一并删除） */
   removeCustomProvider: (id: string) => Promise<void>
@@ -477,6 +479,7 @@ export const useStore = create<AppState>()(
             name: p.name,
             keyHint: p.key_hint || '',
             url: p.url || '',
+            apiBaseUrl: p.api_base_url || undefined,
             apiKeyUrl: p.api_key_url || providerApiKeyFallback.get(p.id) || undefined,
             source: pSource,
             models: (p.models ?? []).map((m: any) => {
@@ -591,6 +594,7 @@ export const useStore = create<AppState>()(
           name: b.name,
           keyHint: b.keyHint ?? '',
           url: b.url ?? '',
+          apiBaseUrl: b.apiBaseUrl,
           source: 'user',
           models: []
         }
@@ -658,6 +662,7 @@ export const useStore = create<AppState>()(
             name: String(p.name),
             keyHint: String(p.keyHint ?? ''),
             url: String(p.url ?? ''),
+            apiBaseUrl: p.apiBaseUrl ? String(p.apiBaseUrl) : undefined,
             source: 'user' as const,
             models: Array.isArray(p.models)
               ? p.models
@@ -712,6 +717,7 @@ export const useStore = create<AppState>()(
         if (b.name !== undefined) patch.name = b.name
         if (b.keyHint !== undefined) patch.keyHint = b.keyHint
         if (b.url !== undefined) patch.url = b.url
+        if (b.apiBaseUrl !== undefined) patch.apiBaseUrl = b.apiBaseUrl
         set((s) => ({
           providers: s.providers.map((p) => (p.id === b.id ? { ...p, ...patch } : p)),
           customProviders: s.customProviders.map((p) => (p.id === b.id ? { ...p, ...patch } : p))

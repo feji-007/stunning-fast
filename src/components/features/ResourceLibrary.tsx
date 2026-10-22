@@ -1,4 +1,4 @@
-﻿import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore'
 import type { Provider, ProviderModel } from '../../types'
 
@@ -369,6 +369,7 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
   const [pId, setPId] = useState('')
   const [pName, setPName] = useState('')
   const [pUrl, setPUrl] = useState('')
+  const [pApiBaseUrl, setPApiBaseUrl] = useState('')
   const [pKeyHint, setPKeyHint] = useState('')
 
   // 模型表单
@@ -387,18 +388,24 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
       setError('供应商 ID 和名称必填')
       return
     }
+    if (!pApiBaseUrl.trim()) {
+      setError('自定义供应商必须填写 API 调用端点（主进程发起生成请求时需要）')
+      return
+    }
     setSaving(true)
     try {
       await addCustomProvider({
         id: pId.trim(),
         name: pName.trim(),
         url: pUrl.trim() || undefined,
+        apiBaseUrl: pApiBaseUrl.trim() || undefined,
         keyHint: pKeyHint.trim() || undefined
       })
       // 成功后清空供应商表单，并自动切到模型 tab 方便继续添加模型
       setPId('')
       setPName('')
       setPUrl('')
+      setPApiBaseUrl('')
       setPKeyHint('')
       setMProvider(pId.trim())
       setTab('model')
@@ -508,6 +515,16 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
                   placeholder="https://"
                   className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
                 />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">API 调用端点 <span className="text-red-500">*</span></label>
+                <input
+                  value={pApiBaseUrl}
+                  onChange={(e) => setPApiBaseUrl(e.target.value)}
+                  placeholder="https://api.example.com/v1"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+                <p className="mt-0.5 text-[10px] text-gray-400">必填：主进程发起真实生成请求时使用的基础地址</p>
               </div>
               <div>
                 <label className="mb-0.5 block text-xs text-gray-600">API Key 前缀提示 (可选)</label>
@@ -620,6 +637,7 @@ function EditResourceModal({
 
   const [name, setName] = useState(provider?.name ?? '')
   const [url, setUrl] = useState(provider?.url ?? '')
+  const [apiBaseUrl, setApiBaseUrl] = useState(provider?.apiBaseUrl ?? '')
   const [keyHint, setKeyHint] = useState(provider?.keyHint ?? '')
   const [type, setType] = useState<ProviderModel['type']>(model?.type ?? 'video')
   const [desc, setDesc] = useState(model?.desc ?? '')
@@ -634,6 +652,10 @@ function EditResourceModal({
       setError(isProvider ? '供应商名称必填' : '模型名称必填')
       return
     }
+    if (isProvider && !apiBaseUrl.trim()) {
+      setError('自定义供应商必须填写 API 调用端点（主进程发起生成请求时需要）')
+      return
+    }
     setSaving(true)
     try {
       if (isProvider) {
@@ -641,6 +663,7 @@ function EditResourceModal({
           id: editing.id,
           name: name.trim(),
           url: url.trim(),
+          apiBaseUrl: apiBaseUrl.trim(),
           keyHint: keyHint.trim()
         })
       } else {
@@ -706,6 +729,16 @@ function EditResourceModal({
                   placeholder="https://"
                   className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
                 />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">API 调用端点 <span className="text-red-500">*</span></label>
+                <input
+                  value={apiBaseUrl}
+                  onChange={(e) => setApiBaseUrl(e.target.value)}
+                  placeholder="https://api.example.com/v1"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+                <p className="mt-0.5 text-[10px] text-gray-400">主进程发起真实生成请求时使用的基础地址</p>
               </div>
               <div>
                 <label className="mb-0.5 block text-xs text-gray-600">API Key 前缀提示 (可选)</label>

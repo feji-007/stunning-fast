@@ -44,6 +44,8 @@ export interface Provider {
   url: string
   /** API Key 获取/管理页面地址 */
   apiKeyUrl?: string
+  /** API 调用端点（后端 providers.api_base_url，下发给主进程生成时使用） */
+  apiBaseUrl?: string
   models: ProviderModel[]
   /** 来源：system 系统自带 / user 用户自定义 */
   source?: 'system' | 'user'

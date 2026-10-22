@@ -116,6 +116,9 @@ export interface GenerateVideoParams {
   duration?: number
   /** 图生视频：参考图 URL，可选（仅支持图生视频的模型使用） */
   imageUrl?: string
+  /** 供应商 API 基础地址（从后端 providers.api_base_url 下发）。
+   *  留空时各客户端函数会回退到内置硬编码默认值，保证老版本/后端不可达时仍可工作。 */
+  apiBaseUrl?: string
 }
  
 export interface GenerateVideoResult {

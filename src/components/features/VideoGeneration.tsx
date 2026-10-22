@@ -243,7 +243,10 @@ export default function VideoGeneration() {
       if (chosen.provider === 'alibaba' || chosen.provider === 'volcengine' || chosen.provider === 'kling') {
         const apiKey = findKey(chosen.provider)
         if (!apiKey) { setError('未找到该供应商 API 密钥，请在设置中配置。'); errMsgOut = '未找到该供应商 API 密钥'; return }
-        const result = await window.api.generateVideo({ provider: chosen.provider, apiKey, model: chosen.id, prompt, resolution, ratio, duration: Number(duration), imageUrl: primaryImageUrl })
+        // 从 store 的 provider 配置中取 api_base_url；后端未下发时留空，由主进程回退到内置默认值
+        const providerCfg = allProviders.find((p: any) => p.id === chosen.provider)
+        const apiBaseUrl = providerCfg?.apiBaseUrl || ''
+        const result = await window.api.generateVideo({ provider: chosen.provider, apiKey, model: chosen.id, prompt, resolution, ratio, duration: Number(duration), imageUrl: primaryImageUrl, apiBaseUrl })
         setVideoUrl(result.videoUrl); setProgress('生成完成'); status = 'success'; videoUrlOut = result.videoUrl ?? ''
       } else {
         setProgress('演示生成中...')
