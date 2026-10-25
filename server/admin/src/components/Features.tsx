@@ -195,31 +195,29 @@ export default function Features() {
       {/* 新增/编辑弹窗 */}
       {modal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-float w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-float w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto scroll-thin">
             <h3 className="text-base font-semibold text-gray-800 mb-4">
               {modal.mode === 'create' ? '新增功能' : '编辑功能'}
             </h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">图标</label>
-                  <input
-                    value={modal.data.icon}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, icon: e.target.value } })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-center text-xl"
-                    placeholder="🎬"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm text-gray-700 mb-1">名称</label>
-                  <input
-                    value={modal.data.name}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, name: e.target.value } })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">图标</label>
+                <input
+                  value={modal.data.icon}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, icon: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-center text-xl"
+                  placeholder="🎬"
+                />
               </div>
               <div>
+                <label className="block text-sm text-gray-700 mb-1">名称</label>
+                <input
+                  value={modal.data.name}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, name: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">说明</label>
                 <textarea
                   value={modal.data.description}
@@ -249,17 +247,17 @@ export default function Features() {
                   />
                   启用
                 </label>
-                <div className="flex-1">
-                  <label className="block text-sm text-gray-700 mb-1">排序</label>
-                  <input
-                    type="number"
-                    value={modal.data.sort_order}
-                    onChange={(e) =>
-                      setModal({ ...modal, data: { ...modal.data, sort_order: Number(e.target.value) } })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">排序</label>
+                <input
+                  type="number"
+                  value={modal.data.sort_order}
+                  onChange={(e) =>
+                    setModal({ ...modal, data: { ...modal.data, sort_order: Number(e.target.value) } })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">

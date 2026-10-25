@@ -32,35 +32,17 @@ interface HistoryTask {
   created_at: string
 }
 
-const MODEL_META: Record<string, { res: number; speed: number; price: number }> = {
-  'doubao-seedance-2-5':              { res: 1080, speed: 60,  price: 3 },
-  'doubao-seedance-2-0-260128':       { res: 1080, speed: 45,  price: 2 },
-  'doubao-seedance-2-0-fast-260128':  { res: 720,  speed: 20,  price: 1 },
-  'doubao-seedance-1-5-pro-251215':   { res: 720,  speed: 30,  price: 2 },
-  'doubao-seedance-1-0-pro-fast-251015': { res: 720, speed: 15, price: 1 },
-  'kling-v3':          { res: 1080, speed: 120, price: 3 },
-  'kling-v2-master':   { res: 1080, speed: 90,  price: 3 },
-  'kling-v2-5-turbo':  { res: 720,  speed: 30,  price: 1 },
-  'kling-v1-6':         { res: 720,  speed: 60,  price: 2 },
-  'wan2.7-t2v':           { res: 1080, speed: 120, price: 3 },
-  'wan2.7-t2v-2026-06-12': { res: 1080, speed: 120, price: 3 },
-  'wan2.6-t2v':           { res: 1080, speed: 100, price: 3 },
-  'wan2.2-t2v-plus':      { res: 1080, speed: 90,  price: 2 },
-  'wan2.1-t2v-turbo':     { res: 720,  speed: 30,  price: 1 },
-  'wan2.1-t2v-plus':      { res: 720,  speed: 60,  price: 2 },
-  'video-01':      { res: 720,  speed: 60, price: 2 },
-  'gen-3-alpha':   { res: 1080, speed: 60, price: 3 },
-  'pika-1-5':      { res: 720,  speed: 30, price: 2 },
-  'dream-machine': { res: 720,  speed: 60, price: 2 },
-  'cogvideox':     { res: 720,  speed: 60, price: 1 },
-  'sora':          { res: 1080, speed: 60, price: 3 },
-}
-
 function pickAutoModel(models: ProviderModel[], priority: AutoPriority): ProviderModel | null {
   if (models.length === 0) return null
+  // 分辨率/速度/价格均为后台模型配置字段
+  const meta = (m: ProviderModel) => ({
+    res: m.resolution ?? 720,
+    speed: m.speed ?? 60,
+    price: m.price ?? 2
+  })
   const sorted = [...models].sort((a, b) => {
-    const ma = MODEL_META[a.id] ?? { res: 720, speed: 60, price: 2 }
-    const mb = MODEL_META[b.id] ?? { res: 720, speed: 60, price: 2 }
+    const ma = meta(a)
+    const mb = meta(b)
     switch (priority) {
       case 'quality': return mb.res - ma.res || ma.speed - mb.speed
       case 'speed':   return ma.speed - mb.speed || ma.price - mb.price
@@ -137,12 +119,9 @@ export default function VideoGeneration() {
 
   const chosen = mode === 'auto' ? pickAutoModel(videoModels, autoPriority) : videoModels.find((m) => m.id === selected) ?? null
   const supportsI2V = chosen?.supportsI2V ?? false
-  // 模型 i2v 子模式能力：
-  // 1) supportsI2V = true 且两个子模式字段都不是明确的 true → 旧数据未配置，两子模式都默认 true（向后兼容）
-  // 2) 有明确配置（任一字段为 true）时按配置区分
-  const hasExplicitSubmode = chosen?.supportsFirstLast === true || chosen?.supportsReference === true
-  const canFirstLast = chosen ? (hasExplicitSubmode ? !!chosen.supportsFirstLast : supportsI2V ? true : !!chosen.supportsFirstLast) : true
-  const canReference = chosen ? (hasExplicitSubmode ? !!chosen.supportsReference : supportsI2V ? true : !!chosen.supportsReference) : true
+  // 图生视频子模式能力完全以数据库模型配置为准，不做本地推断
+  const canFirstLast = !!chosen?.supportsFirstLast
+  const canReference = !!chosen?.supportsReference
 
   // 模型/模式变化时的一致性修复（切换模型后 i2vMode 若不支持就 fallback）
   useEffect(() => {
@@ -185,6 +164,28 @@ export default function VideoGeneration() {
 
   const needLogin = !user.loggedIn
   const needKeys = user.loggedIn && videoModels.length === 0
+  const chosenProvider = chosen ? allProviders.find((p) => p.id === chosen.provider) : undefined
+  // 是否已完成真实接入配置（由后台供应商配置决定，不再按供应商 id 判断）
+  const isConnected = !!chosenProvider?.protocol && !!chosenProvider?.apiBaseUrl
+  // 手动切换模型时应用后台配置的默认分辨率/比例/时长（首次加载保留用户上次选择）
+  const prevChosenRef = useRef<string | null>(null)
+  useEffect(() => {
+    const id = chosen?.id ?? null
+    const prevId = prevChosenRef.current
+    prevChosenRef.current = id
+    if (!chosen || !prevId || prevId === id || mode !== 'manual') return
+    const patch: any = {}
+    if (chosen.defaultResolution && videoConfig.resolution?.some((o) => o.value === chosen.defaultResolution)) {
+      patch.resolution = chosen.defaultResolution
+    }
+    if (chosen.defaultRatio && videoConfig.ratio?.some((o) => o.value === chosen.defaultRatio)) {
+      patch.ratio = chosen.defaultRatio
+    }
+    if (chosen.defaultDuration && videoConfig.duration?.some((o) => o.value === chosen.defaultDuration)) {
+      patch.duration = chosen.defaultDuration
+    }
+    if (Object.keys(patch).length > 0) setVideoForm(patch)
+  }, [chosen?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   // render fallback: if i2vMode invalid, pick one by model capability
   const effectiveI2VMode = (i2vMode === 'firstlast' || i2vMode === 'reference') ? i2vMode : (canReference ? 'reference' : (canFirstLast ? 'firstlast' : 'reference'))
   const maxImages = effectiveI2VMode === 'firstlast' ? 2 : 5
@@ -240,19 +241,34 @@ export default function VideoGeneration() {
     const imageUrlForTask = genMode === 'i2v' && images.length > 0 ? images[0].url : ''
     const primaryImageUrl = genMode === 'i2v' && images.length > 0 ? images[0].url : undefined
     try {
-      if (chosen.provider === 'alibaba' || chosen.provider === 'volcengine' || chosen.provider === 'kling') {
+      // 协议、端点与路径全部来自后台供应商配置
+      const providerCfg = allProviders.find((p) => p.id === chosen.provider)
+      const protocol = providerCfg?.protocol
+      if (protocol) {
         const apiKey = findKey(chosen.provider)
         if (!apiKey) { setError('未找到该供应商 API 密钥，请在设置中配置。'); errMsgOut = '未找到该供应商 API 密钥'; return }
-        // 从 store 的 provider 配置中取 api_base_url；后端未下发时留空，由主进程回退到内置默认值
-        const providerCfg = allProviders.find((p: any) => p.id === chosen.provider)
-        const apiBaseUrl = providerCfg?.apiBaseUrl || ''
-        const result = await window.api.generateVideo({ provider: chosen.provider, apiKey, model: chosen.id, prompt, resolution, ratio, duration: Number(duration), imageUrl: primaryImageUrl, apiBaseUrl })
+        const result = await window.api.generateVideo({
+          provider: chosen.provider,
+          protocol,
+          apiKey,
+          model: chosen.id,
+          prompt,
+          resolution,
+          ratio,
+          duration: Number(duration),
+          imageUrl: primaryImageUrl,
+          apiBaseUrl: providerCfg?.apiBaseUrl || '',
+          submitPath: providerCfg?.submitPath || undefined,
+          statusPath: providerCfg?.statusPath || undefined,
+          submitPathI2v: providerCfg?.submitPathI2v || undefined,
+          statusPathI2v: providerCfg?.statusPathI2v || undefined
+        })
         setVideoUrl(result.videoUrl); setProgress('生成完成'); status = 'success'; videoUrlOut = result.videoUrl ?? ''
       } else {
         setProgress('演示生成中...')
         await new Promise((r) => setTimeout(r, 1200))
         setVideoUrl(null)
-        setError('【' + chosen.name + '】演示完成。目前「通义万相」「火山引擎 Seedance」「快手可灵」已接入真实生成，可在设置中配置密钥后选用对应模型。')
+        setError('【' + chosen.name + '】演示完成。该供应商尚未在后台配置生成协议、接口端点与任务路径，请先在后台「供应商管理」中补全后重试。')
         status = 'success'
       }
     } catch (e: any) {
@@ -260,7 +276,8 @@ export default function VideoGeneration() {
     } finally {
       setBusy(false)
       if (chosen) {
-        void tasksApi.record({ providerId: chosen.provider, modelId: chosen.id, genMode, status, resolution, ratio, duration, prompt, imageUrl: imageUrlForTask, videoUrl: videoUrlOut, errorMessage: errMsgOut }).then(() => loadHistory()).catch(() => {})
+        // data URL（如 Sora 内容内联）体积过大，不写入任务记录
+        void tasksApi.record({ providerId: chosen.provider, modelId: chosen.id, genMode, status, resolution, ratio, duration, prompt, imageUrl: imageUrlForTask, videoUrl: videoUrlOut.startsWith('data:') ? '' : videoUrlOut, errorMessage: errMsgOut }).then(() => loadHistory()).catch(() => {})
       }
     }
   }
@@ -360,7 +377,13 @@ export default function VideoGeneration() {
           </div>
         )}
         <button
-          onClick={() => window.api?.openRecommendationWindow?.()}
+          onClick={() => {
+            if (!user.loggedIn) {
+              setModal('login')
+              return
+            }
+            window.api?.openRecommendationWindow?.()
+          }}
           className="group flex shrink-0 items-center gap-1.5"
           title="不知道选什么模型？让AI助手帮你推荐"
         >
@@ -512,7 +535,7 @@ export default function VideoGeneration() {
           </div>
           <div className="flex items-center gap-3">
             <button onClick={handleGenerate} disabled={busy} className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-600 disabled:opacity-50">{busy ? '生成中…' : genMode === 'i2v' ? '图生视频' : '文生视频'}</button>
-            {chosen && (<span className="text-[11px] text-gray-400">当前使用：<b className="text-gray-600">{chosen.name}</b>{(chosen.provider === 'alibaba' || chosen.provider === 'volcengine' || chosen.provider === 'kling') && (<span className="ml-1 text-green-500">· 已接入</span>)}</span>)}
+            {chosen && (<span className="text-[11px] text-gray-400">当前使用：<b className="text-gray-600">{chosen.name}</b>{isConnected && (<span className="ml-1 text-green-500">· 已接入</span>)}</span>)}
           </div>
           {busy && progress && (<div className="flex items-center gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-xs text-brand-600"><span className="h-2 w-2 animate-pulse rounded-full bg-brand-500" />{progress}</div>)}
           {error && (<div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>)}

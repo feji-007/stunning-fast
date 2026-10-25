@@ -23,8 +23,10 @@ router.get('/', async (req, res, next) => {
     const cnt = await queryOne<any>('SELECT COUNT(*) AS c FROM providers')
     const total = Number(cnt?.c ?? 0)
     const providers = await query<{
-      id: string; name: string; key_hint: string; url: string; api_base_url: string; api_key_url: string; source: string; sort_order: number; is_active: boolean
-    }>('SELECT id, name, key_hint, url, api_base_url, api_key_url, source, sort_order, is_active FROM providers ORDER BY sort_order, id LIMIT ? OFFSET ?', [pageSize, offset])
+      id: string; name: string; key_hint: string; url: string; api_base_url: string; api_key_url: string
+      protocol: string; submit_path: string; status_path: string; submit_path_i2v: string; status_path_i2v: string
+      source: string; sort_order: number; is_active: boolean
+    }>('SELECT id, name, key_hint, url, api_base_url, api_key_url, protocol, submit_path, status_path, submit_path_i2v, status_path_i2v, source, sort_order, is_active FROM providers ORDER BY sort_order, id LIMIT ? OFFSET ?', [pageSize, offset])
     const models = await query<{
       id: string; provider_id: string; name: string; type: string; description: string
       supports_i2v: boolean; supports_first_last: boolean; supports_reference: boolean;
@@ -48,10 +50,11 @@ router.get('/', async (req, res, next) => {
 router.get('/active', async (_req, res, next) => {
   try {
     const providers = await query(
-      `SELECT id, name, key_hint, url, api_base_url, api_key_url, source FROM providers WHERE is_active = TRUE ORDER BY sort_order, id`
+      `SELECT id, name, key_hint, url, api_base_url, api_key_url, protocol, submit_path, status_path, submit_path_i2v, status_path_i2v, source FROM providers WHERE is_active = TRUE ORDER BY sort_order, id`
     )
     const models = await query(
-      `SELECT id, provider_id, name, type, description, supports_i2v, resolution, speed, price, source
+      `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+              resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source
        FROM models WHERE is_active = TRUE ORDER BY sort_order, id`
     )
     const tree = providers.rows.map((p: any) => ({
@@ -67,12 +70,12 @@ router.get('/active', async (_req, res, next) => {
 /** 新增供应商。 */
 router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const { id, name, keyHint = '', url = '', apiBaseUrl = '', apiKeyUrl = '', source = 'system', sortOrder = 0 } = req.body ?? {}
+    const { id, name, keyHint = '', url = '', apiBaseUrl = '', apiKeyUrl = '', protocol = '', submitPath = '', statusPath = '', submitPathI2v = '', statusPathI2v = '', source = 'system', sortOrder = 0 } = req.body ?? {}
     if (!id || !name) throw badRequest('id 和 name 必填')
     await queryOne(
-      `INSERT INTO providers (id, name, key_hint, url, api_base_url, api_key_url, source, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
-      [id, name, keyHint, url, apiBaseUrl, apiKeyUrl, source, sortOrder]
+      `INSERT INTO providers (id, name, key_hint, url, api_base_url, api_key_url, protocol, submit_path, status_path, submit_path_i2v, status_path_i2v, source, sort_order, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      [id, name, keyHint, url, apiBaseUrl, apiKeyUrl, protocol, submitPath, statusPath, submitPathI2v, statusPathI2v, source, sortOrder]
     )
     ok(res, { provider: { id, name } }, '已创建')
   } catch (e) {
@@ -84,7 +87,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
 router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params
-    const { name, keyHint, url, apiBaseUrl, apiKeyUrl, source, sortOrder, isActive } = req.body ?? {}
+    const { name, keyHint, url, apiBaseUrl, apiKeyUrl, protocol, submitPath, statusPath, submitPathI2v, statusPathI2v, source, sortOrder, isActive } = req.body ?? {}
     const exists = await queryOne('SELECT 1 FROM providers WHERE id = ?', [id])
     if (!exists) throw notFound('供应商不存在')
     await query(
@@ -94,12 +97,17 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
          url = COALESCE(?, url),
          api_base_url = COALESCE(?, api_base_url),
          api_key_url = COALESCE(?, api_key_url),
+         protocol = COALESCE(?, protocol),
+         submit_path = COALESCE(?, submit_path),
+         status_path = COALESCE(?, status_path),
+         submit_path_i2v = COALESCE(?, submit_path_i2v),
+         status_path_i2v = COALESCE(?, status_path_i2v),
          source = COALESCE(?, source),
          sort_order = COALESCE(?, sort_order),
          is_active = COALESCE(?, is_active),
          updated_at = NOW()
        WHERE id = ?`,
-      [name, keyHint, url, apiBaseUrl, apiKeyUrl, source, sortOrder, isActive, id]
+      [name, keyHint, url, apiBaseUrl, apiKeyUrl, protocol, submitPath, statusPath, submitPathI2v, statusPathI2v, source, sortOrder, isActive, id]
     )
     ok(res, { id }, '已更新')
   } catch (e) {

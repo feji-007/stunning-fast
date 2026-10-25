@@ -209,12 +209,12 @@ export default function VideoConfig() {
       {/* 新增/编辑弹窗 */}
       {modal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-float w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-float w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto scroll-thin">
             <h3 className="text-base font-semibold text-gray-800 mb-4">
               {modal.mode === 'create' ? '新增选项' : '编辑选项'}
             </h3>
-            <div className="space-y-4">
-              <div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">配置分组</label>
                 <select
                   value={modal.data.config_key}
@@ -248,7 +248,7 @@ export default function VideoConfig() {
                   placeholder="用户可见名称"
                 />
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">排序</label>
                 <input
                   type="number"

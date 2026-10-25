@@ -8,18 +8,20 @@
 ## Windows
 
 <!-- AUTO-GENERATED-DOWNLOADS:START -->
-- **在线安装器（推荐）：**[下载](https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/juese-1.0.2-setup.exe)
+
+- **在线安装器（推荐）：**[下载](https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/juese-1.0.4-setup.exe)
 
   约 2 MB，运行后自动从 CDN 拉取完整程序（约 80 MB）并安装，**需联网**。完成后从开始菜单启动「绝色」。
 
 ## macOS
 
-- **Intel：**本次未生成
-- **Apple Silicon：**本次未生成
+- \*\*Intel：\*\*本次未生成
+- \*\*Apple Silicon：\*\*本次未生成
 
 ## Linux
 
-- **AppImage：**本次未生成
+- \*\*AppImage：\*\*本次未生成
+
 <!-- AUTO-GENERATED-DOWNLOADS:END -->
 
 ::: tip 离线安装场景

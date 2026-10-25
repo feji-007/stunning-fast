@@ -11,6 +11,11 @@ interface Provider {
   url: string
   api_base_url: string
   api_key_url: string
+  protocol: string
+  submit_path: string
+  status_path: string
+  submit_path_i2v: string
+  status_path_i2v: string
   source: string
   sort_order: number
   is_active: boolean
@@ -22,12 +27,35 @@ interface Form {
   url: string
   api_base_url: string
   api_key_url: string
+  protocol: string
+  submit_path: string
+  status_path: string
+  submit_path_i2v: string
+  status_path_i2v: string
   source: string
   sort_order: number
   is_active: boolean
 }
 
-const EMPTY_FORM: Form = { name: '', key_hint: '', url: '', api_base_url: '', api_key_url: '', source: 'system', sort_order: 0, is_active: true }
+const EMPTY_FORM: Form = {
+  name: '', key_hint: '', url: '', api_base_url: '', api_key_url: '',
+  protocol: '', submit_path: '', status_path: '', submit_path_i2v: '', status_path_i2v: '',
+  source: 'system', sort_order: 0, is_active: true
+}
+
+// 协议 -> 默认路径（仅作表单占位提示；留空时主进程不再回退，需在此显式填写）
+const PROTOCOL_DEFAULTS: Record<string, { submit: string; status: string; submitI2v?: string; statusI2v?: string }> = {
+  dashscope: { submit: '/services/aigc/video-generation/video-synthesis', status: '/tasks/{taskId}' },
+  ark:       { submit: '/contents/generations/tasks',                     status: '/contents/generations/tasks/{taskId}' },
+  kling:     { submit: '/videos/text2video',                              status: '/videos/text2video/{taskId}',
+               submitI2v: '/videos/image2video', statusI2v: '/videos/image2video/{taskId}' },
+  minimax:   { submit: '/v1/video_generation',                           status: '/v1/query/video_generation?task_id={taskId}' },
+  zhipu:     { submit: '/api/paas/v4/videos/generations',                status: '/api/paas/v4/videos/generations/{taskId}' },
+  runway:    { submit: '/v1/text_to_video',                               status: '/v1/tasks/{taskId}' },
+  luma:      { submit: '/generations',                                    status: '/generations/{taskId}' },
+  openai:    { submit: '/v1/videos',                                      status: '/v1/videos/{taskId}' },
+  pika:      { submit: '/v1/videos',                                      status: '/v1/videos/{taskId}' }
+}
 
 const PROVIDER_GETTERS: Record<string, (p: Provider) => string | number> = {
   id: (p) => p.id,
@@ -36,6 +64,7 @@ const PROVIDER_GETTERS: Record<string, (p: Provider) => string | number> = {
   url: (p) => p.url,
   apiBase: (p) => p.api_base_url,
   apiKey: (p) => p.api_key_url,
+  protocol: (p) => p.protocol ?? '',
   source: (p) => p.source ?? 'system',
   sort: (p) => p.sort_order ?? 0,
   status: (p) => (p.is_active ? 1 : 0)
@@ -112,6 +141,11 @@ export default function Providers() {
       url: d.url,
       apiBaseUrl: d.api_base_url,
       apiKeyUrl: d.api_key_url,
+      protocol: d.protocol,
+      submitPath: d.submit_path,
+      statusPath: d.status_path,
+      submitPathI2v: d.submit_path_i2v,
+      statusPathI2v: d.status_path_i2v,
       source: d.source,
       sortOrder: Number(d.sort_order) || 0,
       isActive: d.is_active
@@ -164,7 +198,12 @@ export default function Providers() {
               {sortedList.map((p) => (
                 <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-500 font-mono text-xs">{p.id}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
+                  <td className="px-4 py-3 font-medium text-gray-800">
+                    {p.name}
+                    {p.protocol && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-[11px] font-mono">{p.protocol}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-600 font-mono text-xs">{p.key_hint || '-'}</td>
                   <td className="px-4 py-3 text-gray-600">
                     <div className="text-gray-700">{p.url || '-'}</div>
@@ -192,6 +231,8 @@ export default function Providers() {
                         mode: 'edit', id: p.id,
                         data: {
                           name: p.name, key_hint: '', url: p.url || '', api_base_url: p.api_base_url || '', api_key_url: p.api_key_url || '',
+                          protocol: p.protocol || '', submit_path: p.submit_path || '', status_path: p.status_path || '',
+                          submit_path_i2v: p.submit_path_i2v || '', status_path_i2v: p.status_path_i2v || '',
                           source: p.source ?? 'system', sort_order: p.sort_order ?? 0, is_active: p.is_active
                         }
                       })}
@@ -215,11 +256,11 @@ export default function Providers() {
 
       {modal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-float w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-float w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto scroll-thin">
             <h3 className="text-base font-semibold text-gray-800 mb-4">
               {modal.mode === 'create' ? '新增供应商' : '编辑供应商'}
             </h3>
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-700 mb-1">名称</label>
                 <input
@@ -241,7 +282,7 @@ export default function Providers() {
                   placeholder="例如:sk-xxxxxxxx,可留空"
                 />
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">官网</label>
                 <input
                   value={modal.data.url}
@@ -250,7 +291,7 @@ export default function Providers() {
                   placeholder="https://..."
                 />
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">
                   API 调用端点 {modal.mode === 'edit' && '(留空使用内置默认值)'}
                 </label>
@@ -260,9 +301,9 @@ export default function Providers() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="https://..."
                 />
-                <p className="mt-1 text-xs text-gray-400">主进程发起真实生成请求时使用的基础地址；可改为代理/替代端点，留空则使用代码内置默认值</p>
+                <p className="mt-1 text-xs text-gray-400">主进程发起真实生成请求时使用的基础地址；可改为代理/替代端点。必填，留空将无法发起生成</p>
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">
                   API Key 获取地址 {modal.mode === 'edit' && '(留空使用内置默认值)'}
                 </label>
@@ -275,33 +316,91 @@ export default function Providers() {
                 <p className="mt-1 text-xs text-gray-400">客户端「接入API」按钮点击后跳转的网页，通常为该平台控制台的密钥管理页；非 API 调用地址</p>
               </div>
               <div>
+                <label className="block text-sm text-gray-700 mb-1">生成协议</label>
+                <select
+                  value={modal.data.protocol}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, protocol: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="">（未选择）</option>
+                  <option value="dashscope">DashScope（通义万相）</option>
+                  <option value="ark">Ark（火山引擎 Seedance）</option>
+                  <option value="kling">可灵（Kling）</option>
+                  <option value="minimax">MiniMax</option>
+                  <option value="zhipu">智谱 CogVideoX</option>
+                  <option value="runway">Runway Gen-3</option>
+                  <option value="luma">Luma Dream Machine</option>
+                  <option value="openai">OpenAI Sora</option>
+                  <option value="pika">Pika</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-400">决定请求体格式、鉴权方式与状态解析；必须选择，客户端不再按供应商 ID 推断</p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">提交路径</label>
+                <input
+                  value={modal.data.submit_path}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, submit_path: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder={PROTOCOL_DEFAULTS[modal.data.protocol]?.submit ?? '/...'}
+                />
+                <p className="mt-1 text-xs text-gray-400">相对 API 调用端点的任务提交路径；必填，留空将无法发起生成</p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">查询路径</label>
+                <input
+                  value={modal.data.status_path}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, status_path: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder={PROTOCOL_DEFAULTS[modal.data.protocol]?.status ?? '/...'}
+                />
+                <p className="mt-1 text-xs text-gray-400">相对 API 调用端点的任务查询路径，支持 {'{taskId}'} 占位符；必填，留空将无法查询任务</p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">图生视频提交路径 <span className="text-gray-400 text-xs">（可选）</span></label>
+                <input
+                  value={modal.data.submit_path_i2v}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, submit_path_i2v: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="留空则沿用提交路径"
+                />
+                <p className="mt-1 text-xs text-gray-400">仅当图生视频需要独立端点时填写（例如可灵 /videos/image2video）；留空或无图生视频需求时自动复用上方"任务提交路径"</p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">图生视频查询路径 <span className="text-gray-400 text-xs">（可选）</span></label>
+                <input
+                  value={modal.data.status_path_i2v}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, status_path_i2v: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="留空则沿用查询路径"
+                />
+                <p className="mt-1 text-xs text-gray-400">仅当图生视频查询端点与主流程不同时填写，支持 {'{taskId}'} 占位符；留空则复用上方"任务查询路径"</p>
+              </div>
+              <div>
                 <label className="block text-sm text-gray-700 mb-1">来源</label>
                 <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500">
                   {modal.data.source === 'user' ? '用户（历史数据）' : '系统'}
                 </div>
                 <p className="mt-1 text-xs text-gray-400">用户自定义资源仅存客户端本地，后台新增固定为系统来源</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">排序</label>
-                  <input
-                    type="number"
-                    value={modal.data.sort_order}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, sort_order: Number(e.target.value) } })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">状态</label>
-                  <select
-                    value={modal.data.is_active ? '1' : '0'}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, is_active: e.target.value === '1' } })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  >
-                    <option value="1">启用</option>
-                    <option value="0">停用</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">排序</label>
+                <input
+                  type="number"
+                  value={modal.data.sort_order}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, sort_order: Number(e.target.value) } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">状态</label>
+                <select
+                  value={modal.data.is_active ? '1' : '0'}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, is_active: e.target.value === '1' } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="1">启用</option>
+                  <option value="0">停用</option>
+                </select>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">

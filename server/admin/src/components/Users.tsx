@@ -191,11 +191,11 @@ export default function Users() {
 
       {modal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-float w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-float w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto scroll-thin">
             <h3 className="text-base font-semibold text-gray-800 mb-4">
               {modal.mode === 'create' ? '新增用户' : '编辑用户'}
             </h3>
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-700 mb-1">用户名</label>
                 <input
@@ -216,29 +216,27 @@ export default function Users() {
                   placeholder="至少 4 位"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">角色</label>
-                  <select
-                    value={modal.data.role}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, role: e.target.value as 'admin' | 'user' } })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  >
-                    <option value="user">用户</option>
-                    <option value="admin">管理员</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">状态</label>
-                  <select
-                    value={modal.data.is_active ? '1' : '0'}
-                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, is_active: e.target.value === '1' } })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  >
-                    <option value="1">启用</option>
-                    <option value="0">禁用</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">角色</label>
+                <select
+                  value={modal.data.role}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, role: e.target.value as 'admin' | 'user' } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="user">用户</option>
+                  <option value="admin">管理员</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">状态</label>
+                <select
+                  value={modal.data.is_active ? '1' : '0'}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, is_active: e.target.value === '1' } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="1">启用</option>
+                  <option value="0">禁用</option>
+                </select>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">

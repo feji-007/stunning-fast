@@ -7,17 +7,23 @@ import { hashPassword } from '../utils/password'
  * 每次启动都会执行检查，已存在数据则跳过。
  */
 
-// 从客户端 src/data/models.ts 迁移的供应商 + 模型
+// 从客户端初始化数据迁移而来的供应商 + 模型（仅用于首次建库；之后完全以后台数据库为准）
 const PROVIDERS_SEED: Array<{
   id: string; name: string; keyHint: string; url: string; apiBaseUrl?: string; sort: number
+  protocol?: string; submitPath?: string; statusPath?: string
+  submitPathI2v?: string; statusPathI2v?: string
   models: Array<{
     id: string; name: string; type: string; desc: string
-    supportsI2V?: boolean; res: number; speed: number; price: number; sort: number
+    supportsI2V?: boolean; supportsFirstLast?: boolean; supportsReference?: boolean
+    res: number; speed: number; price: number; sort: number
   }>
 }> = [
   {
     id: 'alibaba', name: '通义万相 (DashScope)', keyHint: 'sk-',
     url: 'https://dashscope.aliyun.com/', apiBaseUrl: 'https://dashscope.aliyuncs.com/api/v1', sort: 1,
+    protocol: 'dashscope',
+    submitPath: '/services/aigc/video-generation/video-synthesis',
+    statusPath: '/tasks/{taskId}',
     models: [
       { id: 'wan2.7-t2v', name: 'Wan2.7 文生视频', type: 'video', desc: '通义万相最新文生视频，2-15s，720P/1080P，含音频，支持多镜头叙事。', res: 1080, speed: 120, price: 3, sort: 1 },
       { id: 'wan2.7-t2v-2026-06-12', name: 'Wan2.7 (2026-06-12 快照)', type: 'video', desc: '通义万相 wan2.7 固定版本快照，结果更稳定可复现。', res: 1080, speed: 120, price: 3, sort: 2 },
@@ -31,27 +37,38 @@ const PROVIDERS_SEED: Array<{
   {
     id: 'volcengine', name: '火山引擎 (豆包 Seedance)', keyHint: '',
     url: 'https://www.volcengine.com/product/ark', apiBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3', sort: 2,
+    protocol: 'ark',
+    submitPath: '/contents/generations/tasks',
+    statusPath: '/contents/generations/tasks/{taskId}',
     models: [
-      { id: 'doubao-seedance-2-5', name: 'Seedance 2.5', type: 'video', desc: '字节最新 Seedance 2.5，文生/图生视频，支持多模态参考，最长 30s。', supportsI2V: true, res: 1080, speed: 60, price: 3, sort: 1 },
-      { id: 'doubao-seedance-2-0-260128', name: 'Seedance 2.0', type: 'video', desc: '豆包 Seedance 2.0 标准版，文/图生视频，原生音频，最长 15s。', supportsI2V: true, res: 1080, speed: 45, price: 2, sort: 2 },
-      { id: 'doubao-seedance-2-0-fast-260128', name: 'Seedance 2.0 Fast', type: 'video', desc: '豆包 Seedance 2.0 快速版，速度更快成本更低（不支持 1080p）。', supportsI2V: true, res: 720, speed: 20, price: 1, sort: 3 },
-      { id: 'doubao-seedance-1-5-pro-251215', name: 'Seedance 1.5 Pro', type: 'video', desc: '豆包 Seedance 1.5 Pro，文/图生视频，4-12s。', supportsI2V: true, res: 720, speed: 30, price: 2, sort: 4 },
-      { id: 'doubao-seedance-1-0-pro-fast-251015', name: 'Seedance 1.0 Pro Fast', type: 'video', desc: '豆包 Seedance 1.0 Pro Fast，文/图生视频，2-12s，快速。', supportsI2V: true, res: 720, speed: 15, price: 1, sort: 5 },
+      { id: 'doubao-seedance-2-5', name: 'Seedance 2.5', type: 'video', desc: '字节最新 Seedance 2.5，文生/图生视频，支持多模态参考，最长 30s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 60, price: 3, sort: 1 },
+      { id: 'doubao-seedance-2-0-260128', name: 'Seedance 2.0', type: 'video', desc: '豆包 Seedance 2.0 标准版，文/图生视频，原生音频，最长 15s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 45, price: 2, sort: 2 },
+      { id: 'doubao-seedance-2-0-fast-260128', name: 'Seedance 2.0 Fast', type: 'video', desc: '豆包 Seedance 2.0 快速版，速度更快成本更低（不支持 1080p）。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 720, speed: 20, price: 1, sort: 3 },
+      { id: 'doubao-seedance-1-5-pro-251215', name: 'Seedance 1.5 Pro', type: 'video', desc: '豆包 Seedance 1.5 Pro，文/图生视频，4-12s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 720, speed: 30, price: 2, sort: 4 },
+      { id: 'doubao-seedance-1-0-pro-fast-251015', name: 'Seedance 1.0 Pro Fast', type: 'video', desc: '豆包 Seedance 1.0 Pro Fast，文/图生视频，2-12s，快速。', supportsI2V: true, supportsFirstLast: false, supportsReference: true, res: 720, speed: 15, price: 1, sort: 5 },
       { id: 'doubao-pro', name: 'Doubao Pro', type: 'text', desc: '豆包通用文本对话模型。', res: 0, speed: 0, price: 1, sort: 6 }
     ]
   },
   {
     id: 'kling', name: '快手可灵 (Kling)', keyHint: 'AccessKey:SecretKey',
     url: 'https://klingai.com/', apiBaseUrl: 'https://api-beijing.klingai.com/v1', sort: 3,
+    // 可灵文生/图生视频使用不同端点，均在此配置，主进程不再内置路径
+    protocol: 'kling',
+    submitPath: '/videos/text2video',
+    statusPath: '/videos/text2video/{taskId}',
+    submitPathI2v: '/videos/image2video',
+    statusPathI2v: '/videos/image2video/{taskId}',
     models: [
-      { id: 'kling-v3', name: 'Kling 3.0', type: 'video', desc: '可灵最新一代文生视频，画质与一致性最佳，支持更长时长。', supportsI2V: true, res: 1080, speed: 120, price: 3, sort: 1 },
-      { id: 'kling-v2-master', name: 'Kling 2.0 Master', type: 'video', desc: '可灵 2.0 高质量文生视频，1080p，最长 10s。', supportsI2V: true, res: 1080, speed: 90, price: 3, sort: 2 },
-      { id: 'kling-v2-5-turbo', name: 'Kling 2.5 Turbo', type: 'video', desc: '可灵 2.5 Turbo，速度更快成本更低，适合快速尝鲜。', supportsI2V: true, res: 720, speed: 30, price: 1, sort: 3 },
-      { id: 'kling-v1-6', name: 'Kling 1.6', type: 'video', desc: '可灵上一代视频模型，性价比高。', supportsI2V: true, res: 720, speed: 60, price: 2, sort: 4 }
+      { id: 'kling-v3', name: 'Kling 3.0', type: 'video', desc: '可灵最新一代文生视频，画质与一致性最佳，支持更长时长。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 120, price: 3, sort: 1 },
+      { id: 'kling-v2-master', name: 'Kling 2.0 Master', type: 'video', desc: '可灵 2.0 高质量文生视频，1080p，最长 10s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 90, price: 3, sort: 2 },
+      { id: 'kling-v2-5-turbo', name: 'Kling 2.5 Turbo', type: 'video', desc: '可灵 2.5 Turbo，速度更快成本更低，适合快速尝鲜。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 720, speed: 30, price: 1, sort: 3 },
+      { id: 'kling-v1-6', name: 'Kling 1.6', type: 'video', desc: '可灵上一代视频模型，性价比高。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 720, speed: 60, price: 2, sort: 4 }
     ]
   },
   {
     id: 'minimax', name: 'MiniMax', keyHint: '', url: 'https://www.minimaxi.com/', sort: 4,
+    protocol: 'minimax', apiBaseUrl: 'https://api.minimaxi.com',
+    submitPath: '/v1/video_generation', statusPath: '/v1/query/video_generation?task_id={taskId}',
     models: [
       { id: 'video-01', name: 'MiniMax Video-01', type: 'video', desc: 'MiniMax 视频生成，擅长人物与运镜。', res: 720, speed: 60, price: 2, sort: 1 },
       { id: 'abab6-5', name: 'abab6.5', type: 'text', desc: 'MiniMax 通用大语言模型。', res: 0, speed: 0, price: 1, sort: 2 }
@@ -59,24 +76,32 @@ const PROVIDERS_SEED: Array<{
   },
   {
     id: 'runway', name: 'Runway', keyHint: '', url: 'https://runwayml.com/', sort: 5,
+    protocol: 'runway', apiBaseUrl: 'https://api.dev.runwayml.com',
+    submitPath: '/v1/text_to_video', statusPath: '/v1/tasks/{taskId}',
     models: [
-      { id: 'gen-3-alpha', name: 'Gen-3 Alpha', type: 'video', desc: 'Runway Gen-3，高质量文生/图生视频。', supportsI2V: true, res: 1080, speed: 60, price: 3, sort: 1 }
+      { id: 'gen-3-alpha', name: 'Gen-3 Alpha', type: 'video', desc: 'Runway Gen-3，高质量文生/图生视频。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 60, price: 3, sort: 1 }
     ]
   },
   {
     id: 'pika', name: 'Pika', keyHint: '', url: 'https://pika.art/', sort: 6,
+    protocol: 'pika', apiBaseUrl: 'https://pika.pikaslabs.com/v1',
+    submitPath: '/v1/videos', statusPath: '/v1/videos/{taskId}',
     models: [
-      { id: 'pika-1-5', name: 'Pika 1.5', type: 'video', desc: 'Pika 视频生成，特效与 Pikaffects。', supportsI2V: true, res: 720, speed: 30, price: 2, sort: 1 }
+      { id: 'pika-1-5', name: 'Pika 1.5', type: 'video', desc: 'Pika 视频生成，特效与 Pikaffects。', supportsI2V: true, supportsFirstLast: false, supportsReference: true, res: 720, speed: 30, price: 2, sort: 1 }
     ]
   },
   {
     id: 'luma', name: 'Luma AI', keyHint: '', url: 'https://lumalabs.ai/', sort: 7,
+    protocol: 'luma', apiBaseUrl: 'https://api.lumalabs.ai/dream-machine/v1',
+    submitPath: '/generations', statusPath: '/generations/{taskId}',
     models: [
-      { id: 'dream-machine', name: 'Dream Machine', type: 'video', desc: 'Luma Dream Machine，文/图生视频。', supportsI2V: true, res: 720, speed: 60, price: 2, sort: 1 }
+      { id: 'dream-machine', name: 'Dream Machine', type: 'video', desc: 'Luma Dream Machine，文/图生视频。', supportsI2V: true, supportsFirstLast: false, supportsReference: true, res: 720, speed: 60, price: 2, sort: 1 }
     ]
   },
   {
     id: 'zhipu', name: '智谱 AI', keyHint: '', url: 'https://www.zhipuai.cn/', sort: 8,
+    protocol: 'zhipu', apiBaseUrl: 'https://open.bigmodel.cn',
+    submitPath: '/api/paas/v4/videos/generations', statusPath: '/api/paas/v4/videos/generations/{taskId}',
     models: [
       { id: 'cogvideox', name: 'CogVideoX', type: 'video', desc: '智谱开源视频生成模型。', res: 720, speed: 60, price: 1, sort: 1 },
       { id: 'glm-4', name: 'GLM-4', type: 'text', desc: '智谱通用大语言模型。', res: 0, speed: 0, price: 1, sort: 2 }
@@ -84,8 +109,10 @@ const PROVIDERS_SEED: Array<{
   },
   {
     id: 'openai', name: 'OpenAI', keyHint: 'sk-', url: 'https://openai.com/', sort: 9,
+    protocol: 'openai', apiBaseUrl: 'https://api.openai.com',
+    submitPath: '/v1/videos', statusPath: '/v1/videos/{taskId}',
     models: [
-      { id: 'sora', name: 'Sora', type: 'video', desc: 'OpenAI Sora 视频生成模型。', res: 1080, speed: 60, price: 3, sort: 1 },
+      { id: 'sora-2', name: 'Sora 2', type: 'video', desc: 'OpenAI Sora 2 视频生成模型。', res: 1080, speed: 60, price: 3, sort: 1 },
       { id: 'dall-e-3', name: 'DALL\u00b7E 3', type: 'image', desc: 'OpenAI 图像生成。', res: 0, speed: 0, price: 2, sort: 2 },
       { id: 'gpt-4o', name: 'GPT-4o', type: 'text', desc: 'OpenAI 通用对话模型。', res: 0, speed: 0, price: 3, sort: 3 }
     ]
@@ -303,34 +330,214 @@ async function seedProvidersAndModels() {
   if (!(await tableEmpty('providers'))) return
   for (const p of PROVIDERS_SEED) {
     await query(
-      `INSERT INTO providers (id, name, key_hint, url, api_base_url, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-      [p.id, p.name, p.keyHint, p.url, p.apiBaseUrl ?? '', p.sort]
+      `INSERT INTO providers (id, name, key_hint, url, api_base_url, protocol, submit_path, status_path, submit_path_i2v, status_path_i2v, sort_order, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      [p.id, p.name, p.keyHint, p.url, p.apiBaseUrl ?? '', p.protocol ?? '', p.submitPath ?? '', p.statusPath ?? '', p.submitPathI2v ?? '', p.statusPathI2v ?? '', p.sort]
     )
     for (const m of p.models) {
       await query(
-        `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, resolution, speed, price, sort_order, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
-        [m.id, p.id, m.name, m.type, m.desc, m.supportsI2V ?? false, m.res, m.speed, m.price, m.sort]
+        `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+           resolution, speed, price, default_resolution, default_ratio, default_duration, sort_order, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+        [
+          m.id, p.id, m.name, m.type, m.desc,
+          m.supportsI2V ?? false, m.supportsFirstLast ?? false, m.supportsReference ?? false,
+          m.res, m.speed, m.price,
+          m.type === 'video' && m.res > 0 ? (m.res >= 1080 ? '1080P' : '720P') : '',
+          m.type === 'video' ? '16:9' : '',
+          m.type === 'video' ? '5' : '',
+          m.sort
+        ]
       )
     }
   }
   console.log(`[seed] providers + models 已初始化（${PROVIDERS_SEED.length} 供应商）`)
 }
 
-/** 迁移：为已存在但缺少 api_base_url 的系统供应商写入默认值（幂等）。 */
+/** 迁移：为已存在但缺少默认值的系统供应商写入默认值（幂等，不覆盖管理员已填写的字段）。 */
 async function backfillApiBaseUrls() {
-  const DEFAULTS: Record<string, string> = {
-    alibaba: 'https://dashscope.aliyuncs.com/api/v1',
-    volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
-    kling: 'https://api-beijing.klingai.com/v1'
+  const DEFAULTS: Record<string, {
+    apiBaseUrl: string; protocol: string
+    submitPath?: string; statusPath?: string
+    submitPathI2v?: string; statusPathI2v?: string
+  }> = {
+    alibaba: {
+      apiBaseUrl: 'https://dashscope.aliyuncs.com/api/v1',
+      protocol: 'dashscope',
+      submitPath: '/services/aigc/video-generation/video-synthesis',
+      statusPath: '/tasks/{taskId}'
+    },
+    volcengine: {
+      apiBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+      protocol: 'ark',
+      submitPath: '/contents/generations/tasks',
+      statusPath: '/contents/generations/tasks/{taskId}'
+    },
+    kling: {
+      apiBaseUrl: 'https://api-beijing.klingai.com/v1',
+      protocol: 'kling',
+      submitPath: '/videos/text2video',
+      statusPath: '/videos/text2video/{taskId}',
+      submitPathI2v: '/videos/image2video',
+      statusPathI2v: '/videos/image2video/{taskId}'
+    },
+    minimax: {
+      apiBaseUrl: 'https://api.minimaxi.com',
+      protocol: 'minimax',
+      submitPath: '/v1/video_generation',
+      statusPath: '/v1/query/video_generation?task_id={taskId}'
+    },
+    zhipu: {
+      apiBaseUrl: 'https://open.bigmodel.cn',
+      protocol: 'zhipu',
+      submitPath: '/api/paas/v4/videos/generations',
+      statusPath: '/api/paas/v4/async-result/{taskId}'
+    },
+    runway: {
+      apiBaseUrl: 'https://api.dev.runwayml.com',
+      protocol: 'runway',
+      submitPath: '/v1/text_to_video',
+      statusPath: '/v1/tasks/{taskId}'
+    },
+    luma: {
+      apiBaseUrl: 'https://api.lumalabs.ai/dream-machine/v1',
+      protocol: 'luma',
+      submitPath: '/generations',
+      statusPath: '/generations/{taskId}'
+    },
+    openai: {
+      apiBaseUrl: 'https://api.openai.com',
+      protocol: 'openai',
+      submitPath: '/v1/videos',
+      statusPath: '/v1/videos/{taskId}'
+    },
+    pika: {
+      apiBaseUrl: 'https://pika.pikaslabs.com/v1',
+      protocol: 'pika',
+      submitPath: '/v1/videos',
+      statusPath: '/v1/videos/{taskId}'
+    }
   }
-  for (const [id, url] of Object.entries(DEFAULTS)) {
+  for (const [id, d] of Object.entries(DEFAULTS)) {
     await query(
-      `UPDATE providers SET api_base_url = ? WHERE id = ? AND (api_base_url = '' OR api_base_url IS NULL)`,
+      `UPDATE providers SET
+         api_base_url = COALESCE(NULLIF(api_base_url, ''), ?),
+         protocol = COALESCE(NULLIF(protocol, ''), ?),
+         submit_path = COALESCE(NULLIF(submit_path, ''), ?),
+         status_path = COALESCE(NULLIF(status_path, ''), ?),
+         submit_path_i2v = COALESCE(NULLIF(submit_path_i2v, ''), ?),
+         status_path_i2v = COALESCE(NULLIF(status_path_i2v, ''), ?)
+       WHERE id = ?`,
+      [d.apiBaseUrl, d.protocol, d.submitPath ?? '', d.statusPath ?? '', d.submitPathI2v ?? '', d.statusPathI2v ?? '', id]
+    )
+  }
+}
+
+/** 迁移：把内置供应商的密钥获取地址与模型文档地址补入数据库（空值才写入，后台可随时修改）。 */
+async function backfillUrls() {
+  const PROVIDER_KEY_URLS: Record<string, string> = {
+    alibaba: 'https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key',
+    volcengine: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
+    kling: 'https://klingai.com/dev/api-key',
+    minimax: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
+    runway: 'https://runwayml.com/settings/api',
+    pika: 'https://pika.art/profile',
+    luma: 'https://lumalabs.ai/api',
+    zhipu: 'https://open.bigmodel.cn/usercenter/apikeys',
+    openai: 'https://platform.openai.com/api-keys'
+  }
+  for (const [id, url] of Object.entries(PROVIDER_KEY_URLS)) {
+    await query(
+      `UPDATE providers SET api_key_url = ? WHERE id = ? AND (api_key_url = '' OR api_key_url IS NULL)`,
       [url, id]
     )
   }
+
+  const MODEL_DOCS: Record<string, string> = {
+    'wan2.7-t2v': 'https://help.aliyun.com/zh/model-studio/wan2.7-video-generation',
+    'wan2.7-t2v-2026-06-12': 'https://help.aliyun.com/zh/model-studio/wan2.7-video-generation',
+    'wan2.6-t2v': 'https://help.aliyun.com/zh/model-studio/wan2.6-video-generation',
+    'wan2.2-t2v-plus': 'https://help.aliyun.com/zh/model-studio/wan2.2-video-generation',
+    'wan2.1-t2v-turbo': 'https://help.aliyun.com/zh/model-studio/wan2.1-video-generation',
+    'wan2.1-t2v-plus': 'https://help.aliyun.com/zh/model-studio/wan2.1-video-generation',
+    'qwen-max': 'https://help.aliyun.com/zh/model-studio/getting-started/models',
+    'doubao-seedance-2-5': 'https://www.volcengine.com/docs/82379/1521657',
+    'doubao-seedance-2-0-260128': 'https://www.volcengine.com/docs/82379/1521657',
+    'doubao-seedance-2-0-fast-260128': 'https://www.volcengine.com/docs/82379/1521657',
+    'doubao-seedance-1-5-pro-251215': 'https://www.volcengine.com/docs/82379/1399079',
+    'doubao-seedance-1-0-pro-fast-251015': 'https://www.volcengine.com/docs/82379/1339149',
+    'doubao-pro': 'https://www.volcengine.com/docs/82379/1263482',
+    'kling-v3': 'https://docs.qingque.cn/d/home/eZQB2yTMbVOeS6Ouk0tIBZbCG',
+    'kling-v2-master': 'https://docs.qingque.cn/d/home/eZQB2yTMbVOeS6Ouk0tIBZbCG',
+    'kling-v2-5-turbo': 'https://docs.qingque.cn/d/home/eZQB2yTMbVOeS6Ouk0tIBZbCG',
+    'kling-v1-6': 'https://docs.qingque.cn/d/home/eZQB2yTMbVOeS6Ouk0tIBZbCG',
+    'video-01': 'https://platform.minimaxi.com/document/Video%20Generation',
+    'abab6-5': 'https://platform.minimaxi.com/document/Text%20Generation',
+    'gen-3-alpha': 'https://docs.runwayml.com/',
+    'pika-1-5': 'https://pika.art/faq',
+    'dream-machine': 'https://docs.lumalabs.ai/docs/api',
+    'cogvideox': 'https://open.bigmodel.cn/dev/api/video-generation',
+    'glm-4': 'https://open.bigmodel.cn/dev/api/normal-model/glm-4',
+    'sora-2': 'https://platform.openai.com/docs/guides/video',
+    'dall-e-3': 'https://platform.openai.com/docs/guides/image-generation',
+    'gpt-4o': 'https://platform.openai.com/docs/models/gpt-4o'
+  }
+  for (const [id, url] of Object.entries(MODEL_DOCS)) {
+    await query(
+      `UPDATE models SET docs_url = ? WHERE id = ? AND (docs_url = '' OR docs_url IS NULL)`,
+      [url, id]
+    )
+  }
+}
+
+/** 迁移：老库模型缺少默认生成参数时补入（空值才写入，不覆盖管理员配置）。 */
+async function backfillModelDefaults() {
+  await query(
+    `UPDATE models SET
+       default_resolution = CASE WHEN resolution >= 1080 THEN '1080P' ELSE '720P' END
+     WHERE type = 'video' AND resolution > 0
+       AND (default_resolution = '' OR default_resolution IS NULL)`
+  )
+  await query(
+    `UPDATE models SET default_ratio = '16:9'
+     WHERE type = 'video' AND (default_ratio = '' OR default_ratio IS NULL)`
+  )
+  await query(
+    `UPDATE models SET default_duration = '5'
+     WHERE type = 'video' AND (default_duration = '' OR default_duration IS NULL)`
+  )
+}
+
+/**
+ * 迁移（一次性）：老库的系统模型能力字段曾被客户端硬编码覆盖，数据库里 first_last/reference 仍是默认 false。
+ * 这里把原内置能力补写进数据库。通过 meta 表标记确保只执行一次，之后管理员的修改不会被覆盖。
+ */
+async function backfillModelCapabilities() {
+  const done = await queryOne(`SELECT 1 FROM meta WHERE \`key\` = 'cap_backfill_v1'`)
+  if (done) return
+  const CAP: Record<string, { firstLast: boolean; reference: boolean }> = {
+    'doubao-seedance-2-5': { firstLast: true, reference: true },
+    'doubao-seedance-2-0-260128': { firstLast: true, reference: true },
+    'doubao-seedance-2-0-fast-260128': { firstLast: true, reference: true },
+    'doubao-seedance-1-5-pro-251215': { firstLast: true, reference: true },
+    'doubao-seedance-1-0-pro-fast-251015': { firstLast: false, reference: true },
+    'kling-v3': { firstLast: true, reference: true },
+    'kling-v2-master': { firstLast: true, reference: true },
+    'kling-v2-5-turbo': { firstLast: true, reference: true },
+    'kling-v1-6': { firstLast: true, reference: true },
+    'gen-3-alpha': { firstLast: true, reference: true },
+    'pika-1-5': { firstLast: false, reference: true },
+    'dream-machine': { firstLast: false, reference: true }
+  }
+  for (const [id, c] of Object.entries(CAP)) {
+    await query(
+      `UPDATE models SET supports_first_last = ?, supports_reference = ?
+       WHERE id = ? AND supports_i2v = TRUE`,
+      [c.firstLast, c.reference, id]
+    )
+  }
+  await query(`INSERT INTO meta (\`key\`, \`value\`) VALUES ('cap_backfill_v1', NOW())`)
+  console.log('[seed] 模型能力字段已一次性回填')
 }
 
 async function seedFeatures() {
@@ -415,6 +622,9 @@ export async function seedAll(): Promise<void> {
   await seedRecommendModels()
   await seedRecommendQuestions()
   await seedGuideQuestions()
-  // 为已存在的系统供应商补入 api_base_url 默认值（幂等，不覆盖管理员已配置的值）
+  // 为已存在的系统供应商补入接口地址/协议/路径默认值，并为模型补入默认参数与能力（幂等）
   await backfillApiBaseUrls()
+  await backfillUrls()
+  await backfillModelDefaults()
+  await backfillModelCapabilities()
 }
