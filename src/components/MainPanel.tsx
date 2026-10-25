@@ -280,7 +280,13 @@ export default function MainPanel() {
         <div className="flex items-center gap-2">
           {/* AI 模型推荐助手：打开独立弹窗 */}
           <button
-            onClick={() => window.api?.openRecommendationWindow?.()}
+            onClick={() => {
+              if (!user.loggedIn) {
+                setModal('login')
+                return
+              }
+              window.api?.openRecommendationWindow?.()
+            }}
             className="group grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-500 text-white shadow-sm transition hover:scale-105 hover:shadow-md"
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             title="AI帮你匹配最合适的大模型"

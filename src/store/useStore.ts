@@ -11,9 +11,10 @@ import type {
   ProviderId,
   ProviderModel,
   Theme,
-  UserState
+  UserState,
+  VideoProtocol
 } from '../types'
-import { DEFAULT_FEATURES, PROVIDERS } from '../data/models'
+import { DEFAULT_FEATURES, FALLBACK_PROVIDERS } from '../data/models'
 import {
   authApi,
   bootstrapApi,
@@ -127,6 +128,9 @@ interface AppState {
     keyHint?: string
     url?: string
     apiBaseUrl?: string
+    protocol?: VideoProtocol
+    submitPath?: string
+    statusPath?: string
   }) => Promise<void>
   addCustomModel: (b: {
     id: string
@@ -143,6 +147,9 @@ interface AppState {
     keyHint?: string
     url?: string
     apiBaseUrl?: string
+    protocol?: VideoProtocol
+    submitPath?: string
+    statusPath?: string
   }) => Promise<void>
   /** 删除本地自定义供应商（连同其下自定义模型一并删除） */
   removeCustomProvider: (id: string) => Promise<void>
@@ -240,7 +247,7 @@ export const useStore = create<AppState>()(
       keys: [],
       autoLaunch: false,
       // 运行时配置默认回退到硬编码（bootstrap 成功后被后端数据覆盖）
-      providers: PROVIDERS,
+      providers: FALLBACK_PROVIDERS,
       customProviders: [],
       customModels: [],
       videoConfig: DEFAULT_VIDEO_CONFIG,
@@ -449,57 +456,49 @@ export const useStore = create<AppState>()(
       bootstrap: async () => {
         try {
           const data = await bootstrapApi.fetch()
-          // 构建 models.ts 中系统模型的查找表（用于覆盖数据库中的默认值）
-          // 注意：能力字段（supportsI2V 等）与代码生成逻辑强绑定，仍以本地为准覆盖数据库
-          const modelCapMap = new Map<string, Partial<ProviderModel>>()
-          PROVIDERS.forEach((pp) => pp.models.forEach((mm) => {
-            const patch: Partial<ProviderModel> = {}
-            if (mm.supportsI2V !== undefined)      patch.supportsI2V = mm.supportsI2V
-            if (mm.supportsFirstLast !== undefined) patch.supportsFirstLast = mm.supportsFirstLast
-            if (mm.supportsReference !== undefined) patch.supportsReference = mm.supportsReference
-            if (patch) modelCapMap.set(mm.id, patch)
-          }))
-          // URL 字段改为"数据库优先，本地兜底"：管理员可在后台覆盖默认跳转地址
-          const modelDocsFallback = new Map<string, string>()
-          PROVIDERS.forEach((pp) => pp.models.forEach((mm) => {
-            if (mm.docsUrl) modelDocsFallback.set(mm.id, mm.docsUrl)
-          }))
-          const providerApiKeyFallback = new Map<string, string>()
-          PROVIDERS.forEach((pp) => {
-            if (pp.apiKeyUrl) providerApiKeyFallback.set(pp.id, pp.apiKeyUrl)
-          })
-
+          // 供应商/模型的所有字段均以后台数据库为准；客户端不再做任何本地覆盖。
           // 映射后端 snake_case → 客户端类型；provider_id → provider，description → desc
-          // 系统模型(source=system)的能力字段以 models.ts 为准，覆盖数据库默认值
-          // URL 字段（apiKeyUrl / docsUrl）以数据库为准，数据库为空时回退到 models.ts
           const providers: Provider[] = (data.providers ?? []).map((p: any) => {
             const pSource = (p.source as 'system' | 'user') ?? 'system'
             return {
-            id: p.id as ProviderId,
-            name: p.name,
-            keyHint: p.key_hint || '',
-            url: p.url || '',
-            apiBaseUrl: p.api_base_url || undefined,
-            apiKeyUrl: p.api_key_url || providerApiKeyFallback.get(p.id) || undefined,
-            source: pSource,
-            models: (p.models ?? []).map((m: any) => {
-              const base: ProviderModel = {
-                id: m.id,
-                name: m.name,
-                provider: p.id as ProviderId,
-                type: m.type ?? 'video',
-                desc: m.description || '',
-                supportsI2V: !!m.supports_i2v,
-                supportsFirstLast: !!m.supports_first_last,
-                supportsReference: !!m.supports_reference,
-                docsUrl: m.docs_url || modelDocsFallback.get(m.id) || undefined,
-                source: (m.source as 'system' | 'user') ?? 'system'
-              }
-              const override = modelCapMap.get(m.id)
-              if (override && base.source === 'system') return { ...base, ...override }
-              return base
-            })
-          }})
+              id: p.id as ProviderId,
+              name: p.name,
+              keyHint: p.key_hint || '',
+              url: p.url || '',
+              apiBaseUrl: p.api_base_url || undefined,
+              apiKeyUrl: p.api_key_url || undefined,
+              protocol: ['dashscope', 'ark', 'kling', 'minimax', 'zhipu', 'runway', 'luma', 'openai', 'pika']
+                .includes(String(p.protocol))
+                ? (p.protocol as VideoProtocol)
+                : undefined,
+              submitPath: p.submit_path || undefined,
+              statusPath: p.status_path || undefined,
+              submitPathI2v: p.submit_path_i2v || undefined,
+              statusPathI2v: p.status_path_i2v || undefined,
+              source: pSource,
+              models: (p.models ?? []).map((m: any) => {
+                const base: ProviderModel = {
+                  id: m.id,
+                  name: m.name,
+                  provider: p.id as ProviderId,
+                  type: m.type ?? 'video',
+                  desc: m.description || '',
+                  supportsI2V: !!m.supports_i2v,
+                  supportsFirstLast: !!m.supports_first_last,
+                  supportsReference: !!m.supports_reference,
+                  docsUrl: m.docs_url || undefined,
+                  resolution: Number(m.resolution) || undefined,
+                  speed: Number(m.speed) || undefined,
+                  price: Number(m.price) || undefined,
+                  defaultResolution: m.default_resolution || undefined,
+                  defaultRatio: m.default_ratio || undefined,
+                  defaultDuration: m.default_duration || undefined,
+                  source: (m.source as 'system' | 'user') ?? 'system'
+                }
+                return base
+              })
+            }
+          })
           const features: Feature[] = (data.features ?? []).map((f: any) => ({
             id: f.id as FeatureId,
             name: f.name,
@@ -512,7 +511,8 @@ export const useStore = create<AppState>()(
             ...DEFAULT_VIDEO_CONFIG,
             ...(data.videoConfig ?? {})
           }
-          const baseProviders = providers.length > 0 ? providers : PROVIDERS
+          // 后端返回空列表时使用最小离线兜底，避免界面空白
+          const baseProviders = providers.length > 0 ? providers : FALLBACK_PROVIDERS
           set({
             providers: mergeCustomProviders(baseProviders, get().customProviders, get().customModels),
             features: features.length > 0 ? features : get().features,
@@ -523,7 +523,7 @@ export const useStore = create<AppState>()(
             bootstrapError: ''
           })
         } catch (e: any) {
-          // 后端不可达：保留硬编码默认值，UI 仍可用
+          // 后端不可达：保留最小离线兜底数据，UI 仍可用
           set({ bootstrapped: true, bootstrapError: e?.message ?? '后台连接失败' })
         }
       },
@@ -585,6 +585,9 @@ export const useStore = create<AppState>()(
 
       // ===== 用户自定义供应商/模型（纯本地存储，不写服务器） =====
       addCustomProvider: async (b) => {
+        if (!get().user.loggedIn) {
+          throw new Error('请先登录后再添加自定义供应商')
+        }
         const id = b.id.trim()
         if (get().providers.some((p) => p.id === id)) {
           throw new Error('供应商 ID 已存在')
@@ -595,6 +598,9 @@ export const useStore = create<AppState>()(
           keyHint: b.keyHint ?? '',
           url: b.url ?? '',
           apiBaseUrl: b.apiBaseUrl,
+          protocol: b.protocol,
+          submitPath: b.submitPath,
+          statusPath: b.statusPath,
           source: 'user',
           models: []
         }
@@ -605,6 +611,9 @@ export const useStore = create<AppState>()(
       },
 
       addCustomModel: async (b) => {
+        if (!get().user.loggedIn) {
+          throw new Error('请先登录后再添加自定义模型')
+        }
         const target = get().providers.find((p) => p.id === b.providerId)
         if (!target) throw new Error('供应商不存在')
         if (target.models.some((m) => m.id === b.id.trim())) {
@@ -647,6 +656,9 @@ export const useStore = create<AppState>()(
       },
 
       importCustomResources: (json) => {
+        if (!get().user.loggedIn) {
+          throw new Error('请先登录后再导入自定义资源')
+        }
         let data: any
         try {
           data = JSON.parse(json)
@@ -663,6 +675,11 @@ export const useStore = create<AppState>()(
             keyHint: String(p.keyHint ?? ''),
             url: String(p.url ?? ''),
             apiBaseUrl: p.apiBaseUrl ? String(p.apiBaseUrl) : undefined,
+            protocol: ['dashscope', 'ark', 'kling'].includes(String(p.protocol))
+              ? (p.protocol as VideoProtocol)
+              : undefined,
+            submitPath: p.submitPath ? String(p.submitPath) : undefined,
+            statusPath: p.statusPath ? String(p.statusPath) : undefined,
             source: 'user' as const,
             models: Array.isArray(p.models)
               ? p.models
@@ -718,6 +735,9 @@ export const useStore = create<AppState>()(
         if (b.keyHint !== undefined) patch.keyHint = b.keyHint
         if (b.url !== undefined) patch.url = b.url
         if (b.apiBaseUrl !== undefined) patch.apiBaseUrl = b.apiBaseUrl
+        if (b.protocol !== undefined) patch.protocol = b.protocol
+        if (b.submitPath !== undefined) patch.submitPath = b.submitPath
+        if (b.statusPath !== undefined) patch.statusPath = b.statusPath
         set((s) => ({
           providers: s.providers.map((p) => (p.id === b.id ? { ...p, ...patch } : p)),
           customProviders: s.customProviders.map((p) => (p.id === b.id ? { ...p, ...patch } : p))

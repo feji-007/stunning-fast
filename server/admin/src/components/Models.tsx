@@ -1,4 +1,4 @@
-// 模型管理:列表/新增/编辑/删除;分页;system 模型的能力字段只读,user 模型可修改
+// 模型管理:列表/新增/编辑/删除;分页;所有字段（含能力、默认参数）均由后台维护
 import { useEffect, useMemo, useState } from 'react'
 import { modelsApi, providersApi } from '../api'
 import SortableTh from './SortableTh'
@@ -16,9 +16,13 @@ interface Model {
   resolution: string
   speed: string
   price: number | string
+  default_resolution: string
+  default_ratio: string
+  default_duration: string
   docs_url: string
   source: string
   sort_order: number
+  is_active: boolean
 }
 
 interface Provider {
@@ -38,9 +42,13 @@ interface Form {
   resolution: string
   speed: string
   price: number | string
+  default_resolution: string
+  default_ratio: string
+  default_duration: string
   docs_url: string
   source: string
   sort_order: number
+  is_active: boolean
 }
 
 const EMPTY_FORM: Form = {
@@ -52,12 +60,16 @@ const EMPTY_FORM: Form = {
   supports_i2v: false,
   supports_first_last: false,
   supports_reference: false,
-  resolution: '720p',
-  speed: 'standard',
+  resolution: '720',
+  speed: '60',
   price: '0',
+  default_resolution: '720P',
+  default_ratio: '16:9',
+  default_duration: '5',
   docs_url: '',
   source: 'system',
-  sort_order: 0
+  sort_order: 0,
+  is_active: true
 }
 
 const MODEL_GETTERS: Record<string, (m: Model) => string | number> = {
@@ -157,28 +169,26 @@ export default function Models() {
     setSaving(true)
     // 后端 API 接收 camelCase: id / providerId / name / type / description /
     //   supportsI2V / supportsFirstLast / supportsReference / resolution / speed /
-    //   price / source / sortOrder / isActive
-    // 编辑 system 模型时, 即使前端锁定了字段, 也不要让 body 中的旧值覆盖 DB 中
-    // 已被迁移修正的值. 所以 isSystemEdit 时主动剔除能力字段.
+    //   price / defaultResolution / defaultRatio / defaultDuration / source / sortOrder / isActive
     const d = modal.data
-    const isSys = modal.mode === 'edit' && (d.source ?? 'system') === 'system'
     const body: any = {
       providerId: d.provider_id,
       name: d.name,
       type: d.type,
       description: d.description,
-      resolution: d.resolution,
-      speed: d.speed,
+      supportsI2V: !!d.supports_i2v,
+      supportsFirstLast: !!d.supports_first_last,
+      supportsReference: !!d.supports_reference,
+      resolution: Number(d.resolution) || 0,
+      speed: Number(d.speed) || 0,
       price: Number(d.price) || 0,
+      defaultResolution: d.default_resolution,
+      defaultRatio: d.default_ratio,
+      defaultDuration: d.default_duration,
       docsUrl: d.docs_url,
       source: d.source,
       sortOrder: Number(d.sort_order) || 0,
-      isActive: true
-    }
-    if (!isSys) {
-      body.supportsI2V = !!d.supports_i2v
-      body.supportsFirstLast = !!d.supports_first_last
-      body.supportsReference = !!d.supports_reference
+      isActive: d.is_active
     }
     if (modal.mode === 'create') {
       body.id = (d.id || '').trim()
@@ -191,16 +201,14 @@ export default function Models() {
       .finally(() => setSaving(false))
   }
 
-  // 编辑 system 模型时, 能力字段禁用 (因为这些与代码生成参数强绑定)
-  const isSystemEdit = modal?.mode === 'edit' && (modal.data.source ?? 'system') === 'system'
+  // 能力字段全部由数据库维护，后台可随时修改，客户端不再做本地覆盖
   const CapCheckbox: React.FC<{ label: string; checked: boolean; onChange: (v: boolean) => void }> = ({ label, checked, onChange }) => (
-    <label className={`flex items-center gap-2 text-sm ${isSystemEdit ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700'}`}>
+    <label className="flex items-center gap-2 text-sm text-gray-700">
       <input
         type="checkbox"
-        disabled={isSystemEdit}
         checked={checked}
-        onChange={(e) => !isSystemEdit && onChange(e.target.checked)}
-        className="rounded disabled:opacity-60"
+        onChange={(e) => onChange(e.target.checked)}
+        className="rounded"
       />
       {label}
     </label>
@@ -319,9 +327,14 @@ export default function Models() {
                           description: m.description || '', supports_i2v: m.supports_i2v,
                           supports_first_last: m.supports_first_last, supports_reference: m.supports_reference,
                           resolution: m.resolution || '', speed: m.speed || '',
-                          price: String(m.price ?? '0'), docs_url: m.docs_url || '',
+                          price: String(m.price ?? '0'),
+                          default_resolution: m.default_resolution || '',
+                          default_ratio: m.default_ratio || '',
+                          default_duration: m.default_duration || '',
+                          docs_url: m.docs_url || '',
                           source: m.source ?? 'system',
-                          sort_order: m.sort_order ?? 0
+                          sort_order: m.sort_order ?? 0,
+                          is_active: m.is_active
                         }
                       })}
                       className="px-2 py-1 text-xs bg-brand-50 text-brand-700 rounded hover:bg-brand-100"
@@ -347,17 +360,10 @@ export default function Models() {
 
       {modal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-float w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto scroll-thin">
-            <h3 className="text-base font-semibold text-gray-800 mb-2">
+          <div className="bg-white rounded-xl shadow-float w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto scroll-thin">
+            <h3 className="text-base font-semibold text-gray-800 mb-4">
               {modal.mode === 'create' ? '新增模型' : '编辑模型'}
             </h3>
-            {isSystemEdit && (
-              <div className="mb-4 px-3 py-2 rounded-lg bg-amber-50 text-xs text-amber-700 border border-amber-200">
-                正在编辑【系统模型】。与代码生成逻辑强绑定的能力字段（图生视频 / 首尾帧 / 参考图）已自动锁定为只读；
-                名称 / 说明 / 分辨率 / 速度 / 价格 / 排序 / 「了解模型详情 URL」可修改。
-                如需修改来源,请切换【来源】为「用户」。
-              </div>
-            )}
             <div className="grid grid-cols-2 gap-4">
               {modal.mode === 'create' && (
                 <div className="col-span-2">
@@ -400,9 +406,9 @@ export default function Models() {
               <div>
                 <label className="block text-sm text-gray-700 mb-1">来源</label>
                 <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500">
-                  {modal.data.source === 'user' ? '用户（历史数据，所有字段可修改）' : '系统（能力字段锁定）'}
+                  {modal.data.source === 'user' ? '用户（历史数据）' : '系统'}
                 </div>
-                <p className="mt-1 text-xs text-gray-400">用户自定义资源仅存客户端本地，后台新增固定为系统来源</p>
+                <p className="mt-1 text-xs text-gray-400">所有字段（含能力与默认参数）均由后台数据库统一管理，客户端不再做本地覆盖</p>
               </div>
               <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">说明</label>
@@ -414,14 +420,12 @@ export default function Models() {
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm text-gray-700 mb-1">
-                  了解模型详情 URL {modal.mode === 'edit' && '(留空使用内置默认值)'}
-                </label>
+                <label className="block text-sm text-gray-700 mb-1">了解模型详情 URL</label>
                 <input
                   value={modal.data.docs_url}
                   onChange={(e) => setModal({ ...modal, data: { ...modal.data, docs_url: e.target.value } })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  placeholder="https://...(客户端「了解模型详情」按钮跳转地址，留空回退到内置默认)"
+                  placeholder="https://...(客户端「了解模型详情」按钮跳转地址，留空则不显示跳转)"
                 />
               </div>
               <div>
@@ -450,6 +454,33 @@ export default function Models() {
                 />
               </div>
               <div>
+                <label className="block text-sm text-gray-700 mb-1">默认分辨率</label>
+                <input
+                  value={modal.data.default_resolution}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, default_resolution: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="例如 1080P（留空则沿用上次选择）"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">默认比例</label>
+                <input
+                  value={modal.data.default_ratio}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, default_ratio: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="例如 16:9（留空则沿用上次选择）"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">默认时长</label>
+                <input
+                  value={modal.data.default_duration}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, default_duration: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="例如 5（秒，留空则沿用上次选择）"
+                />
+              </div>
+              <div>
                 <label className="block text-sm text-gray-700 mb-1">排序</label>
                 <input
                   type="number"
@@ -458,7 +489,7 @@ export default function Models() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
-              <div className="col-span-2 grid grid-cols-3 gap-3 pt-2 border-t border-gray-100">
+              <div className="col-span-2 grid grid-cols-4 gap-3 pt-2 border-t border-gray-100">
                 <CapCheckbox
                   label="支持图生视频 (i2v)"
                   checked={modal.data.supports_i2v}
@@ -473,6 +504,11 @@ export default function Models() {
                   label="参考图模式"
                   checked={modal.data.supports_reference}
                   onChange={(v) => setModal({ ...modal!, data: { ...modal!.data, supports_reference: v } })}
+                />
+                <CapCheckbox
+                  label="启用（客户端可见）"
+                  checked={modal.data.is_active}
+                  onChange={(v) => setModal({ ...modal!, data: { ...modal!.data, is_active: v } })}
                 />
               </div>
             </div>

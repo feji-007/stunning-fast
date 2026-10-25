@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { bootstrapApi } from '../api/client'
+import { useStore } from '../store/useStore'
 import type { RecommendQuestion, RecommendModel, GuideQuestion } from '../types'
 
 // ===== 消息类型 =====
@@ -19,7 +20,31 @@ const TABS: Array<{ key: TabKey; icon: string; label: string }> = [
 
 // ===== 组件 =====
 export default function RecommendationAssistantModal() {
+  const user = useStore((s) => s.user)
   const [tab, setTab] = useState<TabKey>('recommend')
+
+  // 未登录时显示引导页面
+  if (!user.loggedIn) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-3">
+        <div className="flex h-[600px] w-[500px] flex-col items-center justify-center gap-4 overflow-hidden rounded-2xl bg-white p-8 text-center shadow-[0_10px_40px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-500 text-2xl text-white shadow-sm">
+            ⚡
+          </div>
+          <h3 className="text-base font-semibold text-gray-800">AI 助手需要登录后使用</h3>
+          <p className="max-w-[360px] text-xs leading-relaxed text-gray-500">
+            登录后即可使用 AI 模型推荐助手和使用指南问答等功能，帮助你快速找到最合适的视频生成模型。
+          </p>
+          <button
+            onClick={() => window.api?.closeRecommendationWindow?.().catch(() => {})}
+            className="rounded-xl bg-brand-500 px-6 py-2 text-xs font-medium text-white hover:bg-brand-600"
+          >
+            我知道了，返回登录后再试
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // 推荐数据（从后端 bootstrap 拉取）
   const [questions, setQuestions] = useState<RecommendQuestion[]>([])

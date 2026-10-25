@@ -1,12 +1,39 @@
 import { useMemo, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore'
-import type { Provider, ProviderModel } from '../../types'
+import type { Provider, ProviderModel, VideoProtocol } from '../../types'
+
+// 各协议的默认提交/查询路径（仅用于自定义供应商表单的初始值/占位提示；系统供应商路径由后台数据库下发）
+const PROTOCOL_DEFAULTS: Record<VideoProtocol, { submitPath: string; statusPath: string }> = {
+  dashscope: { submitPath: '/services/aigc/video-generation/video-synthesis', statusPath: '/tasks/{taskId}' },
+  ark:       { submitPath: '/contents/generations/tasks',                  statusPath: '/contents/generations/tasks/{taskId}' },
+  kling:     { submitPath: '/videos/text2video',                           statusPath: '/videos/text2video/{taskId}' },
+  minimax:   { submitPath: '/v1/video_generation',                         statusPath: '/v1/query/video_generation?task_id={taskId}' },
+  zhipu:     { submitPath: '/api/paas/v4/videos/generations',              statusPath: '/api/paas/v4/videos/generations/{taskId}' },
+  runway:    { submitPath: '/v1/text_to_video',                            statusPath: '/v1/tasks/{taskId}' },
+  luma:      { submitPath: '/generations',                                 statusPath: '/generations/{taskId}' },
+  openai:    { submitPath: '/v1/videos',                                  statusPath: '/v1/videos/{taskId}' },
+  pika:      { submitPath: '/v1/videos',                                   statusPath: '/v1/videos/{taskId}' }
+}
+
+const PROTOCOL_OPTIONS: Array<{ value: VideoProtocol; label: string }> = [
+  { value: 'dashscope', label: 'DashScope（通义万相）' },
+  { value: 'ark',       label: 'Ark（火山引擎 Seedance）' },
+  { value: 'kling',     label: '可灵（Kling）' },
+  { value: 'minimax',   label: 'MiniMax' },
+  { value: 'zhipu',     label: '智谱 CogVideoX' },
+  { value: 'runway',    label: 'Runway Gen-3' },
+  { value: 'luma',      label: 'Luma Dream Machine' },
+  { value: 'openai',    label: 'OpenAI Sora' },
+  { value: 'pika',      label: 'Pika' }
+]
 
 // 资源库：罗列主流常用模型，帮用户搜索更适配的资源。
 // 系统供应商/模型来自后端 bootstrap；用户自定义供应商/模型仅保存在本地
 // （localStorage），不上传服务器，可通过「导出/导入」跨设备迁移。
 export default function ResourceLibrary() {
   const providers = useStore((s) => s.providers)
+  const user = useStore((s) => s.user)
+  const setModal = useStore((s) => s.setModal)
   const exportCustomResources = useStore((s) => s.exportCustomResources)
   const importCustomResources = useStore((s) => s.importCustomResources)
   const hasCustom = useStore((s) => s.customProviders.length + s.customModels.length > 0)
@@ -20,6 +47,15 @@ export default function ResourceLibrary() {
   // 当前正在编辑的资源（供应商或模型）；null 表示未打开编辑弹窗
   const [editing, setEditing] = useState<null | { kind: 'provider' | 'model'; id: string; providerId?: string }>(null)
   const [toast, setToast] = useState('')
+  // 自定义确认对话框：避免 window.confirm 在 Electron 中阻塞键盘焦点
+  const [confirm, setConfirm] = useState<{
+    title: string
+    message: string
+    onConfirm: () => void
+    onCancel: () => void
+  } | null>(null)
+  // AddResourceModal 的 key，每次打开时 +1，强制组件重新挂载以保证输入框干净
+  const [addModalKey, setAddModalKey] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const showToast = (msg: string) => {
@@ -27,14 +63,37 @@ export default function ResourceLibrary() {
     window.setTimeout(() => setToast(''), 2500)
   }
 
-  const handleDeleteModel = (m: ProviderModel) => {
-    if (!window.confirm(`确定删除自定义模型「${m.name}」吗？`)) return
+  const promptLogin = (msg: string) => {
+    showToast(msg)
+    setModal('login')
+  }
+
+  // 封装基于 React 状态的确认对话框，返回 Promise<boolean>
+  const confirmAsync = (title: string, message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setConfirm({
+        title,
+        message,
+        onConfirm: () => {
+          setConfirm(null)
+          resolve(true)
+        },
+        onCancel: () => {
+          setConfirm(null)
+          resolve(false)
+        }
+      })
+    })
+  }
+
+  const handleDeleteModel = async (m: ProviderModel) => {
+    if (!(await confirmAsync('删除自定义模型', `确定删除自定义模型「${m.name}」吗？`))) return
     void removeCustomModel({ id: m.id, providerId: m.provider })
     // 若删的是某自定义供应商下的最后一个模型，询问是否连带删除该供应商
     // （不静默级联：仅建了供应商、暂未加模型是合法空态）
     const owner = customProviders.find((p) => p.id === m.provider)
     if (owner && owner.models.length === 1) {
-      if (window.confirm(`「${owner.name}」下已无自定义模型，是否一并删除该自定义供应商？`)) {
+      if (await confirmAsync('一并删除供应商', `「${owner.name}」下已无自定义模型，是否一并删除该自定义供应商？`)) {
         void removeCustomProvider(owner.id)
         showToast('已删除自定义模型与供应商')
         return
@@ -43,8 +102,8 @@ export default function ResourceLibrary() {
     showToast('已删除自定义模型')
   }
 
-  const handleDeleteProvider = (p: Provider) => {
-    if (!window.confirm(`确定删除自定义供应商「${p.name}」及其下所有自定义模型吗？`)) return
+  const handleDeleteProvider = async (p: Provider) => {
+    if (!(await confirmAsync('删除自定义供应商', `确定删除自定义供应商「${p.name}」及其下所有自定义模型吗？`))) return
     void removeCustomProvider(p.id)
     showToast('已删除自定义供应商')
   }
@@ -61,6 +120,11 @@ export default function ResourceLibrary() {
   }
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user.loggedIn) {
+      e.target.value = ''
+      promptLogin('请先登录后再导入自定义资源')
+      return
+    }
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -126,7 +190,14 @@ export default function ResourceLibrary() {
             导出
           </button>
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={() => {
+              if (!user.loggedIn) {
+                promptLogin('请先登录后再添加自定义资源')
+                return
+              }
+              setAddModalKey((k) => k + 1)
+              setShowAdd(true)
+            }}
             className="rounded-lg border border-brand-300 bg-brand-50/50 px-2.5 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-100"
             title="添加自定义供应商或模型（仅保存在本机）"
           >
@@ -234,7 +305,14 @@ export default function ResourceLibrary() {
               点击右上角「添加」创建自定义供应商与模型，仅保存在本机。
             </p>
             <button
-              onClick={() => setShowAdd(true)}
+              onClick={() => {
+                if (!user.loggedIn) {
+                  promptLogin('请先登录后再添加自定义资源')
+                  return
+                }
+                setAddModalKey((k) => k + 1)
+                setShowAdd(true)
+              }}
               className="mt-1 rounded-lg border border-brand-300 bg-brand-50/50 px-3 py-1 text-[11px] text-brand-600 hover:bg-brand-100"
             >
               添加自定义资源
@@ -257,8 +335,32 @@ export default function ResourceLibrary() {
         )}
       </div>
 
-      {showAdd && <AddResourceModal onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddResourceModal key={addModalKey} onClose={() => setShowAdd(false)} />}
       {editing && <EditResourceModal editing={editing} onClose={() => setEditing(null)} />}
+
+      {/* 自定义确认对话框：替代 window.confirm，避免 Electron 中键盘焦点丢失 */}
+      {confirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="flex w-[380px] flex-col gap-4 rounded-xl bg-white p-5 shadow-lg">
+            <h3 className="text-sm font-semibold text-gray-800">{confirm.title}</h3>
+            <p className="text-xs leading-relaxed text-gray-600">{confirm.message}</p>
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                onClick={confirm.onCancel}
+                className="rounded-lg bg-gray-100 px-4 py-1.5 text-xs text-gray-600 hover:bg-gray-200"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirm.onConfirm}
+                className="rounded-lg bg-red-500 px-4 py-1.5 text-xs text-white hover:bg-red-600"
+              >
+                确定删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -370,6 +472,9 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
   const [pName, setPName] = useState('')
   const [pUrl, setPUrl] = useState('')
   const [pApiBaseUrl, setPApiBaseUrl] = useState('')
+  const [pProtocol, setPProtocol] = useState<VideoProtocol>('dashscope')
+  const [pSubmitPath, setPSubmitPath] = useState('')
+  const [pStatusPath, setPStatusPath] = useState('')
   const [pKeyHint, setPKeyHint] = useState('')
 
   // 模型表单
@@ -399,6 +504,9 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
         name: pName.trim(),
         url: pUrl.trim() || undefined,
         apiBaseUrl: pApiBaseUrl.trim() || undefined,
+        protocol: pProtocol,
+        submitPath: pSubmitPath.trim() || undefined,
+        statusPath: pStatusPath.trim() || undefined,
         keyHint: pKeyHint.trim() || undefined
       })
       // 成功后清空供应商表单，并自动切到模型 tab 方便继续添加模型
@@ -406,6 +514,9 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
       setPName('')
       setPUrl('')
       setPApiBaseUrl('')
+      setPProtocol('dashscope')
+      setPSubmitPath('')
+      setPStatusPath('')
       setPKeyHint('')
       setMProvider(pId.trim())
       setTab('model')
@@ -527,6 +638,39 @@ function AddResourceModal({ onClose }: { onClose: () => void }) {
                 <p className="mt-0.5 text-[10px] text-gray-400">必填：主进程发起真实生成请求时使用的基础地址</p>
               </div>
               <div>
+                <label className="mb-0.5 block text-xs text-gray-600">生成协议 <span className="text-red-500">*</span></label>
+                <select
+                  value={pProtocol}
+                  onChange={(e) => setPProtocol(e.target.value as VideoProtocol)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                >
+                  {PROTOCOL_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <p className="mt-0.5 text-[10px] text-gray-400">决定请求体格式与鉴权方式，自定义供应商必须选择</p>
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">提交路径 (可选)</label>
+                <input
+                  value={pSubmitPath}
+                  onChange={(e) => setPSubmitPath(e.target.value)}
+                  placeholder={PROTOCOL_DEFAULTS[pProtocol].submitPath}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+                <p className="mt-0.5 text-[10px] text-gray-400">留空使用协议默认路径</p>
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">查询路径 (可选)</label>
+                <input
+                  value={pStatusPath}
+                  onChange={(e) => setPStatusPath(e.target.value)}
+                  placeholder={PROTOCOL_DEFAULTS[pProtocol].statusPath}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+                <p className="mt-0.5 text-[10px] text-gray-400">支持 {'{taskId}'} 占位符；留空使用协议默认路径</p>
+              </div>
+              <div>
                 <label className="mb-0.5 block text-xs text-gray-600">API Key 前缀提示 (可选)</label>
                 <input
                   value={pKeyHint}
@@ -636,8 +780,13 @@ function EditResourceModal({
   const model = isProvider ? undefined : provider?.models.find((m) => m.id === editing.id)
 
   const [name, setName] = useState(provider?.name ?? '')
+  const initialProtocol = provider?.protocol ?? 'dashscope'
   const [url, setUrl] = useState(provider?.url ?? '')
   const [apiBaseUrl, setApiBaseUrl] = useState(provider?.apiBaseUrl ?? '')
+  const [protocol, setProtocol] = useState<VideoProtocol>(initialProtocol)
+  // 新建自定义供应商时预填协议默认路径；系统供应商与已有自定义供应商以已保存值为准
+  const [submitPath, setSubmitPath] = useState(provider ? (provider.submitPath ?? '') : PROTOCOL_DEFAULTS[initialProtocol].submitPath)
+  const [statusPath, setStatusPath] = useState(provider ? (provider.statusPath ?? '') : PROTOCOL_DEFAULTS[initialProtocol].statusPath)
   const [keyHint, setKeyHint] = useState(provider?.keyHint ?? '')
   const [type, setType] = useState<ProviderModel['type']>(model?.type ?? 'video')
   const [desc, setDesc] = useState(model?.desc ?? '')
@@ -664,6 +813,9 @@ function EditResourceModal({
           name: name.trim(),
           url: url.trim(),
           apiBaseUrl: apiBaseUrl.trim(),
+          protocol,
+          submitPath: submitPath.trim(),
+          statusPath: statusPath.trim(),
           keyHint: keyHint.trim()
         })
       } else {
@@ -739,6 +891,45 @@ function EditResourceModal({
                   className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
                 />
                 <p className="mt-0.5 text-[10px] text-gray-400">主进程发起真实生成请求时使用的基础地址</p>
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">生成协议</label>
+                <select
+                  value={protocol}
+                  onChange={(e) => {
+                    const next = e.target.value as VideoProtocol
+                    setProtocol(next)
+                    // 自定义供应商新建时同步协议默认路径，避免留空导致无法发起请求
+                    if (!provider) {
+                      setSubmitPath(PROTOCOL_DEFAULTS[next].submitPath)
+                      setStatusPath(PROTOCOL_DEFAULTS[next].statusPath)
+                    }
+                  }}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                >
+                  {PROTOCOL_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">提交路径 (可选)</label>
+                <input
+                  value={submitPath}
+                  onChange={(e) => setSubmitPath(e.target.value)}
+                  placeholder={PROTOCOL_DEFAULTS[protocol].submitPath}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-600">查询路径 (可选)</label>
+                <input
+                  value={statusPath}
+                  onChange={(e) => setStatusPath(e.target.value)}
+                  placeholder={PROTOCOL_DEFAULTS[protocol].statusPath}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-brand-400"
+                />
+                <p className="mt-0.5 text-[10px] text-gray-400">支持 {'{taskId}'} 占位符；留空使用协议默认路径</p>
               </div>
               <div>
                 <label className="mb-0.5 block text-xs text-gray-600">API Key 前缀提示 (可选)</label>

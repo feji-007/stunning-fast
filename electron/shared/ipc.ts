@@ -101,9 +101,23 @@ export interface ExposedAPI {
   closeRecommendationWindow: () => Promise<void>
 }
  
+/** 视频生成协议：决定请求体格式、鉴权方式与状态映射 */
+export type VideoProtocol =
+  | 'dashscope'   // 通义万相 DashScope（已实现）
+  | 'ark'         // 火山引擎 Ark / Seedance（已实现）
+  | 'kling'       // 可灵（已实现）
+  | 'minimax'     // MiniMax（API 端点已录入，协议待实现）
+  | 'zhipu'       // 智谱 CogVideoX（API 端点已录入，协议待实现）
+  | 'runway'      // Runway Gen-3（API 端点已录入，协议待实现）
+  | 'luma'        // Luma Dream Machine（API 端点已录入，协议待实现）
+  | 'openai'      // OpenAI Sora（API 端点已录入，协议待实现）
+  | 'pika'        // Pika（API 端点占位，协议待实现）
+
 export interface GenerateVideoParams {
-  /** 供应商路由：主进程据此分发到对应客户端 */
+  /** 供应商 id（用于日志/任务记录） */
   provider: string
+  /** 协议类型；由后台供应商配置下发，必填 */
+  protocol?: VideoProtocol
   apiKey: string
   /** 模型 id，如 wan2.7-t2v / wan2.1-t2v-turbo / doubao-seedance-2-0-260128 */
   model: string
@@ -116,9 +130,16 @@ export interface GenerateVideoParams {
   duration?: number
   /** 图生视频：参考图 URL，可选（仅支持图生视频的模型使用） */
   imageUrl?: string
-  /** 供应商 API 基础地址（从后端 providers.api_base_url 下发）。
-   *  留空时各客户端函数会回退到内置硬编码默认值，保证老版本/后端不可达时仍可工作。 */
+  /** 供应商 API 基础地址（从后端 providers.api_base_url 下发，必填）。 */
   apiBaseUrl?: string
+  /** 任务提交路径（相对 apiBaseUrl，如 /services/...），由后台供应商配置下发。 */
+  submitPath?: string
+  /** 任务查询路径（相对 apiBaseUrl，支持 {taskId} 占位符），由后台供应商配置下发。 */
+  statusPath?: string
+  /** 图生视频任务提交路径（可选；可灵等独立端点），留空沿用 submitPath */
+  submitPathI2v?: string
+  /** 图生视频任务查询路径（可选），留空沿用 statusPath */
+  statusPathI2v?: string
 }
  
 export interface GenerateVideoResult {

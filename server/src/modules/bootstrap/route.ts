@@ -16,10 +16,13 @@ const router = Router()
 router.get('/', async (_req, res, next) => {
   try {
     const providers = await query(
-      `SELECT id, name, key_hint, url, api_base_url, api_key_url, source FROM providers WHERE is_active = TRUE ORDER BY sort_order, id`
+      `SELECT id, name, key_hint, url, api_base_url, api_key_url, protocol, submit_path, status_path,
+              submit_path_i2v, status_path_i2v, source
+       FROM providers WHERE is_active = TRUE ORDER BY sort_order, id`
     )
     const models = await query(
-      `SELECT id, provider_id, name, type, description, supports_i2v, resolution, speed, price, docs_url, source
+      `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+              resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source
        FROM models WHERE is_active = TRUE ORDER BY sort_order, id`
     )
     const features = await query(

@@ -21,6 +21,11 @@ const SCHEMA_STATEMENTS: string[] = [
   url         VARCHAR(256) NOT NULL DEFAULT '',
   api_base_url VARCHAR(256) NOT NULL DEFAULT '',
   api_key_url VARCHAR(256) NOT NULL DEFAULT '',
+  protocol    VARCHAR(32)  NOT NULL DEFAULT '',
+  submit_path VARCHAR(256) NOT NULL DEFAULT '',
+  status_path VARCHAR(256) NOT NULL DEFAULT '',
+  submit_path_i2v VARCHAR(256) NOT NULL DEFAULT '',
+  status_path_i2v VARCHAR(256) NOT NULL DEFAULT '',
   source      VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order  INT          NOT NULL DEFAULT 0,
   is_active   TINYINT(1)   NOT NULL DEFAULT 1,
@@ -41,6 +46,9 @@ const SCHEMA_STATEMENTS: string[] = [
   resolution    INT          NOT NULL DEFAULT 720,
   speed         INT          NOT NULL DEFAULT 60,
   price         INT          NOT NULL DEFAULT 2,
+  default_resolution VARCHAR(16) NOT NULL DEFAULT '',
+  default_ratio      VARCHAR(16) NOT NULL DEFAULT '',
+  default_duration   VARCHAR(16) NOT NULL DEFAULT '',
   docs_url      VARCHAR(256) NOT NULL DEFAULT '',
   source        VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order    INT          NOT NULL DEFAULT 0,
@@ -207,6 +215,13 @@ const SCHEMA_STATEMENTS: string[] = [
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  // 一次性数据迁移的执行标记（避免重复回填覆盖管理员修改）
+  `CREATE TABLE IF NOT EXISTS meta (
+  \`key\`     VARCHAR(64)  NOT NULL,
+  \`value\`   VARCHAR(256) NOT NULL DEFAULT '',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`key\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
 ]
 
@@ -242,6 +257,17 @@ export async function ensureSchema(): Promise<void> {
   await addColumnIfMissing('models', 'docs_url', "VARCHAR(256) NOT NULL DEFAULT ''")
   // 迁移：为已有 providers 表补充 api_base_url 字段（管理员可在后台覆盖 API 调用端点）
   await addColumnIfMissing('providers', 'api_base_url', "VARCHAR(256) NOT NULL DEFAULT ''")
+  // 迁移：为已有 providers 表补充视频生成协议与提交/查询路径（自定义供应商协议）
+  await addColumnIfMissing('providers', 'protocol', "VARCHAR(32) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('providers', 'submit_path', "VARCHAR(256) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('providers', 'status_path', "VARCHAR(256) NOT NULL DEFAULT ''")
+  // 迁移：图生视频可能使用独立端点（如可灵），由后台分别配置
+  await addColumnIfMissing('providers', 'submit_path_i2v', "VARCHAR(256) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('providers', 'status_path_i2v', "VARCHAR(256) NOT NULL DEFAULT ''")
+  // 迁移：模型级默认生成参数（选中模型时由客户端预填）
+  await addColumnIfMissing('models', 'default_resolution', "VARCHAR(16) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('models', 'default_ratio', "VARCHAR(16) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('models', 'default_duration', "VARCHAR(16) NOT NULL DEFAULT ''")
   console.log('[db] 表结构检查完成（已存在则跳过）')
 }
 

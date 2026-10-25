@@ -29,11 +29,35 @@ export interface ProviderModel {
   supportsReference?: boolean
   /** 模型详情介绍页地址 */
   docsUrl?: string
+  /** 分辨率档位（720/1080，后台维护，用于自动匹配与展示） */
+  resolution?: number
+  /** 速度评分（数值越小越快，后台维护） */
+  speed?: number
+  /** 价格档位（后台维护） */
+  price?: number
+  /** 选中该模型时预填的默认分辨率，如 720P / 1080P */
+  defaultResolution?: string
+  /** 选中该模型时预填的默认画面比例，如 16:9 */
+  defaultRatio?: string
+  /** 选中该模型时预填的默认时长（秒） */
+  defaultDuration?: string
   /** 来源：system 系统自带 / user 用户自定义 */
   source?: 'system' | 'user'
 }
 
 export type ProviderId = string
+
+/** 视频生成协议类型：决定请求体格式、鉴权方式与状态映射 */
+export type VideoProtocol =
+  | 'dashscope'   // 通义万相 DashScope（已实现）
+  | 'ark'         // 火山引擎 Ark / Seedance（已实现）
+  | 'kling'       // 可灵（已实现）
+  | 'minimax'     // MiniMax（API 端点已录入，协议待实现）
+  | 'zhipu'       // 智谱 CogVideoX（API 端点已录入，协议待实现）
+  | 'runway'      // Runway Gen-3（API 端点已录入，协议待实现）
+  | 'luma'        // Luma Dream Machine（API 端点已录入，协议待实现）
+  | 'openai'      // OpenAI Sora（API 端点已录入，协议待实现）
+  | 'pika'        // Pika（API 端点占位，协议待实现）
 
 export interface Provider {
   id: ProviderId
@@ -46,6 +70,16 @@ export interface Provider {
   apiKeyUrl?: string
   /** API 调用端点（后端 providers.api_base_url，下发给主进程生成时使用） */
   apiBaseUrl?: string
+  /** 视频生成协议；由后台供应商配置下发，客户端不再按 id 推断 */
+  protocol?: VideoProtocol
+  /** 任务提交路径（相对 apiBaseUrl），由后台配置 */
+  submitPath?: string
+  /** 任务查询路径（相对 apiBaseUrl，支持 {taskId} 占位符），由后台配置 */
+  statusPath?: string
+  /** 图生视频任务提交路径（后台可选配置，留空沿用 submitPath） */
+  submitPathI2v?: string
+  /** 图生视频任务查询路径（后台可选配置，留空沿用 statusPath） */
+  statusPathI2v?: string
   models: ProviderModel[]
   /** 来源：system 系统自带 / user 用户自定义 */
   source?: 'system' | 'user'

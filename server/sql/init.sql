@@ -33,7 +33,13 @@ CREATE TABLE IF NOT EXISTS providers (
   name        VARCHAR(128) NOT NULL,
   key_hint    VARCHAR(64)  NOT NULL DEFAULT '',
   url         VARCHAR(256) NOT NULL DEFAULT '',
+  api_base_url VARCHAR(256) NOT NULL DEFAULT '',
   api_key_url VARCHAR(256) NOT NULL DEFAULT '',
+  protocol    VARCHAR(32)  NOT NULL DEFAULT '',
+  submit_path VARCHAR(256) NOT NULL DEFAULT '',
+  status_path VARCHAR(256) NOT NULL DEFAULT '',
+  submit_path_i2v VARCHAR(256) NOT NULL DEFAULT '',
+  status_path_i2v VARCHAR(256) NOT NULL DEFAULT '',
   source      VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order  INT          NOT NULL DEFAULT 0,
   is_active   TINYINT(1)   NOT NULL DEFAULT 1,
@@ -55,6 +61,9 @@ CREATE TABLE IF NOT EXISTS models (
   resolution    INT          NOT NULL DEFAULT 720,
   speed         INT          NOT NULL DEFAULT 60,
   price         INT          NOT NULL DEFAULT 2,
+  default_resolution VARCHAR(16) NOT NULL DEFAULT '',
+  default_ratio      VARCHAR(16) NOT NULL DEFAULT '',
+  default_duration   VARCHAR(16) NOT NULL DEFAULT '',
   docs_url      VARCHAR(256) NOT NULL DEFAULT '',
   source        VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order    INT          NOT NULL DEFAULT 0,
@@ -230,6 +239,14 @@ CREATE TABLE IF NOT EXISTS guide_questions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
+-- 一次性数据迁移的执行标记
+-- ============================================================
+CREATE TABLE IF NOT EXISTS meta (
+  `key`      VARCHAR(64)  NOT NULL,
+  `value`    VARCHAR(256) NOT NULL DEFAULT '',
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 -- 说明：
 --  1. 本脚本仅建表，不含种子数据。
 --  2. 启动后端服务（npm run dev）时，seed.ts 会检测各表为空
