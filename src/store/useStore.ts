@@ -106,8 +106,9 @@ interface AppState {
   setTheme: (t: Theme) => void
   toggleFeatureViewMode: () => void
   login: (username: string, password: string) => Promise<void>
+  loginEmail: (email: string, code: string) => Promise<void>
   logout: () => void
-  register: (username: string, password: string) => Promise<void>
+  register: (username: string, password: string, email: string, code: string) => Promise<void>
   saveKey: (provider: ProviderId, key: string) => void
   removeKey: (provider: ProviderId) => void
   pinFeature: (id: FeatureId, pinned: boolean) => void
@@ -403,12 +404,27 @@ export const useStore = create<AppState>()(
         // 登录成功后拉取该用户的私有配置（密钥/布局）并合并
         await get().pullUserConfig()
       },
+      // 邮箱验证码登录：与账号密码登录共用登录态写入逻辑
+      loginEmail: async (email, code) => {
+        const res = await authApi.loginEmail(email, code)
+        setToken(res.token)
+        set({
+          user: {
+            loggedIn: true,
+            userId: res.user.id,
+            username: res.user.username,
+            token: res.token
+          },
+          modal: 'none'
+        })
+        await get().pullUserConfig()
+      },
       logout: () => {
         clearToken()
         set({ user: { loggedIn: false, userId: null, username: '', token: '' } })
       },
-      register: async (username, password) => {
-        const res = await authApi.register(username, password)
+      register: async (username, password, email, code) => {
+        const res = await authApi.register(username, password, email, code)
         setToken(res.token)
         set({
           user: {

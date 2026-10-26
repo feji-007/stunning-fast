@@ -214,3 +214,17 @@ export const guideApi = {
   updateQuestion: (id: number, b: any) => api.put(`/api/guide/questions/${id}`, b),
   removeQuestion: (id: number) => api.del(`/api/guide/questions/${id}`)
 }
+
+// ===== 系统参数（SMTP 邮件配置，授权码不回显） =====
+export interface SmtpSettings {
+  host: string
+  port: number
+  user: string
+  from: string
+  hasPass: boolean
+}
+export const systemConfigApi = {
+  getSmtp: () => api.get<{ smtp: SmtpSettings }>('/api/system-config/smtp'),
+  saveSmtp: (b: { host: string; port: number; user: string; from: string; pass?: string }) =>
+    api.put<null>('/api/system-config/smtp', b)
+}

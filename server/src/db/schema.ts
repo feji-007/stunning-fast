@@ -94,12 +94,36 @@ const SCHEMA_STATEMENTS: string[] = [
   id            INT          NOT NULL AUTO_INCREMENT,
   username      VARCHAR(64)  NOT NULL,
   password_hash VARCHAR(128) NOT NULL,
+  email         VARCHAR(128) NOT NULL DEFAULT '',
   role          VARCHAR(16)  NOT NULL DEFAULT 'user',
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uk_users_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+  // ========== 邮箱验证码表（注册时校验邮箱归属） ==========
+
+  `CREATE TABLE IF NOT EXISTS email_verify_codes (
+  id         BIGINT       NOT NULL AUTO_INCREMENT,
+  email      VARCHAR(128) NOT NULL,
+  code       VARCHAR(8)   NOT NULL,
+  expires_at DATETIME     NOT NULL,
+  used       TINYINT(1)   NOT NULL DEFAULT 0,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_evc_email (email),
+  INDEX idx_evc_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+  // ========== 系统参数表（管理员在后台维护，如 SMTP 邮件配置） ==========
+
+  `CREATE TABLE IF NOT EXISTS system_configs (
+  config_key   VARCHAR(64)  NOT NULL,
+  config_value TEXT         NOT NULL,
+  updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (config_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
   // ========== 用户私有配置表（按 user_id 隔离） ==========
@@ -255,6 +279,8 @@ export async function ensureSchema(): Promise<void> {
   // 迁移：为已有 providers/models 表补充 URL 字段（管理员可在后台覆盖默认跳转地址）
   await addColumnIfMissing('providers', 'api_key_url', "VARCHAR(256) NOT NULL DEFAULT ''")
   await addColumnIfMissing('models', 'docs_url', "VARCHAR(256) NOT NULL DEFAULT ''")
+  // 迁移：为已有 users 表补充 email 字段（注册邮箱验证）
+  await addColumnIfMissing('users', 'email', "VARCHAR(128) NOT NULL DEFAULT ''")
   // 迁移：为已有 providers 表补充 api_base_url 字段（管理员可在后台覆盖 API 调用端点）
   await addColumnIfMissing('providers', 'api_base_url', "VARCHAR(256) NOT NULL DEFAULT ''")
   // 迁移：为已有 providers 表补充视频生成协议与提交/查询路径（自定义供应商协议）

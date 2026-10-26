@@ -13,6 +13,7 @@ import Feedback from './components/Feedback'
 import RecommendModels from './components/RecommendModels'
 import RecommendQuestions from './components/RecommendQuestions'
 import GuideQuestions from './components/GuideQuestions'
+import SmtpSettings from './components/SmtpSettings'
 import { authApi, getStoredUser, clearAuth, getToken, type AdminUser } from './api'
 
 export default function App() {
@@ -75,6 +76,7 @@ export default function App() {
       {view === 'recommendModels' && <RecommendModels />}
       {view === 'recommendQuestions' && <RecommendQuestions />}
       {view === 'guideQuestions' && <GuideQuestions />}
+      {view === 'smtpSettings' && <SmtpSettings />}
     </Layout>
   )
 }

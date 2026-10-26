@@ -23,6 +23,12 @@ export const config = {
   adminPassword: optional('ADMIN_PASSWORD', 'admin123'),
   corsOrigin: optional('CORS_ORIGIN', '*'),
   clientApiBase: optional('CLIENT_API_BASE', 'http://localhost:4178'),
+  // SMTP 邮件服务兜底配置（注册邮箱验证码）；管理后台「邮件配置」中的值优先于此处
+  smtpHost: optional('SMTP_HOST', 'smtp.qq.com'),
+  smtpPort: Number(optional('SMTP_PORT', '465')),
+  smtpUser: optional('SMTP_USER', ''),
+  smtpPass: optional('SMTP_PASS', ''),
+  smtpFrom: optional('SMTP_FROM', ''),
   nodeEnv: optional('NODE_ENV', 'development'),
   isDev: optional('NODE_ENV', 'development') === 'development'
 } as const

@@ -12,6 +12,7 @@ import tasksRoute from '../modules/tasks/route'
 import feedbackRoute from '../modules/feedback/route'
 import recommendRoute from '../modules/recommend/route'
 import guideRoute from '../modules/guide/route'
+import systemConfigRoute from '../modules/systemConfig/route'
 
 const api = Router()
 
@@ -41,6 +42,9 @@ api.use('/recommend', recommendRoute)
 
 // AI 助手「使用指南」问答（管理员编辑）
 api.use('/guide', guideRoute)
+
+// 系统参数（管理员维护，如 SMTP 邮件配置）
+api.use('/system-config', systemConfigRoute)
 
 // 用户私有配置（按用户隔离）
 api.use('/user/api-keys', userApiKeysRoute)

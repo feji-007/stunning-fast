@@ -70,8 +70,12 @@ export interface AuthUser {
 export const authApi = {
   login: (username: string, password: string) =>
     api.post<{ token: string; user: AuthUser }>('/api/auth/login', { username, password }),
-  register: (username: string, password: string) =>
-    api.post<{ token: string; user: AuthUser }>('/api/auth/register', { username, password }),
+  register: (username: string, password: string, email: string, code: string) =>
+    api.post<{ token: string; user: AuthUser }>('/api/auth/register', { username, password, email, code }),
+  loginEmail: (email: string, code: string) =>
+    api.post<{ token: string; user: AuthUser }>('/api/auth/login-email', { email, code }),
+  sendEmailCode: (email: string, purpose: 'register' | 'login' = 'register') =>
+    api.post<null>('/api/auth/send-email-code', { email, purpose }),
   me: () => api.get<{ user: AuthUser }>('/api/auth/me')
 }
 
