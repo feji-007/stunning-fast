@@ -6,6 +6,7 @@ import Pagination from './Pagination'
 interface User {
   id: number
   username: string
+  email: string
   role: 'admin' | 'user'
   is_active: boolean
   created_at: string
@@ -14,17 +15,19 @@ interface User {
 interface Form {
   username: string
   password: string
+  email: string
   role: 'admin' | 'user'
   is_active: boolean
 }
 
-const EMPTY_FORM: Form = { username: '', password: '', role: 'user', is_active: true }
+const EMPTY_FORM: Form = { username: '', password: '', email: '', role: 'user', is_active: true }
 
 export default function Users() {
   const [list, setList] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modal, setModal] = useState<null | { mode: 'create' | 'edit'; data: Form; id?: number }>(null)
+  const [formError, setFormError] = useState('')
   const [resetModal, setResetModal] = useState<null | { id: number; username: string; password: string }>(null)
   const [saving, setSaving] = useState(false)
   // 分页
@@ -64,13 +67,19 @@ export default function Users() {
       .catch((e: Error) => alert(e.message))
   }
 
+  const EMAIL_RE = /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/
+
   const save = () => {
     if (!modal) return
-    if (!modal.data.username.trim()) { alert('请填写用户名'); return }
-    if (modal.mode === 'create' && !modal.data.password) { alert('请设置初始密码'); return }
+    setFormError('')
+    if (!modal.data.username.trim()) { setFormError('请填写用户名'); return }
+    if (modal.mode === 'create' && !modal.data.password) { setFormError('请设置初始密码'); return }
+    // 新增时邮箱必填；编辑时留空表示不修改
+    if (modal.mode === 'create' && !modal.data.email.trim()) { setFormError('请填写邮箱'); return }
+    if (modal.data.email.trim() && !EMAIL_RE.test(modal.data.email.trim())) { setFormError('邮箱格式不正确'); return }
     setSaving(true)
     const done = () => { setModal(null); load(page, pageSize) }
-    const fail = (e: Error) => alert(e.message)
+    const fail = (e: Error) => setFormError(e.message) // 后端唯一性等校验提示内联展示
     const fin  = () => setSaving(false)
     if (modal.mode === 'create') {
       usersApi.create(modal.data).then(done).catch(fail).finally(fin)
@@ -104,7 +113,7 @@ export default function Users() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-800">用户管理</h2>
         <button
-          onClick={() => setModal({ mode: 'create', data: { ...EMPTY_FORM } })}
+          onClick={() => { setFormError(''); setModal({ mode: 'create', data: { ...EMPTY_FORM } }) }}
           className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm hover:bg-brand-700"
         >+ 新增用户</button>
       </div>
@@ -124,6 +133,7 @@ export default function Users() {
               <tr className="text-xs text-gray-500 border-b border-gray-200">
                 <th className="px-4 py-3 text-left">ID</th>
                 <th className="px-4 py-3 text-left">用户名</th>
+                <th className="px-4 py-3 text-left">邮箱</th>
                 <th className="px-4 py-3 text-left">角色</th>
                 <th className="px-4 py-3 text-left">状态</th>
                 <th className="px-4 py-3 text-left">创建时间</th>
@@ -140,6 +150,7 @@ export default function Users() {
                       {u.username}
                       {isSelf && <span className="ml-2 text-xs text-brand-600">(我)</span>}
                     </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{u.email || '-'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded text-xs ${u.role === 'admin' ? 'bg-brand-50 text-brand-700' : 'bg-gray-100 text-gray-600'}`}>
                         {u.role === 'admin' ? '管理员' : '用户'}
@@ -162,10 +173,10 @@ export default function Users() {
                         className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded hover:bg-amber-100"
                       >重置密码</button>
                       <button
-                        onClick={() => setModal({
+                        onClick={() => { setFormError(''); setModal({
                           mode: 'edit', id: u.id,
-                          data: { username: u.username, password: '', role: u.role, is_active: u.is_active }
-                        })}
+                          data: { username: u.username, password: '', email: u.email, role: u.role, is_active: u.is_active }
+                        }) }}
                         className="px-2 py-1 text-xs bg-brand-50 text-brand-700 rounded hover:bg-brand-100"
                       >编辑</button>
                       <button
@@ -238,10 +249,24 @@ export default function Users() {
                   <option value="0">禁用</option>
                 </select>
               </div>
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-700 mb-1">
+                  邮箱 {modal.mode === 'create' ? <span className="text-red-500">*</span> : '（选填，留空不修改）'}
+                </label>
+                <input
+                  type="email"
+                  value={modal.data.email}
+                  onChange={(e) => { setFormError(''); setModal({ ...modal, data: { ...modal.data, email: e.target.value } }) }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="user@example.com"
+                />
+                <p className="mt-1 text-xs text-gray-400">同一邮箱只能绑定一个账号</p>
+              </div>
             </div>
+            {formError && <p className="mt-3 text-sm text-red-500">{formError}</p>}
             <div className="mt-6 flex justify-end gap-2">
               <button
-                onClick={() => setModal(null)}
+                onClick={() => { setModal(null); setFormError('') }}
                 className="px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
               >取消</button>
               <button
