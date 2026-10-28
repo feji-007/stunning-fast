@@ -8,13 +8,20 @@ const router = Router()
 
 // ========== AI 助手「使用指南」问答 CRUD ==========
 
-/** 使用指南问答列表（公开读，含停用项，供后台管理使用）。 */
-router.get('/questions', async (_req, res, next) => {
+/** 使用指南问答列表。
+ *  查询参数：
+ *    active=1  → 仅返回启用中的问答（官网 / 客户端使用）
+ *    不传      → 返回全部含停用项（后台管理使用）
+ */
+router.get('/questions', async (req, res, next) => {
   try {
-    const result = await query(
-      `SELECT id, category, question, answer, sort_order, is_active
-       FROM guide_questions ORDER BY sort_order, id`
-    )
+    const onlyActive = req.query.active === '1'
+    const sql = onlyActive
+      ? `SELECT id, category, question, answer, sort_order, is_active
+         FROM guide_questions WHERE is_active = TRUE ORDER BY sort_order, id`
+      : `SELECT id, category, question, answer, sort_order, is_active
+         FROM guide_questions ORDER BY sort_order, id`
+    const result = await query(sql)
     ok(res, { questions: result.rows, total: result.rowCount })
   } catch (e) {
     next(e)

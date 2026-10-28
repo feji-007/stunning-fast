@@ -8,7 +8,7 @@
 ## Windows
 
 <!-- AUTO-GENERATED-DOWNLOADS:START -->
-- **在线安装器（推荐）：**[下载](https://bucket-5620.zhengzhou5.zos.ctyun.cn/release/juese-1.0.5-setup.exe)
+- **在线安装器（推荐）：**本次未生成
 
   约 2 MB，运行后自动从 CDN 拉取完整程序（约 80 MB）并安装，**需联网**。完成后从开始菜单启动「绝色」。
 
@@ -42,5 +42,5 @@ chmod +x 绝色-*.AppImage
 :::
 
 ::: tip 存储方案
-当前安装包托管在天翼云 ZOS 对象存储（`bucket-5620/release/`），客户端启动后从该地址拉取 `latest.yml` 检测更新。后续可绑定自定义 CDN 域名加速，详见 [部署运维](/guide/deploy)。
+当前安装包托管在天翼云 ZOS 对象存储（`bucket-5620/release/`），客户端启动后从该地址拉取 `latest.yml` 检测更新。
 :::

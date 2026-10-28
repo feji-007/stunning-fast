@@ -23,11 +23,10 @@ export default defineConfig({
         text: '文档',
         items: [
           { text: '安装指南', link: '/guide/install' },
-          { text: '部署运维', link: '/guide/deploy' },
-          { text: '服务器配置建议', link: '/guide/server-spec' },
-          { text: 'API 接口', link: '/api/' }
+          { text: '使用指南', link: '/guide/usage' }
         ]
-      }
+      },
+      { text: '意见反馈', link: '/feedback' }
     ],
 
     sidebar: {
@@ -36,15 +35,8 @@ export default defineConfig({
           text: '快速开始',
           items: [
             { text: '安装指南', link: '/guide/install' },
-            { text: '部署运维', link: '/guide/deploy' },
-            { text: '服务器配置建议', link: '/guide/server-spec' }
+            { text: '使用指南', link: '/guide/usage' }
           ]
-        }
-      ],
-      '/api/': [
-        {
-          text: 'API 参考',
-          items: [{ text: '接口总览', link: '/api/' }]
         }
       ]
     },
@@ -52,7 +44,7 @@ export default defineConfig({
     socialLinks: [{ icon: 'github', link: 'https://github.com/' }],
 
     footer: {
-      message: '基于 Electron + React + MySQL 构建',
+      message: '绝色 · AI 视频生成桌面助手',
       copyright: 'Copyright © 2026 绝色'
     },
 

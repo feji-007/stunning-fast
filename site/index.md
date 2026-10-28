@@ -10,8 +10,8 @@ hero:
       text: 立即下载
       link: /download
     - theme: alt
-      text: 部署运维
-      link: /guide/deploy
+      text: 使用指南
+      link: /guide/usage
 
 features:
   - title: 悬浮窗体验
