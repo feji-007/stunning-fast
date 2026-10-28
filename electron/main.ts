@@ -28,6 +28,10 @@ let isMiniMode = false
 let savedBallPos: { x: number; y: number } | null = null
 // Track the base window height so dropdowns can temporarily extend it.
 let baseWindowHeight = PANEL.height
+// Dropdown 操作的版本号：防止 openDropdown 还没完成时用户就关闭菜单，
+// 导致 closeDropdown 先缩、然后 openDropdown async 完成又撑大的竞态问题。
+// closeDropdown 会递增版本号，openDropdown 完成时检查版本号，不匹配就跳过 setSize。
+let dropdownVersion = 0
 // 窗口预期尺寸：所有主动 setSize/setBounds 的地方同步更新它。
 // clamp 和 resize 守卫必须以它为基准 —— 若用 getSize() 读到的实际尺寸，
 // DPI 缩放下 OS 每次撑大的 1px 会被当作新基准写回，窗口越拖越大。
@@ -680,6 +684,7 @@ function registerIpc() {
     if (newBottom > wa.y + wa.height) {
       ny = Math.max(wa.y, bottom - newHeight)
     }
+    const myVersion = ++dropdownVersion
     expectedSize = { width: expectedSize.width, height: newHeight }
     win.setSize(expectedSize.width, newHeight)
     win.setPosition(wx, ny)
@@ -687,32 +692,37 @@ function registerIpc() {
     // 否则新增区域不会渲染，导致下拉框被裁剪
     try {
       win.setOpacity(0.99)
-      setTimeout(() => win.setOpacity(1.0), 16)
+      setTimeout(() => {
+        if (myVersion !== dropdownVersion) return
+        try { win.setOpacity(1.0) } catch {}
+      }, 16)
     } catch {}
   })
- 
+
   // 下拉框关闭：恢复窗口基准高度
   ipcMain.handle(IPC.WINDOW_DROPDOWN_CLOSE, () => {
     if (!mainWindow) return
     if (isMiniMode) return
+    // 递增版本号，让所有 pending 的 openDropdown 在 setSize 前检查到不匹配，
+    // 跳过后续 setSize，防止关闭后又被撑大的竞态
+    dropdownVersion++
     const win = mainWindow
     const [wx, wy] = win.getPosition()
     const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
     const wa = display.workArea
     let ny = wy
-    // 窗口底部固定，向上收缩
-    const bottom = wy + win.getSize()[1]
-    // 如果窗口底部超出屏幕，调整位置
-    if (bottom > wa.y + wa.height) {
+    // 用 baseWindowHeight 而非 win.getSize() 算位置，避免读到 openDropdown 中间态
+    const currentBottom = wy + expectedSize.height
+    if (currentBottom > wa.y + wa.height) {
       ny = Math.max(wa.y, wa.y + wa.height - baseWindowHeight)
     }
     expectedSize = { width: expectedSize.width, height: baseWindowHeight }
     win.setSize(expectedSize.width, baseWindowHeight)
     win.setPosition(wx, ny)
-    // 强制重绘
+    // 强制重绘（closeDropdown 的 setSize 是同步的，这里不需要版本号保护）
     try {
       win.setOpacity(0.99)
-      setTimeout(() => win.setOpacity(1.0), 16)
+      setTimeout(() => { try { win.setOpacity(1.0) } catch {} }, 16)
     } catch {}
   })
  

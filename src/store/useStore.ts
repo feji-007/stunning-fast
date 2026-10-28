@@ -568,11 +568,8 @@ export const useStore = create<AppState>()(
           if (cfg.panelHeight) patch.panelHeight = Number(cfg.panelHeight.value)
           if (cfg.panelOpacity) patch.panelOpacity = Number(cfg.panelOpacity.value)
           if (cfg.theme) patch.theme = cfg.theme.value as Theme
-          if (cfg.features) {
-            try {
-              patch.features = JSON.parse(cfg.features.value) as Feature[]
-            } catch {}
-          }
+          // features 以后端 bootstrap 为准（已过滤 is_active），
+          // 不在这里用用户配置覆盖，避免停用功能又被拉回来
           set(patch)
         } catch {
           // 拉取失败静默：本地配置仍可用
