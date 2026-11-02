@@ -197,10 +197,22 @@ function mapArkStatus(s: string | undefined): VideoProgress['status'] {
 function arkBuildBody(params: GenerateVideoParams) {
   // Seedance resolution 用小写 480p/720p/1080p
   const resolution = params.resolution ? params.resolution.toLowerCase() : '720p'
-  // 图生视频：content 数组中加入 image_url 类型（API 要求 type=image_url）
-  const content: Array<Record<string, unknown>> = [{ type: 'text', text: params.prompt }]
-  if (params.imageUrl) {
-    content.unshift({ type: 'image_url', image_url: { url: params.imageUrl } })
+  // 图生视频：content 数组中加入多模态参考（image_url / video_url / audio_url）
+  // 顺序：图片（保持传入顺序，首尾帧模式依赖顺序）→ 文本 → 视频 → 音频
+  const content: Array<Record<string, unknown>> = []
+  // 图片：优先使用完整列表 imageUrls，兼容单图 imageUrl
+  const images = params.imageUrls && params.imageUrls.length > 0
+    ? params.imageUrls
+    : (params.imageUrl ? [params.imageUrl] : [])
+  for (const url of images) {
+    content.push({ type: 'image_url', image_url: { url } })
+  }
+  content.push({ type: 'text', text: params.prompt })
+  for (const url of params.videos ?? []) {
+    content.push({ type: 'video_url', video_url: { url } })
+  }
+  for (const url of params.audios ?? []) {
+    content.push({ type: 'audio_url', audio_url: { url } })
   }
   const body: Record<string, unknown> = {
     model: params.model,

@@ -22,6 +22,7 @@ router.get('/', async (_req, res, next) => {
     )
     const models = await query(
       `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+              max_images, max_videos, max_audios, max_total_assets,
               resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source
        FROM models WHERE is_active = TRUE ORDER BY sort_order, id`
     )

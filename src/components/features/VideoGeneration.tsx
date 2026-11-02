@@ -87,8 +87,10 @@ export default function VideoGeneration() {
 
   const videoForm = useStore((s) => s.videoForm)
   const setVideoForm = useStore((s) => s.setVideoForm)
-  const { mode, autoPriority, selected, genMode, i2vMode, images, prompt, resolution, ratio, duration } = videoForm
+  const { mode, autoPriority, selected, genMode, i2vMode, images, videos, audios, prompt, resolution, ratio, duration } = videoForm
   const [urlInput, setUrlInput] = useState('')
+  const [videoUrlInput, setVideoUrlInput] = useState('')
+  const [audioUrlInput, setAudioUrlInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
@@ -102,6 +104,8 @@ export default function VideoGeneration() {
   const containerRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const videoFileInputRef = useRef<HTMLInputElement>(null)
+  const audioFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const off = window.api?.onVideoProgress?.((p) => {
@@ -151,13 +155,25 @@ export default function VideoGeneration() {
         }
       }
     }
-    // C) 按最终确定的模式裁剪图片数量（firstlast<=2，reference<=5）
+    // C) 按最终确定的模式裁剪图片数量（firstlast<=2，reference 取模型配置上限）
     if ((patch.genMode ?? genMode) === 'i2v') {
       const mode = patch.i2vMode ?? i2vMode
       const safeMode: I2VMode = mode === 'firstlast' || mode === 'reference' ? mode : (canReference ? 'reference' : (canFirstLast ? 'firstlast' : 'reference'))
-      const maxLen = safeMode === 'firstlast' ? 2 : 5
+      const maxLen = safeMode === 'firstlast' ? 2 : Math.max(1, chosen?.maxImages ?? 5)
       const imgs = patch.images ?? images
       if (imgs && imgs.length > maxLen) patch.images = imgs.slice(0, maxLen)
+    }
+    // D) 视频/音频参考仅在参考模式下保留，并按模型配置上限裁剪（0=不支持则清空）
+    const finalGen = patch.genMode ?? genMode
+    const finalI2VMode = patch.i2vMode ?? i2vMode
+    if (finalGen !== 'i2v' || finalI2VMode !== 'reference') {
+      if (videos.length > 0) patch.videos = []
+      if (audios.length > 0) patch.audios = []
+    } else {
+      const mv = chosen?.maxVideos ?? 0
+      const ma = chosen?.maxAudios ?? 0
+      if (videos.length > mv) patch.videos = videos.slice(0, mv)
+      if (audios.length > ma) patch.audios = audios.slice(0, ma)
     }
     if (Object.keys(patch).length > 0) setVideoForm(patch)
   }, [chosen?.id, supportsI2V, canFirstLast, canReference, genMode, i2vMode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -188,15 +204,24 @@ export default function VideoGeneration() {
   }, [chosen?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   // render fallback: if i2vMode invalid, pick one by model capability
   const effectiveI2VMode = (i2vMode === 'firstlast' || i2vMode === 'reference') ? i2vMode : (canReference ? 'reference' : (canFirstLast ? 'firstlast' : 'reference'))
-  const maxImages = effectiveI2VMode === 'firstlast' ? 2 : 5
+  // 参考素材上限完全以模型配置为准：首尾帧固定 2 张，参考模式取模型 maxImages（默认 5）
+  const maxImages = effectiveI2VMode === 'firstlast' ? 2 : Math.max(1, chosen?.maxImages ?? 5)
+  // 视频/音频参考仅参考模式可用，上限取模型配置（0=不支持，不渲染入口）
+  const maxVideos = effectiveI2VMode === 'reference' ? (chosen?.maxVideos ?? 0) : 0
+  const maxAudios = effectiveI2VMode === 'reference' ? (chosen?.maxAudios ?? 0) : 0
+  // 总素材上限（图片+视频+音频合计），0=不限制
+  const maxTotalAssets = effectiveI2VMode === 'reference' ? (chosen?.maxTotalAssets ?? 0) : 0
+  const totalAssets = images.length + videos.length + audios.length
 
   const findKey = (provider: ProviderModel['provider']) =>
     keys.find((k) => k.provider === provider && k.key.trim())?.key ?? ''
 
   const handleFiles = async (files: FileList | File[]) => {
     const arr = Array.from(files).filter((f) => f.type.startsWith('image/'))
-    const remaining = maxImages - images.length
-    if (remaining <= 0) { setError('最多只能上传 ' + maxImages + ' 张图片'); return }
+    // 同时受单项上限与总素材上限约束
+    let remaining = maxImages - images.length
+    if (maxTotalAssets > 0) remaining = Math.min(remaining, maxTotalAssets - totalAssets)
+    if (remaining <= 0) { setError(maxTotalAssets > 0 && totalAssets >= maxTotalAssets ? `参考素材总数最多 ${maxTotalAssets} 个` : '最多只能上传 ' + maxImages + ' 张图片'); return }
     const toProcess = arr.slice(0, remaining)
     const newItems: ImageItem[] = []
     for (const f of toProcess) {
@@ -229,11 +254,64 @@ export default function VideoGeneration() {
 
   const removeImage = (idx: number) => setVideoForm({ images: images.filter((_: any, i: number) => i !== idx) })
 
+  // 参考视频/音频：本地文件转 data URL 加入（大文件建议改用 URL 添加，避免 IPC 体积过大）
+  const handleMediaFiles = async (kind: 'video' | 'audio', files: FileList | File[]) => {
+    const list = kind === 'video' ? videos : audios
+    const max = kind === 'video' ? maxVideos : maxAudios
+    const label = kind === 'video' ? '视频' : '音频'
+    const arr = Array.from(files).filter((f) => f.type.startsWith(kind + '/'))
+    // 同时受单项上限与总素材上限约束
+    let remaining = max - list.length
+    if (maxTotalAssets > 0) remaining = Math.min(remaining, maxTotalAssets - totalAssets)
+    if (remaining <= 0) { setError(maxTotalAssets > 0 && totalAssets >= maxTotalAssets ? `参考素材总数最多 ${maxTotalAssets} 个` : `最多只能添加 ${max} 个参考${label}`); return }
+    const newItems: ImageItem[] = []
+    for (const f of arr.slice(0, remaining)) {
+      try { const url = await fileToDataUrl(f); newItems.push({ url, name: f.name }) } catch {}
+    }
+    if (newItems.length > 0) {
+      setVideoForm(kind === 'video' ? { videos: [...videos, ...newItems] } : { audios: [...audios, ...newItems] })
+      setError(null)
+    }
+  }
+
+  const onMediaFileChange = (kind: 'video' | 'audio') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) void handleMediaFiles(kind, e.target.files)
+    e.target.value = ''
+  }
+
+  // 参考视频/音频：通过 URL 添加（推荐方式，避免大文件内联）
+  const addUrlMedia = (kind: 'video' | 'audio') => {
+    const url = (kind === 'video' ? videoUrlInput : audioUrlInput).trim()
+    if (!url) return
+    const list = kind === 'video' ? videos : audios
+    const max = kind === 'video' ? maxVideos : maxAudios
+    const label = kind === 'video' ? '视频' : '音频'
+    if (list.length >= max) { setError(`最多只能添加 ${max} 个参考${label}`); return }
+    if (maxTotalAssets > 0 && totalAssets >= maxTotalAssets) { setError(`参考素材总数最多 ${maxTotalAssets} 个`); return }
+    const item = { url, name: url.split('/').pop() || `url-${kind}` }
+    setVideoForm(kind === 'video' ? { videos: [...videos, item] } : { audios: [...audios, item] })
+    if (kind === 'video') setVideoUrlInput(''); else setAudioUrlInput('')
+    setError(null)
+  }
+
+  const removeMedia = (kind: 'video' | 'audio', idx: number) => {
+    setVideoForm(kind === 'video'
+      ? { videos: videos.filter((_, i) => i !== idx) }
+      : { audios: audios.filter((_, i) => i !== idx) })
+  }
+
   const handleGenerate = async () => {
     setError(null); setVideoUrl(null); setVideoLoadError(null); setProgress(null)
     if (needLogin) return setModal('login')
     if (needKeys || !chosen) return setModal('settings')
     if (genMode === 'i2v' && images.length === 0) { setError('图生视频模式下，请先上传或填写参考图片。'); return }
+    if (genMode === 'i2v' && effectiveI2VMode === 'reference') {
+      if (videos.length > maxVideos) { setError(`参考视频最多 ${maxVideos} 段`); return }
+      if (audios.length > maxAudios) { setError(`参考音频最多 ${maxAudios} 个`); return }
+      if (maxTotalAssets > 0 && totalAssets > maxTotalAssets) {
+        setError(`参考素材总数最多 ${maxTotalAssets} 个（当前 ${totalAssets} 个：图片+视频+音频合计）`); return
+      }
+    }
     setBusy(true)
     let status: 'success' | 'fail' = 'fail'
     let videoUrlOut = ''
@@ -257,6 +335,9 @@ export default function VideoGeneration() {
           ratio,
           duration: Number(duration),
           imageUrl: primaryImageUrl,
+          imageUrls: genMode === 'i2v' ? images.map((i) => i.url) : undefined,
+          videos: genMode === 'i2v' && effectiveI2VMode === 'reference' && videos.length > 0 ? videos.map((v) => v.url) : undefined,
+          audios: genMode === 'i2v' && effectiveI2VMode === 'reference' && audios.length > 0 ? audios.map((a) => a.url) : undefined,
           apiBaseUrl: providerCfg?.apiBaseUrl || '',
           submitPath: providerCfg?.submitPath || undefined,
           statusPath: providerCfg?.statusPath || undefined,
@@ -368,6 +449,8 @@ export default function VideoGeneration() {
   return (
     <div className="flex h-full flex-col gap-3">
       <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={onFileChange} className="hidden" />
+      <input ref={videoFileInputRef} type="file" accept="video/*" multiple onChange={onMediaFileChange('video')} className="hidden" />
+      <input ref={audioFileInputRef} type="file" accept="audio/*" multiple onChange={onMediaFileChange('audio')} className="hidden" />
       <div className="flex items-center gap-2">
         {mode === 'auto' && (
           <div className="inline-flex shrink-0 rounded-lg border border-black/10 bg-gray-50 p-0.5 text-[11px]">
@@ -500,26 +583,80 @@ export default function VideoGeneration() {
                 </div>
               )}
 
-              {/* 参考模式：一行小缩略图 + 末尾上传按钮 */}
+              {/* 参考模式：图片缩略图行 + 参考视频/音频区块（上限均取模型配置） */}
               {effectiveI2VMode === 'reference' && (
-                <div className="flex items-center gap-1.5">
-                  {images.map((img, idx) => (
-                    <div key={idx} className="group relative h-[78px] w-[78px] shrink-0 overflow-hidden rounded-lg border border-black/10">
-                      <img src={img.url} alt={'ref ' + (idx + 1)} className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3' }} />
-                      <span className="absolute left-0.5 top-0.5 rounded bg-black/50 px-1 py-0.5 text-[8px] text-white">{'#' + (idx + 1)}</span>
-                      <button onClick={() => removeImage(idx)} className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white opacity-0 group-hover:opacity-100">x</button>
-                    </div>
-                  ))}
-                  {images.length < maxImages && (
-                    <div
-                      onClick={onFileSelect}
-                      onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-                      className="flex h-[78px] w-[78px] shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50/50 text-gray-300 hover:border-brand-300 hover:bg-brand-50/30"
-                    >
-                      <span className="text-base">+</span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {images.map((img, idx) => (
+                      <div key={idx} className="group relative h-[78px] w-[78px] shrink-0 overflow-hidden rounded-lg border border-black/10">
+                        <img src={img.url} alt={'ref ' + (idx + 1)} className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3' }} />
+                        <span className="absolute left-0.5 top-0.5 rounded bg-black/50 px-1 py-0.5 text-[8px] text-white">{'#' + (idx + 1)}</span>
+                        <button onClick={() => removeImage(idx)} className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white opacity-0 group-hover:opacity-100">x</button>
+                      </div>
+                    ))}
+                    {images.length < maxImages && (
+                      <div
+                        onClick={onFileSelect}
+                        onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+                        className="flex h-[78px] w-[78px] shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50/50 text-gray-300 hover:border-brand-300 hover:bg-brand-50/30"
+                      >
+                        <span className="text-base">+</span>
+                      </div>
+                    )}
+                    <span className="ml-1 text-[10px] text-gray-300">{images.length}/{maxImages}</span>
+                  </div>
+                  {maxVideos > 0 && (
+                    <div>
+                      <p className="mb-1 text-[10px] text-gray-400">参考视频（{videos.length}/{maxVideos}）</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {videos.map((v, idx) => (
+                          <span key={idx} className="group inline-flex items-center gap-1 rounded-md border border-black/10 bg-gray-50 px-1.5 py-1 text-[10px] text-gray-600">
+                            <span className="max-w-[120px] truncate" title={v.name}>{v.name}</span>
+                            <button onClick={() => removeMedia('video', idx)} className="text-gray-300 hover:text-red-500">✕</button>
+                          </span>
+                        ))}
+                        {videos.length < maxVideos && (
+                          <button onClick={() => videoFileInputRef.current?.click()} className="rounded-md border border-dashed border-gray-200 px-2 py-1 text-[10px] text-gray-400 hover:border-brand-300 hover:text-brand-500">+ 上传视频</button>
+                        )}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <input
+                          value={videoUrlInput}
+                          onChange={(e) => setVideoUrlInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') addUrlMedia('video') }}
+                          placeholder="或粘贴视频 URL 后回车添加（大文件推荐用 URL）"
+                          className="w-64 rounded-md border border-black/10 bg-white px-2 py-1 text-[10px] text-gray-600 outline-none focus:border-brand-400"
+                        />
+                        <button onClick={() => addUrlMedia('video')} className="rounded-md border border-black/10 px-2 py-1 text-[10px] text-gray-500 hover:border-brand-300 hover:text-brand-500">添加</button>
+                      </div>
                     </div>
                   )}
-                  <span className="ml-1 text-[10px] text-gray-300">{images.length}/{maxImages}</span>
+                  {maxAudios > 0 && (
+                    <div>
+                      <p className="mb-1 text-[10px] text-gray-400">参考音频（{audios.length}/{maxAudios}）</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {audios.map((a, idx) => (
+                          <span key={idx} className="group inline-flex items-center gap-1 rounded-md border border-black/10 bg-gray-50 px-1.5 py-1 text-[10px] text-gray-600">
+                            <span className="max-w-[120px] truncate" title={a.name}>{a.name}</span>
+                            <button onClick={() => removeMedia('audio', idx)} className="text-gray-300 hover:text-red-500">✕</button>
+                          </span>
+                        ))}
+                        {audios.length < maxAudios && (
+                          <button onClick={() => audioFileInputRef.current?.click()} className="rounded-md border border-dashed border-gray-200 px-2 py-1 text-[10px] text-gray-400 hover:border-brand-300 hover:text-brand-500">+ 上传音频</button>
+                        )}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <input
+                          value={audioUrlInput}
+                          onChange={(e) => setAudioUrlInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') addUrlMedia('audio') }}
+                          placeholder="或粘贴音频 URL 后回车添加（大文件推荐用 URL）"
+                          className="w-64 rounded-md border border-black/10 bg-white px-2 py-1 text-[10px] text-gray-600 outline-none focus:border-brand-400"
+                        />
+                        <button onClick={() => addUrlMedia('audio')} className="rounded-md border border-black/10 px-2 py-1 text-[10px] text-gray-500 hover:border-brand-300 hover:text-brand-500">添加</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

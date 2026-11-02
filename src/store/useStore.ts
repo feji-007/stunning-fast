@@ -176,6 +176,8 @@ interface AppState {
   videoForm: {
     prompt: string
     images: Array<{ url: string; name: string }>
+    videos: Array<{ url: string; name: string }>
+    audios: Array<{ url: string; name: string }>
     resolution: string
     ratio: string
     duration: string
@@ -261,6 +263,8 @@ export const useStore = create<AppState>()(
       videoForm: {
         prompt: '',
         images: [],
+        videos: [],
+        audios: [],
         resolution: '720P',
         ratio: '16:9',
         duration: '5',
@@ -273,7 +277,7 @@ export const useStore = create<AppState>()(
       setVideoForm: (patch) => set((s) => ({ videoForm: { ...s.videoForm, ...patch } })),
       clearVideoForm: () => set({
         videoForm: {
-          prompt: '', images: [], resolution: '720P', ratio: '16:9', duration: '5',
+          prompt: '', images: [], videos: [], audios: [], resolution: '720P', ratio: '16:9', duration: '5',
           genMode: 't2v', i2vMode: 'firstlast', mode: 'auto', autoPriority: 'quality', selected: null
         }
       }),
@@ -502,6 +506,10 @@ export const useStore = create<AppState>()(
                   supportsI2V: !!m.supports_i2v,
                   supportsFirstLast: !!m.supports_first_last,
                   supportsReference: !!m.supports_reference,
+                  maxImages: Number(m.max_images) || undefined,
+                  maxVideos: Number(m.max_videos) || undefined,
+                  maxAudios: Number(m.max_audios) || undefined,
+                  maxTotalAssets: Number(m.max_total_assets) || undefined,
                   docsUrl: m.docs_url || undefined,
                   resolution: Number(m.resolution) || undefined,
                   speed: Number(m.speed) || undefined,

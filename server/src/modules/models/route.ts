@@ -23,6 +23,7 @@ router.get('/', async (req, res, next) => {
     const total = Number(cnt?.c ?? 0)
     const r = await query(
       `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+              max_images, max_videos, max_audios, max_total_assets,
               resolution, speed, price, default_resolution, default_ratio, default_duration,
               docs_url, source, sort_order, is_active
        FROM models ORDER BY sort_order, id
@@ -48,11 +49,13 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
     if (!provider) throw notFound('供应商不存在')
     await queryOne(
       `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+         max_images, max_videos, max_audios, max_total_assets,
          resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
       [
         b.id, b.providerId, b.name, b.type ?? 'video', b.description ?? '',
         b.supportsI2V ?? false, b.supportsFirstLast ?? false, b.supportsReference ?? false,
+        b.maxImages ?? 5, b.maxVideos ?? 0, b.maxAudios ?? 0, b.maxTotalAssets ?? 0,
         b.resolution ?? 720, b.speed ?? 60, b.price ?? 2,
         b.defaultResolution ?? '', b.defaultRatio ?? '', b.defaultDuration ?? '',
         b.docsUrl ?? '', b.source ?? 'system', b.sortOrder ?? 0
@@ -80,6 +83,10 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
          supports_i2v = COALESCE(?, supports_i2v),
          supports_first_last = COALESCE(?, supports_first_last),
          supports_reference = COALESCE(?, supports_reference),
+         max_images = COALESCE(?, max_images),
+         max_videos = COALESCE(?, max_videos),
+         max_audios = COALESCE(?, max_audios),
+         max_total_assets = COALESCE(?, max_total_assets),
          resolution = COALESCE(?, resolution),
          speed = COALESCE(?, speed),
          price = COALESCE(?, price),
@@ -95,6 +102,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
       [
         b.providerId, b.name, b.type, b.description,
         b.supportsI2V, b.supportsFirstLast, b.supportsReference,
+        b.maxImages, b.maxVideos, b.maxAudios, b.maxTotalAssets,
         b.resolution, b.speed, b.price,
         b.defaultResolution, b.defaultRatio, b.defaultDuration,
         b.docsUrl,

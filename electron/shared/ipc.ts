@@ -130,6 +130,12 @@ export interface GenerateVideoParams {
   duration?: number
   /** 图生视频：参考图 URL，可选（仅支持图生视频的模型使用） */
   imageUrl?: string
+  /** 图生视频-参考图模式：全部参考图 URL 列表（含首项 imageUrl），可选 */
+  imageUrls?: string[]
+  /** 图生视频-参考图模式：参考视频 URL 列表（多模态参考模型使用），可选 */
+  videos?: string[]
+  /** 图生视频-参考图模式：参考音频 URL 列表（多模态参考模型使用），可选 */
+  audios?: string[]
   /** 供应商 API 基础地址（从后端 providers.api_base_url 下发，必填）。 */
   apiBaseUrl?: string
   /** 任务提交路径（相对 apiBaseUrl，如 /services/...），由后台供应商配置下发。 */

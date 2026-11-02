@@ -43,6 +43,10 @@ const SCHEMA_STATEMENTS: string[] = [
   supports_i2v       TINYINT(1)   NOT NULL DEFAULT 0,
   supports_first_last TINYINT(1)   NOT NULL DEFAULT 0,
   supports_reference TINYINT(1)   NOT NULL DEFAULT 0,
+  max_images    INT          NOT NULL DEFAULT 5,
+  max_videos    INT          NOT NULL DEFAULT 0,
+  max_audios    INT          NOT NULL DEFAULT 0,
+  max_total_assets INT       NOT NULL DEFAULT 0,
   resolution    INT          NOT NULL DEFAULT 720,
   speed         INT          NOT NULL DEFAULT 60,
   price         INT          NOT NULL DEFAULT 2,
@@ -294,6 +298,10 @@ export async function ensureSchema(): Promise<void> {
   await addColumnIfMissing('models', 'default_resolution', "VARCHAR(16) NOT NULL DEFAULT ''")
   await addColumnIfMissing('models', 'default_ratio', "VARCHAR(16) NOT NULL DEFAULT ''")
   await addColumnIfMissing('models', 'default_duration', "VARCHAR(16) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('models', 'max_images', 'INT NOT NULL DEFAULT 5')
+  await addColumnIfMissing('models', 'max_videos', 'INT NOT NULL DEFAULT 0')
+  await addColumnIfMissing('models', 'max_audios', 'INT NOT NULL DEFAULT 0')
+  await addColumnIfMissing('models', 'max_total_assets', 'INT NOT NULL DEFAULT 0')
   console.log('[db] 表结构检查完成（已存在则跳过）')
 }
 

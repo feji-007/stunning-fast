@@ -30,8 +30,9 @@ router.get('/', async (req, res, next) => {
     const models = await query<{
       id: string; provider_id: string; name: string; type: string; description: string
       supports_i2v: boolean; supports_first_last: boolean; supports_reference: boolean;
+      max_images: number; max_videos: number; max_audios: number; max_total_assets: number;
       resolution: number; speed: number; price: number; source: string; sort_order: number; is_active: boolean
-    }>('SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference, resolution, speed, price, source, sort_order, is_active FROM models ORDER BY sort_order, id')
+    }>('SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference, max_images, max_videos, max_audios, max_total_assets, resolution, speed, price, source, sort_order, is_active FROM models ORDER BY sort_order, id')
     const tree = providers.rows.map((p) => ({
       ...p,
       models: models.rows.filter((m: any) => m.provider_id === p.id)
@@ -54,6 +55,7 @@ router.get('/active', async (_req, res, next) => {
     )
     const models = await query(
       `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+              max_images, max_videos, max_audios, max_total_assets,
               resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source
        FROM models WHERE is_active = TRUE ORDER BY sort_order, id`
     )

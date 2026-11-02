@@ -27,6 +27,14 @@ export interface ProviderModel {
   supportsFirstLast?: boolean
   /** 图生视频是否支持参考图模式 */
   supportsReference?: boolean
+  /** 参考图模式：最大图片数量（后台模型配置，默认 5） */
+  maxImages?: number
+  /** 参考图模式：最大视频数量（后台模型配置，默认 0=不支持） */
+  maxVideos?: number
+  /** 参考图模式：最大音频数量（后台模型配置，默认 0=不支持） */
+  maxAudios?: number
+  /** 参考图模式：图片+视频+音频总素材上限（后台模型配置，0=不限制） */
+  maxTotalAssets?: number
   /** 模型详情介绍页地址 */
   docsUrl?: string
   /** 分辨率档位（720/1080，后台维护，用于自动匹配与展示） */

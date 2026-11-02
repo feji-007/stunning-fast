@@ -1,5 +1,5 @@
 // 模型管理:列表/新增/编辑/删除;分页;所有字段（含能力、默认参数）均由后台维护
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { modelsApi, providersApi } from '../api'
 import SortableTh from './SortableTh'
 import Pagination from './Pagination'
@@ -13,6 +13,10 @@ interface Model {
   supports_i2v: boolean
   supports_first_last: boolean
   supports_reference: boolean
+  max_images: number
+  max_videos: number
+  max_audios: number
+  max_total_assets: number
   resolution: string
   speed: string
   price: number | string
@@ -39,6 +43,10 @@ interface Form {
   supports_i2v: boolean
   supports_first_last: boolean
   supports_reference: boolean
+  max_images: number
+  max_videos: number
+  max_audios: number
+  max_total_assets: number
   resolution: string
   speed: string
   price: number | string
@@ -60,6 +68,10 @@ const EMPTY_FORM: Form = {
   supports_i2v: false,
   supports_first_last: false,
   supports_reference: false,
+  max_images: 5,
+  max_videos: 0,
+  max_audios: 0,
+  max_total_assets: 0,
   resolution: '720',
   speed: '60',
   price: '0',
@@ -70,6 +82,59 @@ const EMPTY_FORM: Form = {
   source: 'system',
   sort_order: 0,
   is_active: true
+}
+
+// 图生视频多选下拉的选项：首帧模式为基础 i2v 能力，首尾帧/参考图为子模式；全不选=不支持图生视频
+const I2V_MODES = [
+  { key: 'supports_i2v', label: '首帧模式' },
+  { key: 'supports_first_last', label: '首尾帧模式' },
+  { key: 'supports_reference', label: '参考图模式' },
+] as const
+
+type I2VKey = (typeof I2V_MODES)[number]['key']
+
+function I2VModeDropdown({ data, onChange }: { data: Form; onChange: (key: I2VKey, v: boolean) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [open])
+  const selected = I2V_MODES.filter((m) => data[m.key])
+  const summary = selected.length === 0 ? '不支持' : selected.map((m) => m.label).join('、')
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left flex items-center justify-between gap-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+      >
+        <span className={selected.length === 0 ? 'text-gray-400' : 'text-gray-700'}>{summary}</span>
+        <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-float py-1">
+          {I2V_MODES.map((m) => (
+            <label key={m.key} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!data[m.key]}
+                onChange={(e) => onChange(m.key, e.target.checked)}
+                className="rounded"
+              />
+              {m.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 const MODEL_GETTERS: Record<string, (m: Model) => string | number> = {
@@ -179,6 +244,10 @@ export default function Models() {
       supportsI2V: !!d.supports_i2v,
       supportsFirstLast: !!d.supports_first_last,
       supportsReference: !!d.supports_reference,
+      maxImages: Number(d.max_images) || 0,
+      maxVideos: Number(d.max_videos) || 0,
+      maxAudios: Number(d.max_audios) || 0,
+      maxTotalAssets: Number(d.max_total_assets) || 0,
       resolution: Number(d.resolution) || 0,
       speed: Number(d.speed) || 0,
       price: Number(d.price) || 0,
@@ -326,6 +395,8 @@ export default function Models() {
                           id: m.id, provider_id: m.provider_id, name: m.name, type: m.type || 'video',
                           description: m.description || '', supports_i2v: m.supports_i2v,
                           supports_first_last: m.supports_first_last, supports_reference: m.supports_reference,
+                          max_images: m.max_images ?? 5, max_videos: m.max_videos ?? 0, max_audios: m.max_audios ?? 0,
+                          max_total_assets: m.max_total_assets ?? 0,
                           resolution: m.resolution || '', speed: m.speed || '',
                           price: String(m.price ?? '0'),
                           default_resolution: m.default_resolution || '',
@@ -365,6 +436,13 @@ export default function Models() {
               {modal.mode === 'create' ? '新增模型' : '编辑模型'}
             </h3>
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 pb-2 border-b border-gray-100">
+                <CapCheckbox
+                  label="启用（客户端可见）"
+                  checked={modal.data.is_active}
+                  onChange={(v) => setModal({ ...modal!, data: { ...modal!.data, is_active: v } })}
+                />
+              </div>
               {modal.mode === 'create' && (
                 <div className="col-span-2">
                   <label className="block text-sm text-gray-700 mb-1">模型 ID（唯一标识，创建后不可修改）</label>
@@ -489,28 +567,55 @@ export default function Models() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
-              <div className="col-span-2 grid grid-cols-4 gap-3 pt-2 border-t border-gray-100">
-                <CapCheckbox
-                  label="支持图生视频 (i2v)"
-                  checked={modal.data.supports_i2v}
-                  onChange={(v) => setModal({ ...modal!, data: { ...modal!.data, supports_i2v: v } })}
+              <div className="col-span-2 pt-2 border-t border-gray-100">
+                <label className="block text-sm text-gray-700 mb-1">支持图生视频</label>
+                <I2VModeDropdown
+                  data={modal.data}
+                  onChange={(key, v) => setModal({ ...modal!, data: { ...modal!.data, [key]: v } })}
                 />
-                <CapCheckbox
-                  label="首尾帧模式"
-                  checked={modal.data.supports_first_last}
-                  onChange={(v) => setModal({ ...modal!, data: { ...modal!.data, supports_first_last: v } })}
-                />
-                <CapCheckbox
-                  label="参考图模式"
-                  checked={modal.data.supports_reference}
-                  onChange={(v) => setModal({ ...modal!, data: { ...modal!.data, supports_reference: v } })}
-                />
-                <CapCheckbox
-                  label="启用（客户端可见）"
-                  checked={modal.data.is_active}
-                  onChange={(v) => setModal({ ...modal!, data: { ...modal!.data, is_active: v } })}
-                />
+                <p className="mt-1 text-xs text-gray-400">可勾选多种模式；全不选表示仅支持文生视频</p>
               </div>
+              {modal.data.supports_reference && (
+              <div className="col-span-2 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">参考图上限（张）</label>
+                  <input
+                    type="number" min={0}
+                    value={modal.data.max_images}
+                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, max_images: Number(e.target.value) } })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">参考视频上限（段）</label>
+                  <input
+                    type="number" min={0}
+                    value={modal.data.max_videos}
+                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, max_videos: Number(e.target.value) } })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">参考音频上限（个）</label>
+                  <input
+                    type="number" min={0}
+                    value={modal.data.max_audios}
+                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, max_audios: Number(e.target.value) } })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">总素材上限（0=不限）</label>
+                  <input
+                    type="number" min={0}
+                    value={modal.data.max_total_assets}
+                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, max_total_assets: Number(e.target.value) } })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <p className="col-span-2 text-xs text-gray-400">仅「参考图模式」生效；视频/音频为 0 表示该模型不支持对应模态输入；总素材上限 = 图片+视频+音频合计</p>
+              </div>
+              )}
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button

@@ -15,6 +15,7 @@ const PROVIDERS_SEED: Array<{
   models: Array<{
     id: string; name: string; type: string; desc: string
     supportsI2V?: boolean; supportsFirstLast?: boolean; supportsReference?: boolean
+    maxImages?: number; maxVideos?: number; maxAudios?: number; maxTotalAssets?: number
     res: number; speed: number; price: number; sort: number
   }>
 }> = [
@@ -41,9 +42,9 @@ const PROVIDERS_SEED: Array<{
     submitPath: '/contents/generations/tasks',
     statusPath: '/contents/generations/tasks/{taskId}',
     models: [
-      { id: 'doubao-seedance-2-5', name: 'Seedance 2.5', type: 'video', desc: '字节最新 Seedance 2.5，文生/图生视频，支持多模态参考，最长 30s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 60, price: 3, sort: 1 },
-      { id: 'doubao-seedance-2-0-260128', name: 'Seedance 2.0', type: 'video', desc: '豆包 Seedance 2.0 标准版，文/图生视频，原生音频，最长 15s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 45, price: 2, sort: 2 },
-      { id: 'doubao-seedance-2-0-fast-260128', name: 'Seedance 2.0 Fast', type: 'video', desc: '豆包 Seedance 2.0 快速版，速度更快成本更低（不支持 1080p）。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 720, speed: 20, price: 1, sort: 3 },
+      { id: 'doubao-seedance-2-5', name: 'Seedance 2.5', type: 'video', desc: '字节最新 Seedance 2.5，文生/图生视频，支持多模态参考（30图+10视频+10音频），最长 30s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, maxImages: 30, maxVideos: 10, maxAudios: 10, maxTotalAssets: 50, res: 1080, speed: 60, price: 3, sort: 1 },
+      { id: 'doubao-seedance-2-0-260128', name: 'Seedance 2.0', type: 'video', desc: '豆包 Seedance 2.0 标准版，文/图生视频，原生音频，多模态参考（9图+3视频+3音频），最长 15s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, maxImages: 9, maxVideos: 3, maxAudios: 3, maxTotalAssets: 12, res: 1080, speed: 45, price: 2, sort: 2 },
+      { id: 'doubao-seedance-2-0-fast-260128', name: 'Seedance 2.0 Fast', type: 'video', desc: '豆包 Seedance 2.0 快速版，速度更快成本更低，多模态参考（9图+3视频+3音频）（不支持 1080p）。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, maxImages: 9, maxVideos: 3, maxAudios: 3, maxTotalAssets: 12, res: 720, speed: 20, price: 1, sort: 3 },
       { id: 'doubao-seedance-1-5-pro-251215', name: 'Seedance 1.5 Pro', type: 'video', desc: '豆包 Seedance 1.5 Pro，文/图生视频，4-12s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 720, speed: 30, price: 2, sort: 4 },
       { id: 'doubao-seedance-1-0-pro-fast-251015', name: 'Seedance 1.0 Pro Fast', type: 'video', desc: '豆包 Seedance 1.0 Pro Fast，文/图生视频，2-12s，快速。', supportsI2V: true, supportsFirstLast: false, supportsReference: true, res: 720, speed: 15, price: 1, sort: 5 },
       { id: 'doubao-pro', name: 'Doubao Pro', type: 'text', desc: '豆包通用文本对话模型。', res: 0, speed: 0, price: 1, sort: 6 }
@@ -337,11 +338,13 @@ async function seedProvidersAndModels() {
     for (const m of p.models) {
       await query(
         `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+           max_images, max_videos, max_audios, max_total_assets,
            resolution, speed, price, default_resolution, default_ratio, default_duration, sort_order, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
         [
           m.id, p.id, m.name, m.type, m.desc,
           m.supportsI2V ?? false, m.supportsFirstLast ?? false, m.supportsReference ?? false,
+          m.maxImages ?? 5, m.maxVideos ?? 0, m.maxAudios ?? 0, m.maxTotalAssets ?? 0,
           m.res, m.speed, m.price,
           m.type === 'video' && m.res > 0 ? (m.res >= 1080 ? '1080P' : '720P') : '',
           m.type === 'video' ? '16:9' : '',
@@ -540,6 +543,28 @@ async function backfillModelCapabilities() {
   console.log('[seed] 模型能力字段已一次性回填')
 }
 
+/**
+ * 迁移：回填 Seedance 系列多模态参考上限（max_images/max_videos/max_audios）。
+ * 通过 meta 表标记确保只执行一次，之后管理员的修改不会被覆盖。
+ */
+async function backfillRefLimits() {
+  const done = await queryOne(`SELECT 1 FROM meta WHERE \`key\` = 'ref_limits_v2'`)
+  if (done) return
+  const LIMITS: Record<string, { images: number; videos: number; audios: number; total: number }> = {
+    'doubao-seedance-2-5': { images: 30, videos: 10, audios: 10, total: 50 },
+    'doubao-seedance-2-0-260128': { images: 9, videos: 3, audios: 3, total: 12 },
+    'doubao-seedance-2-0-fast-260128': { images: 9, videos: 3, audios: 3, total: 12 }
+  }
+  for (const [id, l] of Object.entries(LIMITS)) {
+    await query(
+      `UPDATE models SET max_images = ?, max_videos = ?, max_audios = ?, max_total_assets = ? WHERE id = ?`,
+      [l.images, l.videos, l.audios, l.total, id]
+    )
+  }
+  await query(`INSERT INTO meta (\`key\`, \`value\`) VALUES ('ref_limits_v2', NOW())`)
+  console.log('[seed] Seedance 多模态参考上限已一次性回填')
+}
+
 async function seedFeatures() {
   if (!(await tableEmpty('features'))) return
   for (const f of FEATURES_SEED) {
@@ -627,4 +652,5 @@ export async function seedAll(): Promise<void> {
   await backfillUrls()
   await backfillModelDefaults()
   await backfillModelCapabilities()
+  await backfillRefLimits()
 }
