@@ -192,7 +192,22 @@ export const feedbackApi = {
       closedCount: number
     }>('/api/feedback/stats'),
   update: (id: number, b: any) => api.put(`/api/feedback/${id}`, b),
-  remove: (id: number) => api.del(`/api/feedback/${id}`)
+  remove: (id: number) => api.del(`/api/feedback/${id}`),
+  /** 导出 CSV：返回 Blob，前端触发浏览器下载。 */
+  export: async (params: Record<string, any> = {}): Promise<Blob> => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === '') return
+      qs.set(k, String(v))
+    })
+    const q = qs.toString()
+    const token = getToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch(`/api/feedback/export${q ? `?${q}` : ''}`, { headers })
+    if (!res.ok) throw new Error(`导出失败 (${res.status})`)
+    return await res.blob()
+  }
 }
 
 // ===== 模型推荐助手配置 =====

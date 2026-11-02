@@ -57,6 +57,7 @@ export default function FeedbackPage() {
   const [reply, setReply] = useState('')
   const [newStatus, setNewStatus] = useState<'open' | 'replied' | 'closed' | ''>('')
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const load = (opts: { status?: string; category?: string; keyword?: string; page?: number } = {}) => {
     setLoading(true)
@@ -143,6 +144,31 @@ export default function FeedbackPage() {
       .catch((e: Error) => alert(e.message))
   }
 
+  // 导出 CSV：带当前筛选条件，浏览器直接下载
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const params: Record<string, any> = {}
+      if (status) params.status = status
+      if (category) params.category = category
+      if (keyword) params.keyword = keyword
+      const blob = await feedbackApi.export(params)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const today = new Date().toISOString().slice(0, 10)
+      a.download = `feedback-${today}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (e: any) {
+      alert(`导出失败：${e?.message ?? e}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const pageRange = useMemo(() => {
     const arr: number[] = []
     const start = Math.max(1, page - 2)
@@ -199,6 +225,13 @@ export default function FeedbackPage() {
             className="px-4 py-1.5 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200"
           >
             重置
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="px-4 py-1.5 bg-emerald-50 text-emerald-700 text-sm rounded-lg hover:bg-emerald-100 disabled:opacity-60"
+          >
+            {exporting ? '导出中…' : '⬇ 导出 CSV'}
           </button>
         </div>
       </div>

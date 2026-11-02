@@ -6,6 +6,30 @@ import { badRequest, notFound } from '../../utils/http'
 
 const router = Router()
 
+const CATEGORY_LABELS: Record<string, string> = {
+  bug: '问题报告',
+  feature: '功能建议',
+  experience: '体验反馈',
+  other: '其他'
+}
+const STATUS_LABELS: Record<string, string> = {
+  open: '待处理',
+  replied: '已回复',
+  closed: '已关闭'
+}
+function catLabel(v: string): string {
+  return CATEGORY_LABELS[v] ?? v
+}
+function statusLabel(v: string): string {
+  return STATUS_LABELS[v] ?? v
+}
+// CSV 单元格转义：含逗号/引号/换行时双引号包裹，内部引号翻倍
+function csvEscape(v: unknown): string {
+  const s = v === null || v === undefined ? '' : String(v)
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
 const SORT_COLUMNS: Record<string, string> = {
   id: 'f.id',
   status: 'f.status',
@@ -162,6 +186,60 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
     const id = Number(req.params.id)
     await query('DELETE FROM feedbacks WHERE id = ?', [id])
     ok(res, { id }, '已删除')
+  } catch (e) {
+    next(e)
+  }
+})
+
+/** 管理员：导出反馈为 CSV（可选 status/category/keyword 筛选，和列表一致）。 */
+router.get('/export', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { status, category, keyword } = req.query as Record<string, string>
+    const where: string[] = []
+    const params: unknown[] = []
+    if (status)   { where.push('f.status = ?');   params.push(status) }
+    if (category){ where.push('f.category = ?'); params.push(category) }
+    if (keyword)  { where.push('(f.title LIKE ? OR f.content LIKE ?)'); const k = `%${keyword}%`; params.push(k, k) }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const r = await query(
+      `SELECT f.id, f.user_id, u.username, f.category, f.title, f.content, f.contact,
+              f.status, f.admin_reply, f.created_at, f.updated_at
+       FROM feedbacks f
+       LEFT JOIN users u ON u.id = f.user_id
+       ${whereSql}
+       ORDER BY f.created_at DESC, f.id DESC`,
+      params
+    )
+
+    // CSV 表头
+    const header = [
+      'ID', '提交人', '类型', '标题', '内容', '联系方式',
+      '状态', '管理员回复', '提交时间', '更新时间'
+    ]
+    const rows = (r.rows as any[]).map((f) => [
+      f.id,
+      f.username ?? `用户#${f.user_id}`,
+      catLabel(f.category),
+      f.title ?? '',
+      f.content ?? '',
+      f.contact ?? '',
+      statusLabel(f.status),
+      f.admin_reply ?? '',
+      f.created_at ? new Date(f.created_at).toLocaleString('zh-CN') : '',
+      f.updated_at ? new Date(f.updated_at).toLocaleString('zh-CN') : ''
+    ])
+
+    const csv = [header, ...rows]
+      .map((row) => row.map(csvEscape).join(','))
+      .join('\r\n')
+
+    const bom = '\uFEFF' // UTF-8 BOM，防止 Excel 中文乱码
+    const filename = `feedback-${new Date().toISOString().slice(0, 10)}.csv`
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`)
+    res.send(bom + csv)
   } catch (e) {
     next(e)
   }
