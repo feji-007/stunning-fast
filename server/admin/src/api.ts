@@ -143,6 +143,7 @@ export const usersApi = {
   update: (id: number, b: any) => api.put(`/api/users/${id}`, b),
   resetPassword: (id: number, password: string) =>
     api.post(`/api/users/${id}/reset-password`, { password }),
+  batchRemove: (ids: number[]) => api.post<{ deleted: number }>('/api/users/batch-delete', { ids }),
   remove: (id: number) => api.del(`/api/users/${id}`)
 }
 // ===== 任务记录与统计 =====
@@ -159,7 +160,8 @@ export const tasksApi = {
       total: number; page: number; pageSize: number; totalPages: number
     }>(`/api/tasks${q ? `?${q}` : ''}`)
   },
-  remove: (id: number) => api.del(`/api/tasks/${id}`)
+  remove: (id: number) => api.del(`/api/tasks/${id}`),
+  batchRemove: (ids: number[]) => api.post<{ deleted: number }>('/api/tasks/batch-delete', { ids })
 }
 export const statsApi = {
   fetch: () =>
@@ -193,6 +195,7 @@ export const feedbackApi = {
     }>('/api/feedback/stats'),
   update: (id: number, b: any) => api.put(`/api/feedback/${id}`, b),
   remove: (id: number) => api.del(`/api/feedback/${id}`),
+  batchRemove: (ids: number[]) => api.post<{ deleted: number }>('/api/feedback/batch-delete', { ids }),
   /** 导出 CSV：返回 Blob，前端触发浏览器下载。 */
   export: async (params: Record<string, any> = {}): Promise<Blob> => {
     const qs = new URLSearchParams()

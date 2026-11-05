@@ -66,6 +66,10 @@ export default function Tasks() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
+  // 批量选择与删除
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [deleting, setDeleting] = useState(false)
+
   const load = (targetPage = page, targetSize: number = pageSize) => {
     setLoading(true); setError('')
     Promise.all([
@@ -85,6 +89,7 @@ export default function Tasks() {
         setPageSize(t.pageSize ?? targetSize)
         setTotalPages(t.totalPages ?? Math.max(1, Math.ceil((t.total ?? 0) / targetSize)))
         setProviders(p); setModels(m); setUsers(u)
+        setSelectedIds(new Set())
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
@@ -126,6 +131,38 @@ export default function Tasks() {
   }
 
   const hasFilter = filterProvider || filterModel || filterUser || filterStatus
+
+  // 批量选择：仅作用于当前页展示的数据
+  const allSelected = filteredList.length > 0 && filteredList.every((t) => selectedIds.has(t.id))
+
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(filteredList.map((t) => t.id)))
+  }
+
+  const toggleOne = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const removeSelected = () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (!confirm(`确认删除选中的 ${ids.length} 条任务记录?`)) return
+    setDeleting(true)
+    tasksApi.batchRemove(ids)
+      .then(() => {
+        const remaining = filteredList.filter((t) => !selectedIds.has(t.id)).length
+        const target = remaining === 0 && page > 1 ? page - 1 : page
+        setPage(target)
+        load(target, pageSize)
+      })
+      .catch((e: Error) => alert(e.message))
+      .finally(() => setDeleting(false))
+  }
 
   return (
     <div>
@@ -185,6 +222,11 @@ export default function Tasks() {
             className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
           >清除</button>
         )}
+        <button
+          onClick={removeSelected}
+          disabled={selectedIds.size === 0 || deleting}
+          className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100 disabled:opacity-40"
+        >{deleting ? '删除中…' : `删除选中${selectedIds.size ? ` (${selectedIds.size})` : ''}`}</button>
       </div>
 
       <div className="bg-white rounded-xl shadow-float overflow-hidden overflow-x-auto">
@@ -196,6 +238,15 @@ export default function Tasks() {
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="text-xs text-gray-500 border-b border-gray-200">
+                <th className="px-4 py-3 text-left w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    disabled={filteredList.length === 0}
+                    className="h-4 w-4 accent-brand-600"
+                  />
+                </th>
                 <SortableTh label="#" field="id" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="用户" field="user" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="服务商" field="provider" current={sortField} order={sortOrder} onSort={onSort} />
@@ -212,6 +263,14 @@ export default function Tasks() {
             <tbody>
               {filteredList.map((t) => (
                 <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(t.id)}
+                      onChange={() => toggleOne(t.id)}
+                      className="h-4 w-4 accent-brand-600"
+                    />
+                  </td>
                   <td className="px-4 py-3 text-gray-500">{t.id}</td>
                   <td className="px-4 py-3 text-gray-700">{t.username ?? `#${t.user_id}`}</td>
                   <td className="px-4 py-3 text-gray-600">{providerName(t.provider_id)}</td>

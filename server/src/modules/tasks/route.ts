@@ -151,6 +151,29 @@ router.get('/stats', requireAuth, requireAdmin, async (_req, res, next) => {
   }
 })
 
+/** 管理员：批量删除任务；body: { ids: number[] }。 */
+router.post('/batch-delete', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const idsRaw: unknown = (req.body as any)?.ids
+    if (!Array.isArray(idsRaw)) {
+      res.status(400).json({ code: 400, message: 'ids 必须是数组' })
+      return
+    }
+    const ids = idsRaw
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && v > 0)
+    if (ids.length === 0) {
+      ok(res, { deleted: 0 }, '未选择需要删除的任务')
+      return
+    }
+    const placeholders = ids.map(() => '?').join(',')
+    const r = await query(`DELETE FROM tasks WHERE id IN (${placeholders})`, ids)
+    ok(res, { deleted: Number((r as any).affectedRows ?? 0) }, '批量删除完成')
+  } catch (e) {
+    next(e)
+  }
+})
+
 router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id)

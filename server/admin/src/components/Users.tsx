@@ -30,6 +30,9 @@ export default function Users() {
   const [formError, setFormError] = useState('')
   const [resetModal, setResetModal] = useState<null | { id: number; username: string; password: string }>(null)
   const [saving, setSaving] = useState(false)
+  // 批量选择与删除
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [deleting, setDeleting] = useState(false)
   // 分页
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -47,6 +50,7 @@ export default function Users() {
         setPage(r.page ?? targetPage)
         setPageSize(r.pageSize ?? targetSize)
         setTotalPages(r.totalPages ?? Math.max(1, Math.ceil((r.total ?? 0) / targetSize)))
+        setSelectedIds(new Set())
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
@@ -68,6 +72,39 @@ export default function Users() {
   }
 
   const EMAIL_RE = /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/
+
+  // 当前登录管理员不可被批量删除，因此不参与全选
+  const selectableIds = list.filter((u) => me?.id !== u.id).map((u) => u.id)
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id))
+
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(selectableIds))
+  }
+
+  const toggleOne = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const removeSelected = () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (!confirm(`确认删除选中的 ${ids.length} 个用户?`)) return
+    setDeleting(true)
+    usersApi.batchRemove(ids)
+      .then(() => {
+        const remaining = list.filter((u) => !selectedIds.has(u.id)).length
+        const target = remaining === 0 && page > 1 ? page - 1 : page
+        setPage(target)
+        load(target, pageSize)
+      })
+      .catch((e: Error) => alert(e.message))
+      .finally(() => setDeleting(false))
+  }
 
   const save = () => {
     if (!modal) return
@@ -112,10 +149,17 @@ export default function Users() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-800">用户管理</h2>
-        <button
-          onClick={() => { setFormError(''); setModal({ mode: 'create', data: { ...EMPTY_FORM } }) }}
-          className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm hover:bg-brand-700"
-        >+ 新增用户</button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={removeSelected}
+            disabled={selectedIds.size === 0 || deleting}
+            className="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm hover:bg-red-100 disabled:opacity-40"
+          >{deleting ? '删除中…' : `删除选中${selectedIds.size ? ` (${selectedIds.size})` : ''}`}</button>
+          <button
+            onClick={() => { setFormError(''); setModal({ mode: 'create', data: { ...EMPTY_FORM } }) }}
+            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm hover:bg-brand-700"
+          >+ 新增用户</button>
+        </div>
       </div>
 
       {error && (
@@ -131,6 +175,15 @@ export default function Users() {
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="text-xs text-gray-500 border-b border-gray-200">
+                <th className="px-4 py-3 text-left w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    disabled={selectableIds.length === 0}
+                    className="h-4 w-4 accent-brand-600"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left">ID</th>
                 <th className="px-4 py-3 text-left">用户名</th>
                 <th className="px-4 py-3 text-left">邮箱</th>
@@ -145,6 +198,15 @@ export default function Users() {
                 const isSelf = me?.id === u.id
                 return (
                   <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-500">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(u.id)}
+                        onChange={() => toggleOne(u.id)}
+                        disabled={isSelf}
+                        className="h-4 w-4 accent-brand-600 disabled:opacity-40"
+                      />
+                    </td>
                     <td className="px-4 py-3 text-gray-500">{u.id}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">
                       {u.username}

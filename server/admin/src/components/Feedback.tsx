@@ -6,6 +6,7 @@ interface Feedback {
   id: number
   user_id: number
   username: string | null
+  email: string | null
   category: string
   title: string
   content: string
@@ -37,6 +38,12 @@ function statusLabel(v: string): string {
 function statusCls(v: string): string {
   return STATUSES.find((s) => s.value === v)?.cls ?? 'bg-gray-100 text-gray-500'
 }
+// 联系人展示：优先邮箱，其次用户名，最后按用户 ID 兜底
+function contactLabel(f: Feedback): string {
+  const email = f.email?.trim()
+  if (email) return email
+  return f.username ? `${f.username}（未绑定邮箱）` : `用户#${f.user_id}`
+}
 
 export default function FeedbackPage() {
   const [list, setList] = useState<Feedback[]>([])
@@ -58,6 +65,9 @@ export default function FeedbackPage() {
   const [newStatus, setNewStatus] = useState<'open' | 'replied' | 'closed' | ''>('')
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
+  // 批量选择与删除
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   const load = (opts: { status?: string; category?: string; keyword?: string; page?: number } = {}) => {
     setLoading(true)
@@ -78,6 +88,7 @@ export default function FeedbackPage() {
         setList(r.feedbacks ?? [])
         setTotal(r.total ?? 0)
         setTotalPages(r.totalPages ?? 0)
+        setSelectedIds(new Set())
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
@@ -142,6 +153,39 @@ export default function FeedbackPage() {
       .remove(f.id)
       .then(() => load({ page }))
       .catch((e: Error) => alert(e.message))
+  }
+
+  // 批量选择：仅作用于当前页数据
+  const allSelected = list.length > 0 && list.every((f) => selectedIds.has(f.id))
+
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(list.map((f) => f.id)))
+  }
+
+  const toggleOne = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const removeSelected = () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (!confirm(`确认删除选中的 ${ids.length} 条反馈?`)) return
+    setDeleting(true)
+    feedbackApi
+      .batchRemove(ids)
+      .then(() => {
+        const remaining = list.filter((f) => !selectedIds.has(f.id)).length
+        const target = remaining === 0 && page > 1 ? page - 1 : page
+        setPage(target)
+        load({ page: target })
+      })
+      .catch((e: Error) => alert(e.message))
+      .finally(() => setDeleting(false))
   }
 
   // 导出 CSV：带当前筛选条件，浏览器直接下载
@@ -233,6 +277,13 @@ export default function FeedbackPage() {
           >
             {exporting ? '导出中…' : '⬇ 导出 CSV'}
           </button>
+          <button
+            onClick={removeSelected}
+            disabled={selectedIds.size === 0 || deleting}
+            className="px-4 py-1.5 bg-red-50 text-red-600 text-sm rounded-lg hover:bg-red-100 disabled:opacity-40"
+          >
+            {deleting ? '删除中…' : `删除选中${selectedIds.size ? ` (${selectedIds.size})` : ''}`}
+          </button>
         </div>
       </div>
 
@@ -252,8 +303,17 @@ export default function FeedbackPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-gray-500 border-b border-gray-200">
+                <th className="px-4 py-3 text-left w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    disabled={list.length === 0}
+                    className="h-4 w-4 accent-brand-600"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left">ID</th>
-                <th className="px-4 py-3 text-left">提交人</th>
+                <th className="px-4 py-3 text-left">联系人</th>
                 <th className="px-4 py-3 text-left">类型</th>
                 <th className="px-4 py-3 text-left">标题</th>
                 <th className="px-4 py-3 text-left">内容</th>
@@ -266,8 +326,16 @@ export default function FeedbackPage() {
             <tbody>
               {list.map((f) => (
                 <tr key={f.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(f.id)}
+                      onChange={() => toggleOne(f.id)}
+                      className="h-4 w-4 accent-brand-600"
+                    />
+                  </td>
                   <td className="px-4 py-3 text-gray-500 font-mono text-xs">#{f.id}</td>
-                  <td className="px-4 py-3 text-gray-700">{f.username ?? `用户#${f.user_id}`}</td>
+                  <td className="px-4 py-3 text-gray-700">{contactLabel(f)}</td>
                   <td className="px-4 py-3">
                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
                       {catLabel(f.category)}
@@ -375,8 +443,8 @@ export default function FeedbackPage() {
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <div className="text-xs text-gray-500 mb-0.5">提交人</div>
-                  <div className="text-gray-800">{detail.username ?? `用户#${detail.user_id}`}</div>
+                  <div className="text-xs text-gray-500 mb-0.5">联系人</div>
+                  <div className="text-gray-800">{contactLabel(detail)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-0.5">类型</div>

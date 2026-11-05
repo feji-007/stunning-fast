@@ -11,7 +11,8 @@
         "migrate": "tsx src/db/migrate.ts",
         "migrate:status": "tsx src/db/migrate.ts status",
         "admin:dev": "cd admin && npm run dev",
-        "dev": "tsx watch src/index.ts"
+        "dev": "tsx watch src/index.ts",
+        "test": "tsx --test tests/users.batch-delete.test.ts tests/feedback.batch-delete.test.ts tests/tasks.batch-delete.test.ts"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",

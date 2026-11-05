@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { query, queryOne } from '../../db/pool'
 import { badRequest, notFound } from '../../utils/http'
-import { ok } from '../../utils/response'
+import { ok, getAuthUser } from '../../utils/response'
 import { hashPassword } from '../../utils/password'
 import { requireAuth, requireAdmin } from '../../middleware/auth'
 
@@ -119,6 +119,27 @@ router.post('/:id/reset-password', requireAuth, requireAdmin, async (req, res, n
     )
     if (r.affectedRows === 0) throw notFound('用户不存在')
     ok(res, { id }, '密码已重置')
+  } catch (e) {
+    next(e)
+  }
+})
+
+/** 批量删除用户；body: { ids: number[] }；当前登录管理员不可删除自己。 */
+router.post('/batch-delete', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const me = getAuthUser(req)
+    const idsRaw: unknown = (req.body as any)?.ids
+    if (!Array.isArray(idsRaw)) throw badRequest('ids 必须是数组')
+    const ids = idsRaw
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && v > 0 && v !== me.id)
+    if (ids.length === 0) {
+      ok(res, { deleted: 0 }, '未选择可删除的用户')
+      return
+    }
+    const placeholders = ids.map(() => '?').join(',')
+    const r = await query(`DELETE FROM users WHERE id IN (${placeholders})`, ids)
+    ok(res, { deleted: Number((r as any).affectedRows ?? 0) }, '批量删除完成')
   } catch (e) {
     next(e)
   }

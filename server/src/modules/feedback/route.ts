@@ -23,6 +23,12 @@ function catLabel(v: string): string {
 function statusLabel(v: string): string {
   return STATUS_LABELS[v] ?? v
 }
+// 联系人展示：优先邮箱，其次用户名，最后按用户 ID 兜底
+function contactLabel(f: any): string {
+  const email = f.email == null ? '' : String(f.email).trim()
+  if (email) return email
+  return f.username ? `${f.username}（未绑定邮箱）` : `用户#${f.user_id}`
+}
 // CSV 单元格转义：含逗号/引号/换行时双引号包裹，内部引号翻倍
 function csvEscape(v: unknown): string {
   const s = v === null || v === undefined ? '' : String(v)
@@ -128,7 +134,7 @@ router.get('/', requireAuth, requireAdmin, async (req, res, next) => {
     const total = Number((cnt.rows as any[])?.[0]?.c ?? 0)
 
     const r = await query(
-      `SELECT f.id, f.user_id, u.username, f.category, f.title, f.content, f.contact,
+      `SELECT f.id, f.user_id, u.username, u.email, f.category, f.title, f.content, f.contact,
               f.status, f.admin_reply, f.created_at, f.updated_at
        FROM feedbacks f
        LEFT JOIN users u ON u.id = f.user_id
@@ -180,6 +186,26 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   }
 })
 
+/** 管理员：批量删除反馈；body: { ids: number[] }。 */
+router.post('/batch-delete', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const idsRaw: unknown = (req.body as any)?.ids
+    if (!Array.isArray(idsRaw)) throw badRequest('ids 必须是数组')
+    const ids = idsRaw
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && v > 0)
+    if (ids.length === 0) {
+      ok(res, { deleted: 0 }, '未选择需要删除的反馈')
+      return
+    }
+    const placeholders = ids.map(() => '?').join(',')
+    const r = await query(`DELETE FROM feedbacks WHERE id IN (${placeholders})`, ids)
+    ok(res, { deleted: Number((r as any).affectedRows ?? 0) }, '批量删除完成')
+  } catch (e) {
+    next(e)
+  }
+})
+
 /** 管理员：删除反馈。 */
 router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
@@ -203,7 +229,7 @@ router.get('/export', requireAuth, requireAdmin, async (req, res, next) => {
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
     const r = await query(
-      `SELECT f.id, f.user_id, u.username, f.category, f.title, f.content, f.contact,
+      `SELECT f.id, f.user_id, u.username, u.email, f.category, f.title, f.content, f.contact,
               f.status, f.admin_reply, f.created_at, f.updated_at
        FROM feedbacks f
        LEFT JOIN users u ON u.id = f.user_id
@@ -214,12 +240,12 @@ router.get('/export', requireAuth, requireAdmin, async (req, res, next) => {
 
     // CSV 表头
     const header = [
-      'ID', '提交人', '类型', '标题', '内容', '联系方式',
+      'ID', '联系人', '类型', '标题', '内容', '联系方式',
       '状态', '管理员回复', '提交时间', '更新时间'
     ]
     const rows = (r.rows as any[]).map((f) => [
       f.id,
-      f.username ?? `用户#${f.user_id}`,
+      contactLabel(f),
       catLabel(f.category),
       f.title ?? '',
       f.content ?? '',
