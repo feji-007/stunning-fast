@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { authApi } from '../api/client'
+import {
+  getStoredLoginPreferences,
+  isLoginStorageSupported,
+  loadRememberedCredential
+} from '../utils/loginStorage'
 
 const EMAIL_RE = /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/
 
@@ -61,6 +66,31 @@ export default function LoginModal() {
   const [showPassword, setShowPassword] = useState(false)
   const [sendingCode, setSendingCode] = useState(false)
   const [countdown, setCountdown] = useState(0)
+  // 记住密码 / 下次自动登录（两者相互独立）
+  const [rememberPassword, setRememberPassword] = useState(false)
+  const [autoLogin, setAutoLogin] = useState(false)
+  // 浏览器不支持 localStorage / Web Crypto 时降级：不展示可用勾选项，登录流程不受影响
+  const storageSupported = useMemo(() => isLoginStorageSupported(), [])
+
+  // 打开登录表单时：恢复上次勾选状态，并用本地保存的账号密码自动填充
+  useEffect(() => {
+    if (!storageSupported) return
+    let alive = true
+    void (async () => {
+      const prefs = getStoredLoginPreferences()
+      const remembered = await loadRememberedCredential()
+      if (!alive) return
+      setRememberPassword(prefs.rememberPassword)
+      setAutoLogin(prefs.autoLogin)
+      if (remembered) {
+        setUsername(remembered.username)
+        setPassword(remembered.password)
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [storageSupported])
 
   // 发送验证码后的 60 秒倒计时
   useEffect(() => {
@@ -148,8 +178,15 @@ export default function LoginModal() {
     setLoading(true)
     try {
       if (tab === 'login') {
-        if (loginMode === 'email') await loginEmail(email.trim(), code.trim())
-        else await login(username.trim(), password)
+        if (loginMode === 'email') {
+          await loginEmail(email.trim(), code.trim())
+        } else {
+          // 仅「下次自动登录」需要跨会话保留 token；勾选项随登录一起写入本地存储
+          await login(username.trim(), password, {
+            persistToken: autoLogin,
+            prefs: { rememberPassword, autoLogin }
+          })
+        }
       } else {
         await register(username.trim(), password, email.trim(), code.trim())
       }
@@ -241,6 +278,47 @@ export default function LoginModal() {
             </div>
           )}
         </label>
+        )}
+
+        {/* 记住密码 / 下次自动登录：仅账号密码登录时可选，两者相互独立 */}
+        {tab === 'login' && loginMode === 'password' && (
+          <div className="mb-3">
+            <div className="flex items-center gap-4">
+              <label
+                className={`flex items-center gap-1.5 text-[11px] ${
+                  storageSupported ? 'cursor-pointer text-gray-600' : 'cursor-not-allowed text-gray-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={rememberPassword}
+                  disabled={!storageSupported || loading}
+                  onChange={(e) => setRememberPassword(e.target.checked)}
+                  className="h-3 w-3 accent-brand-500"
+                />
+                记住密码
+              </label>
+              <label
+                className={`flex items-center gap-1.5 text-[11px] ${
+                  storageSupported ? 'cursor-pointer text-gray-600' : 'cursor-not-allowed text-gray-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={autoLogin}
+                  disabled={!storageSupported || loading}
+                  onChange={(e) => setAutoLogin(e.target.checked)}
+                  className="h-3 w-3 accent-brand-500"
+                />
+                下次自动登录
+              </label>
+            </div>
+            {!storageSupported && (
+              <p className="mt-1 text-[10px] text-gray-400">
+                当前环境不支持本地存储，已停用记住密码与自动登录
+              </p>
+            )}
+          </div>
         )}
 
         {/* 注册 / 邮箱登录时使用邮箱 + 验证码 */}

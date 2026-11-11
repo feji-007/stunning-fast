@@ -67,7 +67,13 @@ function getTrayIcon(): Tray | null {
     const t = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img)
     t.setToolTip('绝色')
     t.on('click', () => {
-      if (!mainWindow) return
+      if (!mainWindow || mainWindow.isDestroyed()) return
+      // 优先处理最小化状态：Win+D 强制最小化后，isVisible() 仍为 true，
+      // 若直接按可见性切换会把窗口 hide，导致球"消失"。
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+        return
+      }
       if (mainWindow.isVisible()) mainWindow.hide()
       else mainWindow.show()
     })
@@ -89,8 +95,15 @@ function createWindow(): BrowserWindow {
   const primary = screen.getPrimaryDisplay()
   const defaultX = primary.workAreaSize.width - panelW - 24
   const defaultY = primary.workAreaSize.height - panelH - 24
-  const x = savedPos?.x ?? defaultX
-  const y = savedPos?.y ?? defaultY
+  let x = savedPos?.x ?? defaultX
+  let y = savedPos?.y ?? defaultY
+  // 启动时校验位置是否落在当前某个显示器的可见工作区内：
+  // - 处理副屏拔线后 savedPos 仍指向已断开显示器的情况
+  // - 处理此前保存了越界坐标（屏幕外）的情况
+  const startDisplay = screen.getDisplayNearestPoint({ x, y })
+  const startWA = startDisplay.workArea
+  x = Math.min(Math.max(x, startWA.x), startWA.x + startWA.width - panelW)
+  y = Math.min(Math.max(y, startWA.y), startWA.y + startWA.height - panelH)
  
   const win = new BrowserWindow({
     width: panelW,
@@ -231,6 +244,20 @@ function createWindow(): BrowserWindow {
     }
   })
   win.on('restore', () => {
+    // Win+D 强制最小化恢复后，确保主窗口可见，并把可能因显示器/DPI 变化
+    // 飘出屏幕外的窗口救回到工作区内。
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    try { mainWindow.show() } catch {}
+    if (mainWindow.isMinimized()) return
+    const [wx, wy] = mainWindow.getPosition()
+    const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
+    const wa = display.workArea
+    const [ww, wh] = mainWindow.getSize()
+    const nx = Math.min(Math.max(wx, wa.x), wa.x + wa.width - ww)
+    const ny = Math.min(Math.max(wy, wa.y), wa.y + wa.height - wh)
+    if (nx !== wx || ny !== wy) {
+      mainWindow.setPosition(nx, ny)
+    }
     if (recommendationWindow && !recommendationWindow.isDestroyed()) {
       positionRecommendationWindow()
       recommendationWindow.show()
@@ -430,6 +457,11 @@ function expandWindow() {
   dbgSize('expandWindow', { from: [ww, wh], to: PANEL })
   win.setSize(PANEL.width, PANEL.height)
   win.setPosition(nx, ny)
+  // 强制重绘：与 collapseWindow 同理，避免 transparent 窗口 resize 后新增区域不渲染
+  try {
+    win.setOpacity(0.99)
+    setTimeout(() => { try { win.setOpacity(1.0) } catch {} }, 16)
+  } catch {}
   baseWindowHeight = PANEL.height
   try {
     win.setSkipTaskbar(false)
@@ -478,6 +510,12 @@ function collapseWindow() {
   dbgSize('collapseWindow', { from: [ww, wh], to: MINI })
   win.setSize(MINI.width, MINI.height)
   win.setPosition(clampedX, clampedY)
+  // 强制重绘：transparent 窗口在 Windows 上 resize 后需要切换一次合成模式，
+  // 否则收起后的 72x72 区域可能不渲染，导致悬浮球视觉上"消失"。
+  try {
+    win.setOpacity(0.99)
+    setTimeout(() => { try { win.setOpacity(1.0) } catch {} }, 16)
+  } catch {}
   try {
     win.setSkipTaskbar(true)
     win.setMinimizable(false)
@@ -555,7 +593,10 @@ function registerIpc() {
   })
  
   ipcMain.handle('window:save-position', (_e, x: number, y: number) => {
-    store.set('lastPos', { x: Math.round(x), y: Math.round(y) })
+    // 优先保存窗口实际坐标（已被 clamp 到工作区），而非渲染层传入的鼠标推算坐标。
+    // 渲染层在屏幕边缘拖拽时传入的坐标可能越界，直接存会导致下次启动球在屏幕外。
+    const [ax, ay] = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getPosition() : [x, y]
+    store.set('lastPos', { x: Math.round(ax), y: Math.round(ay) })
     // 拖拽结束（mouseup），立即恢复 onMove 的 clamp 行为
     isUserDragging = false
     if (dragClampTimer) {
@@ -800,6 +841,29 @@ app.whenReady().then(() => {
   }
   mainWindow = createWindow()
 
+  // 显示器配置变化（拔插副屏 / 改 DPI 缩放 / 改分辨率）时，
+  // 把主窗口救回到当前某个显示器的可见工作区内，避免悬浮球飘出屏幕外。
+  const rescueWindowToWorkArea = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (mainWindow.isMinimized()) return
+    const [wx, wy] = mainWindow.getPosition()
+    const [ww, wh] = mainWindow.getSize()
+    const display = screen.getDisplayNearestPoint({ x: wx, y: wy })
+    const wa = display.workArea
+    const nx = Math.min(Math.max(wx, wa.x), wa.x + wa.width - ww)
+    const ny = Math.min(Math.max(wy, wa.y), wa.y + wa.height - wh)
+    if (nx !== wx || ny !== wy) {
+      dbgSize('display-change rescue', { from: [wx, wy], to: [nx, ny] })
+      mainWindow.setBounds({ x: nx, y: ny, width: ww, height: wh })
+      // transparent 窗口位置突变后同样需要强制重绘
+      try {
+        mainWindow.setOpacity(0.99)
+        setTimeout(() => { try { mainWindow?.setOpacity(1.0) } catch {} }, 16)
+      } catch {}
+    }
+  }
+  screen.on('display-removed', rescueWindowToWorkArea)
+  screen.on('display-metrics-changed', rescueWindowToWorkArea)
 
   // 每 2 秒输出窗口位置，观察是否有漂移
   setInterval(() => {

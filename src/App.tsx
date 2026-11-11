@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from './store/useStore'
-import { authApi } from './api/client'
+import { authApi, clearToken, getToken } from './api/client'
+import { clearLoginStorage, loadAutoLoginCredential } from './utils/loginStorage'
 import FloatingWindow from './components/FloatingWindow'
 import MainPanel from './components/MainPanel'
 import LoginModal from './components/LoginModal'
@@ -101,22 +102,43 @@ function MainApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 启动：拉取后端系统配置；若本地仍保留登录态，校验 token 并恢复用户私有配置
+  // 启动：拉取后端系统配置；优先自动登录，其次恢复同一会话内的登录态
   useEffect(() => {
-    void useStore.getState().bootstrap()
-    if (useStore.getState().user.loggedIn) {
-      authApi
-        .me()
-        .then((r) => {
-          useStore.setState((s) => ({
-            user: { ...s.user, userId: r.user.id, username: r.user.username }
-          }))
-          void useStore.getState().pullUserConfig()
-        })
-        .catch(() => {
-          useStore.getState().logout()
-        })
-    }
+    void (async () => {
+      const store = useStore.getState()
+      void store.bootstrap()
+
+      // 1) 优先读取自动登录标识：存在且未过期（7 天）则直接完成登录并进入主界面
+      const auto = await loadAutoLoginCredential()
+      if (auto.status === 'ok') {
+        try {
+          await store.login(auto.username, auto.password, { persistToken: true })
+          return
+        } catch (e: any) {
+          // 凭证已失效（401）才清除本地登录信息；网络异常保留记录，下次启动重试
+          if (e?.status === 401) clearLoginStorage()
+        }
+      } else if (auto.status === 'expired') {
+        // 自动登录已过期：连持久化的登录态一起清除，必须重新登录
+        clearToken()
+      }
+
+      // 2) 同一会话内刷新页面：已有 token 时静默校验并恢复登录态（不写入任何本地存储）
+      const token = getToken()
+      if (!token || useStore.getState().user.loggedIn) return
+      try {
+        const r = await authApi.me()
+        useStore.setState((s) => ({
+          user: { ...s.user, loggedIn: true, userId: r.user.id, username: r.user.username, token }
+        }))
+        void useStore.getState().pullUserConfig()
+      } catch (e: any) {
+        if (e?.status === 401) {
+          clearToken()
+          clearLoginStorage()
+        }
+      }
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

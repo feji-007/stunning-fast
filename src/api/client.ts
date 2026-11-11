@@ -16,14 +16,52 @@ export function setApiBase(url: string) {
   localStorage.setItem(API_BASE_KEY, url.replace(/\/+$/, ''))
 }
 
+// 登录态：勾选「下次自动登录」时写入 localStorage（跨会话），
+// 否则只写 sessionStorage，关闭会话即失效。
+// 存储均不可用时退化为内存态，保证登录流程本身不受影响。
+let memoryToken: string | null = null
+
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  try {
+    const sessionToken = sessionStorage.getItem(TOKEN_KEY)
+    if (sessionToken) return sessionToken
+  } catch {
+    // sessionStorage 不可用时继续尝试 localStorage
+  }
+  try {
+    const localToken = localStorage.getItem(TOKEN_KEY)
+    if (localToken) return localToken
+  } catch {
+    // localStorage 不可用时使用内存态
+  }
+  return memoryToken
 }
-export function setToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token)
+export function setToken(token: string, persist = false) {
+  memoryToken = token
+  try {
+    if (persist) {
+      localStorage.setItem(TOKEN_KEY, token)
+      sessionStorage.removeItem(TOKEN_KEY)
+    } else {
+      localStorage.removeItem(TOKEN_KEY)
+      sessionStorage.setItem(TOKEN_KEY, token)
+    }
+  } catch {
+    // 两种存储均不可用时，登录态只保留在内存中
+  }
 }
 export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY)
+  memoryToken = null
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // ignore
+  }
+  try {
+    sessionStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // ignore
+  }
 }
 
 async function request<T = any>(path: string, options: RequestInit = {}): Promise<T> {
@@ -39,19 +77,29 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
   try {
     res = await fetch(base + path, { ...options, headers })
   } catch {
-    throw new Error('无法连接后台服务，请确认服务已启动')
+    throw new ApiError('无法连接后台服务，请确认服务已启动', 0)
   }
   let data: any
   try {
     data = await res.json()
   } catch {
-    throw new Error(`服务器响应解析失败（${res.status}）`)
+    throw new ApiError(`服务器响应解析失败（${res.status}）`, res.status)
   }
   if (!res.ok || data.code !== 0) {
     if (res.status === 401) clearToken()
-    throw new Error(data.message || `请求失败 (${res.status})`)
+    throw new ApiError(data.message || `请求失败 (${res.status})`, res.status)
   }
   return data.data as T
+}
+
+/** 带 HTTP 状态码的请求错误：0 表示网络不可达，调用方据此区分「凭证失效」与「网络异常」 */
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
 }
 
 export const api = {

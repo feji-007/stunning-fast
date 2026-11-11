@@ -23,6 +23,8 @@ import {
   userApiKeysApi,
   userConfigsApi
 } from '../api/client'
+import { clearLoginStorage, saveLoginPreferences } from '../utils/loginStorage'
+import type { LoginPreferences } from '../utils/loginStorage'
 
 type Modal = 'none' | 'login' | 'settings' | 'feedback'
 
@@ -105,7 +107,11 @@ interface AppState {
   setPanelOpacity: (v: number) => void
   setTheme: (t: Theme) => void
   toggleFeatureViewMode: () => void
-  login: (username: string, password: string) => Promise<void>
+  login: (
+    username: string,
+    password: string,
+    opts?: { persistToken?: boolean; prefs?: LoginPreferences }
+  ) => Promise<void>
   loginEmail: (email: string, code: string) => Promise<void>
   logout: () => void
   register: (username: string, password: string, email: string, code: string) => Promise<void>
@@ -393,9 +399,10 @@ export const useStore = create<AppState>()(
         set({ featureViewMode: next })
       },
 
-      login: async (username, password) => {
+      login: async (username, password, opts) => {
         const res = await authApi.login(username, password)
-        setToken(res.token)
+        // 勾选「下次自动登录」才跨会话保留登录态，否则仅当前会话有效
+        setToken(res.token, opts?.persistToken === true)
         set({
           user: {
             loggedIn: true,
@@ -405,6 +412,10 @@ export const useStore = create<AppState>()(
           },
           modal: 'none'
         })
+        // 登录成功后才写入本地存储；登录失败会抛出异常，不会执行到这里
+        if (opts?.prefs) {
+          await saveLoginPreferences(username, password, opts.prefs)
+        }
         // 登录成功后拉取该用户的私有配置（密钥/布局）并合并
         await get().pullUserConfig()
       },
@@ -424,7 +435,9 @@ export const useStore = create<AppState>()(
         await get().pullUserConfig()
       },
       logout: () => {
+        // 主动退出：清除登录态与全部本地保存的账号、密码、自动登录标识
         clearToken()
+        clearLoginStorage()
         set({ user: { loggedIn: false, userId: null, username: '', token: '' } })
       },
       register: async (username, password, email, code) => {
@@ -830,9 +843,10 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'stunning-fast-store',
+      // 注意：user（登录态）不做持久化。登录态只由 token 承载，
+      // 勾选「下次自动登录」时 token 落 localStorage，否则只留在 sessionStorage。
       partialize: (s) => ({
         features: s.features,
-        user: s.user,
         keys: s.keys,
         autoLaunch: s.autoLaunch,
         columns: s.columns,
@@ -844,6 +858,12 @@ export const useStore = create<AppState>()(
         theme: s.theme,
         customProviders: s.customProviders,
         customModels: s.customModels
+      }),
+      // 丢弃旧版本可能残留的持久化登录态，避免未登录时被误判为已登录
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Partial<AppState>),
+        user: current.user
       }),
       // localStorage 水合完成后，把持久化的自定义供应商/模型合并回运行时 providers
       onRehydrateStorage: () => (state) => {
