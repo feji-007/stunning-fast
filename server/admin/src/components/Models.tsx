@@ -429,9 +429,12 @@ export default function Models() {
                     })()}
                   </td>
                   <td className="px-4 py-3">
-                    {(m.verified_score ?? 0) > 0
-                      ? <span className={`text-xs font-medium ${m.verified_score >= 70 ? 'text-emerald-600' : m.verified_score >= 40 ? 'text-amber-600' : 'text-gray-500'}`}>{m.verified_score}/100</span>
-                      : <span className="text-xs text-gray-400">未实测</span>}
+                    {(() => {
+                      const score = m.verified_score ?? 0
+                      return score > 0
+                        ? <span className={`text-xs font-medium ${score >= 70 ? 'text-emerald-600' : score >= 40 ? 'text-amber-600' : 'text-gray-500'}`}>{score}/100</span>
+                        : <span className="text-xs text-gray-400">未实测</span>
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     {(() => {
