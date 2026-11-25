@@ -18,15 +18,61 @@ function getStandaloneModal(): string | null {
 
 export default function App() {
   const modal = getStandaloneModal()
+  // 独立弹窗（AI 助手）与主窗口是不同 BrowserWindow，sessionStorage 不共享；
+  // 这里统一恢复登录态：token 可能来自 URL hash（主进程注入）或共享的 localStorage。
+  const restoring = useStandaloneSessionRestore(modal === 'recommendation')
   // 独立弹窗模式：仅渲染对应弹窗
   if (modal === 'update') {
     return <StandaloneUpdateModal />
   }
   if (modal === 'recommendation') {
+    if (restoring) {
+      return (
+        <div className="flex h-full w-full items-center justify-center p-3">
+          <div className="text-xs text-gray-400">加载中…</div>
+        </div>
+      )
+    }
     return <RecommendationAssistantModal />
   }
 
   return <MainApp />
+}
+
+/** 独立弹窗的登录态恢复：有 token 时静默校验并写入登录态 */
+function useStandaloneSessionRestore(enabled: boolean): boolean {
+  const [restoring, setRestoring] = useState(enabled)
+
+  useEffect(() => {
+    if (!enabled) {
+      setRestoring(false)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const token = getToken()
+      if (!token || useStore.getState().user.loggedIn) {
+        if (!cancelled) setRestoring(false)
+        return
+      }
+      try {
+        const r = await authApi.me()
+        if (cancelled) return
+        useStore.setState((s) => ({
+          user: { ...s.user, loggedIn: true, userId: r.user.id, username: r.user.username, token }
+        }))
+      } catch {
+        // 校验失败保持未登录态，由弹窗展示登录引导
+      } finally {
+        if (!cancelled) setRestoring(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [enabled])
+
+  return restoring
 }
 
 function MainApp() {

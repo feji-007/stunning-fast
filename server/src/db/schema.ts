@@ -57,12 +57,26 @@ const SCHEMA_STATEMENTS: string[] = [
   source        VARCHAR(16)  NOT NULL DEFAULT 'system',
   sort_order    INT          NOT NULL DEFAULT 0,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+  -- ===== 步骤一新增：六层模型档案 =====
+  scenarios     TEXT         NULL COMMENT '适用场景（JSON 数组，如 ["叙事","产品展示","角色一致性"]）',
+  capabilities  TEXT         NULL COMMENT '能力边界说明（自由文本，描述擅长/不擅长什么）',
+  limits_text   TEXT         NULL COMMENT '使用限制（自由文本，如"需要 24GB 显存"、"免费额度 20 条/天"）',
+  verified_score INT         NOT NULL DEFAULT 0 COMMENT '实测评分 0-100，0 表示未实测',
+  source_url    VARCHAR(512) NOT NULL DEFAULT '' COMMENT '内容来源 URL（官方文档/社区帖子等）',
+  license       VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '授权类型（MIT/Apache/商用/免费额度/API 付费等）',
+  commercial_allowed TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否允许商用',
+  deployment    VARCHAR(32)  NOT NULL DEFAULT 'cloud' COMMENT '部署要求：cloud/local/hybrid',
+  -- ===== 步骤一新增：三态审核 =====
+  review_status VARCHAR(16)  NOT NULL DEFAULT 'published' COMMENT 'draft/review/published',
+  reviewer_id   INT          NULL COMMENT '审核人 user_id',
+  reviewed_at   DATETIME     NULL COMMENT '审核时间',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   INDEX idx_models_provider (provider_id),
   INDEX idx_models_type (type),
   INDEX idx_models_source (source),
+  INDEX idx_models_review (review_status),
   CONSTRAINT fk_models_provider FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
@@ -250,6 +264,34 @@ const SCHEMA_STATEMENTS: string[] = [
   \`value\`   VARCHAR(256) NOT NULL DEFAULT '',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (\`key\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+  // 步骤二：免费模型资源聚合表
+  `CREATE TABLE IF NOT EXISTS free_resources (
+  id            VARCHAR(64)  NOT NULL,
+  title         VARCHAR(256) NOT NULL,
+  category      VARCHAR(32)  NOT NULL COMMENT 'open_source / vendor_free_tier / local_deploy / online_trial / community',
+  model_id      VARCHAR(64)  NULL COMMENT '关联到 models.id (可选)',
+  url           VARCHAR(512) NOT NULL COMMENT '资源访问地址',
+  license       VARCHAR(64)  NOT NULL DEFAULT '',
+  commercial_allowed TINYINT(1) NOT NULL DEFAULT 0,
+  free_quota    VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '免费额度描述, 如 20条/天',
+  entry_type    VARCHAR(32)  NOT NULL DEFAULT 'official' COMMENT 'official / community / mirror',
+  region        VARCHAR(64)  NOT NULL DEFAULT '',
+  notes         TEXT         NULL,
+  source_url    VARCHAR(512) NOT NULL DEFAULT '',
+  status        VARCHAR(16)  NOT NULL DEFAULT 'normal' COMMENT 'normal / restricted / invalid',
+  last_check_at DATETIME     NULL,
+  check_count   INT          NOT NULL DEFAULT 0,
+  fail_reason   VARCHAR(256) NOT NULL DEFAULT '',
+  sort_order    INT          NOT NULL DEFAULT 0,
+  is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_fr_model (model_id),
+  INDEX idx_fr_category (category),
+  INDEX idx_fr_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
 ]
 
@@ -302,6 +344,19 @@ export async function ensureSchema(): Promise<void> {
   await addColumnIfMissing('models', 'max_videos', 'INT NOT NULL DEFAULT 0')
   await addColumnIfMissing('models', 'max_audios', 'INT NOT NULL DEFAULT 0')
   await addColumnIfMissing('models', 'max_total_assets', 'INT NOT NULL DEFAULT 0')
+  // 步骤一迁移：六层模型档案字段
+  await addColumnIfMissing('models', 'scenarios', 'TEXT NULL')
+  await addColumnIfMissing('models', 'capabilities', 'TEXT NULL')
+  await addColumnIfMissing('models', 'limits_text', 'TEXT NULL')
+  await addColumnIfMissing('models', 'verified_score', 'INT NOT NULL DEFAULT 0')
+  await addColumnIfMissing('models', 'source_url', "VARCHAR(512) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('models', 'license', "VARCHAR(64) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('models', 'commercial_allowed', 'TINYINT(1) NOT NULL DEFAULT 0')
+  await addColumnIfMissing('models', 'deployment', "VARCHAR(32) NOT NULL DEFAULT 'cloud'")
+  // 步骤一迁移：三态审核字段
+  await addColumnIfMissing('models', 'review_status', "VARCHAR(16) NOT NULL DEFAULT 'published'")
+  await addColumnIfMissing('models', 'reviewer_id', 'INT NULL')
+  await addColumnIfMissing('models', 'reviewed_at', 'DATETIME NULL')
   console.log('[db] 表结构检查完成（已存在则跳过）')
 }
 

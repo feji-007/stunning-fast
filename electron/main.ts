@@ -377,8 +377,14 @@ function positionRecommendationWindow() {
   }
 }
 
-function createRecommendationWindow() {
+function createRecommendationWindow(token?: string) {
+  // 把主窗口的登录 token 通过 URL hash 传给弹窗（hash 不参与请求，仅弹窗内读取）
+  const hash = token ? `#token=${encodeURIComponent(token)}` : ''
+  const popupUrl = buildPopupUrl('', 'recommendation') + hash
+
   if (recommendationWindow && !recommendationWindow.isDestroyed()) {
+    // 已存在时重新加载，确保带上最新 token（避免复用旧页面导致登录态残留）
+    recommendationWindow.loadURL(popupUrl)
     recommendationWindow.focus()
     return
   }
@@ -415,7 +421,8 @@ function createRecommendationWindow() {
       nodeIntegration: false
     }
   })
-  const url = buildPopupUrl('', 'recommendation')
+  // 把主窗口的登录 token 通过 URL hash 传给弹窗（hash 不参与请求，仅弹窗内读取）
+  const url = popupUrl
   console.log('[recommendation] 加载推荐助手弹窗 URL:', url)
   win.loadURL(url)
   win.once('ready-to-show', () => {
@@ -820,9 +827,9 @@ function registerIpc() {
   })
 
   // ===== 模型推荐助手弹窗 =====
-  ipcMain.handle(IPC.RECOMMENDATION_WINDOW_OPEN, () => {
-    console.log('[recommendation] IPC RECOMMENDATION_WINDOW_OPEN received')
-    createRecommendationWindow()
+  ipcMain.handle(IPC.RECOMMENDATION_WINDOW_OPEN, (_e, token?: string) => {
+    console.log('[recommendation] IPC RECOMMENDATION_WINDOW_OPEN received, token:', token ? '有' : '无')
+    createRecommendationWindow(typeof token === 'string' && token ? token : undefined)
   })
   ipcMain.handle(IPC.RECOMMENDATION_WINDOW_CLOSE, () => {
     if (recommendationWindow && !recommendationWindow.isDestroyed()) recommendationWindow.close()

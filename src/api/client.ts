@@ -21,6 +21,19 @@ export function setApiBase(url: string) {
 // 存储均不可用时退化为内存态，保证登录流程本身不受影响。
 let memoryToken: string | null = null
 
+// 独立弹窗（如 AI 助手）由主进程通过 URL hash 传入 token，占位一次后立即清除，
+// 避免弹窗因独立 sessionStorage 读不到登录态而误判为未登录。
+try {
+  const hashToken = new URLSearchParams(location.hash.replace(/^#/, '')).get('token')
+  if (hashToken) {
+    memoryToken = hashToken
+    sessionStorage.setItem(TOKEN_KEY, hashToken)
+    history.replaceState(null, '', location.pathname + location.search)
+  }
+} catch {
+  // ignore
+}
+
 export function getToken(): string | null {
   try {
     const sessionToken = sessionStorage.getItem(TOKEN_KEY)
@@ -137,6 +150,15 @@ export const bootstrapApi = {
       recommendModels: Record<string, { name: string; desc: string; tag: string }>
       recommendQuestions: Array<{ layer: string; title: string; options: Array<{ label: string; models: string[]; note?: string }> }>
       guideQuestions: GuideQuestion[]
+      // 步骤二：免费模型资源聚合
+      freeResources: Array<{
+        id: string; title: string; category: string; model_id: string | null
+        url: string; license: string; commercial_allowed: boolean
+        free_quota: string; entry_type: string; region: string
+        notes?: string | null; source_url: string
+        status: 'normal' | 'restricted' | 'invalid'
+        last_check_at?: string | null
+      }>
     }>('/api/bootstrap')
 }
 
@@ -218,5 +240,35 @@ export const feedbackApi = {
       created_at: string
       updated_at: string
     }> }>('/api/feedback/mine')
+}
+
+// ===== 步骤二：免费模型资源（公开读取，客户端选型视图用） =====
+export interface FreeResource {
+  id: string
+  title: string
+  category: string
+  model_id?: string | null
+  url: string
+  license: string
+  commercial_allowed: boolean
+  free_quota: string
+  entry_type: string
+  region: string
+  notes?: string | null
+  source_url: string
+  status: 'normal' | 'restricted' | 'invalid'
+  last_check_at?: string | null
+}
+
+export const freeResourcesApi = {
+  list: (params?: { category?: string; modelId?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.category) qs.set('category', params.category)
+    if (params?.modelId) qs.set('modelId', params.modelId)
+    const q = qs.toString()
+    return api.get<{ resources: FreeResource[] }>(`/api/free-resources${q ? `?${q}` : ''}`)
+  },
+  byModel: (modelId: string) =>
+    api.get<{ resources: FreeResource[] }>(`/api/free-resources/by-model/${modelId}`),
 }
 

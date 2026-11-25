@@ -51,6 +51,26 @@ export interface ProviderModel {
   defaultDuration?: string
   /** 来源：system 系统自带 / user 用户自定义 */
   source?: 'system' | 'user'
+  // ===== 步骤一新增：六层模型档案 =====
+  /** 适用场景标签（JSON 数组解析后的字符串数组） */
+  scenarios?: string[]
+  /** 能力边界说明（自由文本） */
+  capabilities?: string
+  /** 使用限制（自由文本） */
+  limitsText?: string
+  /** 实测评分 0-100，0 表示未实测 */
+  verifiedScore?: number
+  /** 内容来源 URL（官方文档/社区帖子等） */
+  sourceUrl?: string
+  /** 授权类型（MIT/Apache/商用/免费额度/API 付费等） */
+  license?: string
+  /** 是否允许商用 */
+  commercialAllowed?: boolean
+  /** 部署要求：cloud/local/hybrid */
+  deployment?: 'cloud' | 'local' | 'hybrid'
+  // ===== 步骤一新增：三态审核 =====
+  /** 审核状态：draft/review/published */
+  reviewStatus?: 'draft' | 'review' | 'published'
 }
 
 export type ProviderId = string

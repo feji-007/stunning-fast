@@ -23,8 +23,10 @@ router.get('/', async (_req, res, next) => {
     const models = await query(
       `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
               max_images, max_videos, max_audios, max_total_assets,
-              resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source
-       FROM models WHERE is_active = TRUE ORDER BY sort_order, id`
+              resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source,
+              scenarios, capabilities, limits_text, verified_score, source_url,
+              license, commercial_allowed, deployment, review_status
+       FROM models WHERE is_active = TRUE AND review_status = 'published' ORDER BY sort_order, id`
     )
     const features = await query(
       `SELECT id, name, icon, description, pinned FROM features WHERE is_active = TRUE ORDER BY sort_order, id`
@@ -41,6 +43,15 @@ router.get('/', async (_req, res, next) => {
     )
     const guideQuestions = await query(
       `SELECT id, category, question, answer FROM guide_questions WHERE is_active = TRUE ORDER BY sort_order, id`
+    )
+    // 步骤二：免费模型资源聚合（客户端启动时一次性拉齐）
+    const freeResources = await query(
+      `SELECT fr.id, fr.title, fr.category, fr.model_id, fr.url, fr.license,
+              fr.commercial_allowed, fr.free_quota, fr.entry_type, fr.region,
+              fr.notes, fr.source_url, fr.status, fr.last_check_at
+       FROM free_resources fr
+       WHERE fr.is_active = TRUE AND fr.status = 'normal'
+       ORDER BY fr.sort_order, fr.id`
     )
 
     const providersTree = providers.rows.map((p: any) => ({
@@ -73,7 +84,8 @@ router.get('/', async (_req, res, next) => {
       videoConfig,
       recommendModels,
       recommendQuestions,
-      guideQuestions: guideQuestions.rows
+      guideQuestions: guideQuestions.rows,
+      freeResources: freeResources.rows
     })
   } catch (e) {
     next(e)

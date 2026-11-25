@@ -15,20 +15,30 @@ function parsePagination(req: any) {
   return { page, pageSize, offset }
 }
 
-/** 全部模型列表（分页）。 */
+/** 全部模型列表（分页，支持按 review_status / provider_id 筛选）。 */
 router.get('/', async (req, res, next) => {
   try {
     const { page, pageSize, offset } = parsePagination(req)
-    const cnt = await queryOne<any>('SELECT COUNT(*) AS c FROM models')
+    const reviewStatus = (req.query.reviewStatus as string) || ''
+    const providerId = (req.query.providerId as string) || ''
+    const statusFilter = reviewStatus ? ' AND review_status = ?' : ''
+    const providerFilter = providerId ? ' AND provider_id = ?' : ''
+    const where = reviewStatus || providerId ? `WHERE 1=1${statusFilter}${providerFilter}` : ''
+    const cntSql = `SELECT COUNT(*) AS c FROM models ${where}`
+    const cnt = await queryOne<any>(cntSql, [reviewStatus, providerId].filter(Boolean))
     const total = Number(cnt?.c ?? 0)
     const r = await query(
       `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
               max_images, max_videos, max_audios, max_total_assets,
               resolution, speed, price, default_resolution, default_ratio, default_duration,
-              docs_url, source, sort_order, is_active
-       FROM models ORDER BY sort_order, id
+              docs_url, source, sort_order, is_active,
+              scenarios, capabilities, limits_text, verified_score, source_url,
+              license, commercial_allowed, deployment,
+              review_status, reviewer_id, reviewed_at
+       FROM models ${where}
+       ORDER BY sort_order, id
        LIMIT ? OFFSET ?`,
-      [pageSize, offset]
+      [...[reviewStatus, providerId].filter(Boolean), pageSize, offset]
     )
     ok(res, {
       models: r.rows,
@@ -47,18 +57,25 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
     if (!b.id || !b.providerId || !b.name) throw badRequest('id / providerId / name 必填')
     const provider = await queryOne('SELECT 1 FROM providers WHERE id = ?', [b.providerId])
     if (!provider) throw notFound('供应商不存在')
+    const scenarios = b.scenarios ? JSON.stringify(b.scenarios) : null
     await queryOne(
       `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
          max_images, max_videos, max_audios, max_total_assets,
-         resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+         resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source, sort_order, is_active,
+         scenarios, capabilities, limits_text, verified_score, source_url,
+         license, commercial_allowed, deployment, review_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         b.id, b.providerId, b.name, b.type ?? 'video', b.description ?? '',
         b.supportsI2V ?? false, b.supportsFirstLast ?? false, b.supportsReference ?? false,
         b.maxImages ?? 5, b.maxVideos ?? 0, b.maxAudios ?? 0, b.maxTotalAssets ?? 0,
         b.resolution ?? 720, b.speed ?? 60, b.price ?? 2,
         b.defaultResolution ?? '', b.defaultRatio ?? '', b.defaultDuration ?? '',
-        b.docsUrl ?? '', b.source ?? 'system', b.sortOrder ?? 0
+        b.docsUrl ?? '', b.source ?? 'system', b.sortOrder ?? 0,
+        scenarios, b.capabilities ?? null, b.limitsText ?? null,
+        Number(b.verifiedScore) || 0, b.sourceUrl ?? '',
+        b.license ?? '', !!b.commercialAllowed, b.deployment ?? 'cloud',
+        b.reviewStatus ?? 'published'
       ]
     )
     ok(res, { model: { id: b.id } }, '已创建')
@@ -74,6 +91,21 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
     const b = req.body ?? {}
     const exists = await queryOne('SELECT 1 FROM models WHERE id = ?', [id])
     if (!exists) throw notFound('模型不存在')
+    // scenarios: 客户端传数组 → JSON 字符串；null 表示不修改
+    let scenariosSql = 'scenarios = COALESCE(?, scenarios)'
+    let scenariosVal: any = null
+    if (Array.isArray(b.scenarios)) {
+      scenariosSql = 'scenarios = ?'
+      scenariosVal = JSON.stringify(b.scenarios)
+    } else if (b.scenarios === null) {
+      scenariosSql = 'scenarios = NULL'
+    }
+    const reviewSql = b.reviewStatus
+      ? `review_status = ?, reviewer_id = ?, reviewed_at = NOW()`
+      : 'review_status = COALESCE(?, review_status)'
+    const reviewArgs = b.reviewStatus
+      ? [b.reviewStatus, (req as any).adminUserId ?? null]
+      : [null]
     await query(
       `UPDATE models SET
          provider_id = COALESCE(?, provider_id),
@@ -97,6 +129,15 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
          source = COALESCE(?, source),
          sort_order = COALESCE(?, sort_order),
          is_active = COALESCE(?, is_active),
+         ${scenariosSql},
+         capabilities = COALESCE(?, capabilities),
+         limits_text = COALESCE(?, limits_text),
+         verified_score = COALESCE(?, verified_score),
+         source_url = COALESCE(?, source_url),
+         license = COALESCE(?, license),
+         commercial_allowed = COALESCE(?, commercial_allowed),
+         deployment = COALESCE(?, deployment),
+         ${reviewSql},
          updated_at = NOW()
        WHERE id = ?`,
       [
@@ -106,7 +147,16 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
         b.resolution, b.speed, b.price,
         b.defaultResolution, b.defaultRatio, b.defaultDuration,
         b.docsUrl,
-        b.source, b.sortOrder, b.isActive, id
+        b.source, b.sortOrder, b.isActive,
+        scenariosVal,
+        b.capabilities, b.limitsText,
+        b.verifiedScore != null ? Number(b.verifiedScore) : null,
+        b.sourceUrl,
+        b.license,
+        b.commercialAllowed != null ? !!b.commercialAllowed : null,
+        b.deployment,
+        ...reviewArgs,
+        id
       ]
     )
     ok(res, { id }, '已更新')

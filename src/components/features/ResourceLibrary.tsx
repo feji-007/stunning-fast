@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore'
 import type { Provider, ProviderModel, VideoProtocol } from '../../types'
+import { ModelDetailPanel, ModelCompareModal, scoreBg, deploymentLabel, licenseLabel } from './ModelCenter'
 
 // 各协议的默认提交/查询路径（仅用于自定义供应商表单的初始值/占位提示；系统供应商路径由后台数据库下发）
 const PROTOCOL_DEFAULTS: Record<VideoProtocol, { submitPath: string; statusPath: string }> = {
@@ -40,6 +41,8 @@ export default function ResourceLibrary() {
   const customProviders = useStore((s) => s.customProviders)
   const removeCustomProvider = useStore((s) => s.removeCustomProvider)
   const removeCustomModel = useStore((s) => s.removeCustomModel)
+  // 步骤二：免费模型资源（bootstrap 一次性拉齐）
+  const freeResources = useStore((s) => s.freeResources)
   const [q, setQ] = useState('')
   const [type, setType] = useState<'all' | 'video' | 'image' | 'audio' | 'text'>('all')
   const [showAdd, setShowAdd] = useState(false)
@@ -57,6 +60,22 @@ export default function ResourceLibrary() {
   // AddResourceModal 的 key，每次打开时 +1，强制组件重新挂载以保证输入框干净
   const [addModalKey, setAddModalKey] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // —— 视图切换 ——
+  const [tab, setTab] = useState<'manage' | 'browse'>('manage')
+  const [browseSubTab, setBrowseSubTab] = useState<'model' | 'free'>('model')
+
+  // —— 选型浏览视图 state ——
+  const [browseQ, setBrowseQ] = useState('')
+  const [browseProviderFilter, setBrowseProviderFilter] = useState('')
+  const [browseScenarioFilter, setBrowseScenarioFilter] = useState('')
+  const [browseCapFilter, setBrowseCapFilter] = useState<'all' | 'i2v' | 'first_last' | 'reference'>('all')
+  const [browseDeployFilter, setBrowseDeployFilter] = useState('')
+  const [browseCommercialFilter, setBrowseCommercialFilter] = useState<'all' | 'allowed' | 'restricted'>('all')
+  const [browseSortBy, setBrowseSortBy] = useState<'default' | 'score' | 'price'>('default')
+  const [browseSelected, setBrowseSelected] = useState<ProviderModel | null>(null)
+  const [compareIds, setCompareIds] = useState<string[]>([])
+  const [showCompare, setShowCompare] = useState(false)
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -157,6 +176,62 @@ export default function ResourceLibrary() {
     })
   }, [visibleModels, q, type])
 
+  // —— 选型浏览视图：所有场景标签 ——
+  const allScenarios = useMemo(() => {
+    const set = new Set<string>()
+    visibleModels.forEach((m) => (m.scenarios ?? []).forEach((s) => set.add(s)))
+    return Array.from(set).sort()
+  }, [visibleModels])
+
+  // —— 选型浏览视图：筛选后的列表 ——
+  const browseFiltered = useMemo(() => {
+    let r = visibleModels
+    if (browseProviderFilter) r = r.filter((m) => m.provider === browseProviderFilter)
+    if (browseScenarioFilter) r = r.filter((m) => (m.scenarios ?? []).includes(browseScenarioFilter))
+    if (browseCapFilter === 'i2v') r = r.filter((m) => m.supportsI2V)
+    if (browseCapFilter === 'first_last') r = r.filter((m) => m.supportsFirstLast)
+    if (browseCapFilter === 'reference') r = r.filter((m) => m.supportsReference)
+    if (browseDeployFilter) r = r.filter((m) => (m.deployment ?? 'cloud') === browseDeployFilter)
+    if (browseCommercialFilter === 'allowed') r = r.filter((m) => m.commercialAllowed)
+    if (browseCommercialFilter === 'restricted') r = r.filter((m) => !m.commercialAllowed)
+    if (browseQ.trim()) {
+      const kw = browseQ.trim().toLowerCase()
+      r = r.filter((m) =>
+        m.name.toLowerCase().includes(kw) ||
+        m.desc.toLowerCase().includes(kw) ||
+        m.id.toLowerCase().includes(kw) ||
+        (m.scenarios ?? []).some((s) => s.toLowerCase().includes(kw))
+      )
+    }
+    if (browseSortBy === 'score') r = [...r].sort((a, b) => (b.verifiedScore ?? 0) - (a.verifiedScore ?? 0))
+    if (browseSortBy === 'price') r = [...r].sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
+    return r
+  }, [visibleModels, browseProviderFilter, browseScenarioFilter, browseCapFilter, browseDeployFilter, browseCommercialFilter, browseQ, browseSortBy])
+
+  const toggleCompare = (id: string) => {
+    setCompareIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id)
+      if (prev.length >= 4) return prev
+      return [...prev, id]
+    })
+  }
+  const compareList = useMemo(
+    () => compareIds.map((id) => visibleModels.find((m) => m.id === id)).filter(Boolean) as ProviderModel[],
+    [compareIds, visibleModels]
+  )
+  const browseHasFilter = browseProviderFilter || browseScenarioFilter || browseCapFilter !== 'all' ||
+    browseDeployFilter || browseCommercialFilter !== 'all' || browseQ
+
+  // —— 免费资源筛选 state ——
+  const [freeQ, setFreeQ] = useState('')
+  const [freeCat, setFreeCat] = useState('')
+  const [freeCommercial, setFreeCommercial] = useState<'all' | 'yes' | 'no'>('all')
+
+  const clearBrowseFilters = () => {
+    setBrowseQ(''); setBrowseProviderFilter(''); setBrowseScenarioFilter('')
+    setBrowseCapFilter('all'); setBrowseDeployFilter(''); setBrowseCommercialFilter('all'); setBrowseSortBy('default')
+  }
+
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -166,6 +241,7 @@ export default function ResourceLibrary() {
             共 {visibleProviderCount} 家供应商 · {visibleModels.length} 个模型
           </p>
         </div>
+        {tab === 'manage' && (
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setShowHelp(!showHelp)}
@@ -204,6 +280,7 @@ export default function ResourceLibrary() {
             + 添加
           </button>
         </div>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -213,6 +290,24 @@ export default function ResourceLibrary() {
         />
       </div>
 
+      {/* —— 视图 Tab —— */}
+      <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+        <button
+          onClick={() => setTab('manage')}
+          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            tab === 'manage' ? 'bg-white text-brand-600 shadow-sm' : 'text-gray-500'
+          }`}
+        >接入管理</button>
+        <button
+          onClick={() => setTab('browse')}
+          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            tab === 'browse' ? 'bg-white text-brand-600 shadow-sm' : 'text-gray-500'
+          }`}
+        >选型浏览</button>
+      </div>
+
+      {tab === 'manage' && (
+      <>
       {/* 自定义供应商管理：仅列出用户自己添加的供应商，可编辑/删除 */}
       {customProviders.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -235,7 +330,7 @@ export default function ResourceLibrary() {
                 className="text-amber-500 transition-colors hover:text-red-600"
                 title="删除该供应商及其自定义模型"
               >
-                🗑
+                删除
               </button>
             </span>
           ))}
@@ -256,7 +351,7 @@ export default function ResourceLibrary() {
           </div>
           <div className="space-y-2">
             <div>
-              <p className="font-medium text-gray-700">📤 导出自定义资源</p>
+              <p className="font-medium text-gray-700">导出自定义资源</p>
               <ol className="ml-4 list-decimal space-y-0.5 text-gray-500">
                 <li>点击「导出」按钮</li>
                 <li>浏览器自动下载 <code className="rounded bg-gray-100 px-1">custom-resources.json</code></li>
@@ -264,7 +359,7 @@ export default function ResourceLibrary() {
               </ol>
             </div>
             <div>
-              <p className="font-medium text-gray-700">📥 导入自定义资源</p>
+              <p className="font-medium text-gray-700">导入自定义资源</p>
               <ol className="ml-4 list-decimal space-y-0.5 text-gray-500">
                 <li>点击「导入」按钮</li>
                 <li>选择之前导出的 JSON 文件</li>
@@ -299,7 +394,7 @@ export default function ResourceLibrary() {
       <div className="flex-1 overflow-auto scroll-thin pr-1">
         {visibleModels.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-            <span className="text-2xl">📦</span>
+            <span className="h-8 w-8 rounded-full bg-gray-100" />
             <p className="text-xs font-medium text-gray-600">暂无模型</p>
             <p className="max-w-xs text-[11px] leading-relaxed text-gray-400">
               点击右上角「添加」创建自定义供应商与模型，仅保存在本机。
@@ -360,6 +455,290 @@ export default function ResourceLibrary() {
             </div>
           </div>
         </div>
+      )}
+      </>
+      )}
+
+      {/* —— 选型浏览视图 —— */}
+      {tab === 'browse' && (
+      <>
+      {/* 子 Tab 切换：模型选型 / 免费资源 */}
+      <div className="flex gap-1 rounded-lg bg-gray-50 p-1">
+        <button
+          onClick={() => setBrowseSubTab('model')}
+          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            browseSubTab === 'model' ? 'bg-white text-brand-600 shadow-sm' : 'text-gray-500'
+          }`}
+        >模型选型</button>
+        <button
+          onClick={() => setBrowseSubTab('free')}
+          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            browseSubTab === 'free' ? 'bg-white text-brand-600 shadow-sm' : 'text-gray-500'
+          }`}
+        >免费资源 ({freeResources.length})</button>
+      </div>
+
+      {browseSubTab === 'model' && (
+      <div className="flex-1 flex min-h-0 gap-3">
+        {/* 左侧列表 + 筛选 */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* 筛选区 */}
+          <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-gray-100">
+            <input
+              value={browseQ}
+              onChange={(e) => setBrowseQ(e.target.value)}
+              placeholder="搜索模型名 / ID / 描述 / 场景…"
+              className="flex-1 min-w-[160px] rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-gray-700 outline-none focus:border-brand-400"
+            />
+            <select value={browseProviderFilter} onChange={(e) => setBrowseProviderFilter(e.target.value)}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-gray-600 outline-none">
+              <option value="">全部供应商</option>
+              {providers.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+            </select>
+            <select value={browseScenarioFilter} onChange={(e) => setBrowseScenarioFilter(e.target.value)}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-gray-600 outline-none">
+              <option value="">全部场景</option>
+              {allScenarios.map((s) => (<option key={s} value={s}>{s}</option>))}
+            </select>
+            <select value={browseCapFilter} onChange={(e) => setBrowseCapFilter(e.target.value as any)}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-gray-600 outline-none">
+              <option value="all">全部能力</option>
+              <option value="i2v">图生视频</option>
+              <option value="first_last">首尾帧</option>
+              <option value="reference">参考图</option>
+            </select>
+            <select value={browseDeployFilter} onChange={(e) => setBrowseDeployFilter(e.target.value)}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-gray-600 outline-none">
+              <option value="">全部部署</option>
+              <option value="cloud">云端</option>
+              <option value="local">本地</option>
+            </select>
+            <select value={browseCommercialFilter} onChange={(e) => setBrowseCommercialFilter(e.target.value as any)}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-gray-600 outline-none">
+              <option value="all">商用不限</option>
+              <option value="allowed">允许商用</option>
+              <option value="restricted">商用受限</option>
+            </select>
+            <select value={browseSortBy} onChange={(e) => setBrowseSortBy(e.target.value as any)}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-gray-600 outline-none">
+              <option value="default">默认排序</option>
+              <option value="score">实测评分</option>
+              <option value="price">价格低→高</option>
+            </select>
+            {browseHasFilter && (
+              <button onClick={clearBrowseFilters} className="text-xs text-gray-500 hover:text-gray-700 underline">清除</button>
+            )}
+          </div>
+
+          {/* 卡片列表 */}
+          <div className="flex-1 overflow-auto scroll-thin pt-3">
+            {browseFiltered.length === 0 ? (
+              <p className="py-10 text-center text-xs text-gray-400">没有找到匹配的模型</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-2">
+                {browseFiltered.map((m) => {
+                  const provider = providers.find((p) => p.id === m.provider)
+                  const selectedForCompare = compareIds.includes(m.id)
+                  return (
+                    <div
+                      key={m.id}
+                      className={`relative rounded-lg border p-3 cursor-pointer transition-all hover:shadow-sm ${
+                        selectedForCompare ? 'border-brand-500 bg-brand-50/30' : 'border-gray-100 bg-white'
+                      } ${browseSelected?.id === m.id ? 'ring-1 ring-brand-300' : ''}`}
+                      onClick={() => setBrowseSelected(m)}
+                    >
+                      {/* 对比勾选 */}
+                      <label
+                        className="absolute top-2 right-2 cursor-pointer z-10 flex items-center gap-0.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedForCompare}
+                          onChange={() => toggleCompare(m.id)}
+                          disabled={!selectedForCompare && compareIds.length >= 4}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-[10px] text-gray-400">对比</span>
+                      </label>
+
+                      <div className="pr-14">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-gray-900 text-sm truncate">{m.name}</h3>
+                          {provider && <span className="text-[11px] text-gray-400">· {provider.name}</span>}
+                        </div>
+                        <p className="text-[10px] text-gray-400 font-mono mt-0.5">{m.id}</p>
+                      </div>
+
+                      {m.desc && <p className="mt-1.5 text-[11px] text-gray-600 line-clamp-2">{m.desc}</p>}
+
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {m.scenarios?.slice(0, 3).map((s) => (
+                          <span key={s} className="px-1.5 py-0.5 rounded text-[10px] bg-sky-50 text-sky-600 border border-sky-100">{s}</span>
+                        ))}
+                        {m.supportsI2V && <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100">图生视频</span>}
+                        {m.supportsFirstLast && <span className="px-1.5 py-0.5 rounded text-[10px] bg-cyan-50 text-cyan-600 border border-cyan-100">首尾帧</span>}
+                        {m.supportsReference && <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-50 text-purple-600 border border-purple-100">参考图</span>}
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] border ${scoreBg(m.verifiedScore)}`}>
+                            实测 {m.verifiedScore ?? 0}/100
+                          </span>
+                          {m.license && (() => {
+                            const cfg = licenseLabel[m.license] || licenseLabel['']
+                            return <span className={`px-1.5 py-0.5 rounded text-[10px] ${cfg.cls}`}>{m.license}</span>
+                          })()}
+                          {m.commercialAllowed && <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-600">✓ 商用</span>}
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                          <span>{deploymentLabel[m.deployment ?? 'cloud']}</span>
+                          {m.price != null && m.price > 0 && <span className="text-amber-600">¥{m.price}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 底部对比操作栏 */}
+          {compareIds.length > 0 && (
+            <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-xs text-gray-500">已选 {compareIds.length}/4 个模型</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCompareIds([])}
+                  className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100"
+                >清空</button>
+                <button
+                  onClick={() => setShowCompare(true)}
+                  className="px-3 py-1.5 rounded-lg text-xs bg-brand-600 text-white hover:bg-brand-700"
+                >开始对比</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 右侧详情面板 */}
+        {browseSelected && (
+          <ModelDetailPanel
+            model={browseSelected}
+            onClose={() => setBrowseSelected(null)}
+            onToggleCompare={toggleCompare}
+            isCompared={compareIds.includes(browseSelected.id)}
+            allModels={visibleModels}
+          />
+        )}
+      </div>
+      )}
+
+      {/* 对比弹窗 */}
+      {showCompare && (
+        <ModelCompareModal
+          models={compareList}
+          onClose={() => setShowCompare(false)}
+          onRemove={toggleCompare}
+        />
+      )}
+
+      {/* —— 免费资源视图 —— */}
+      {browseSubTab === 'free' && (
+      <div className="flex-1 flex min-h-0 gap-3">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* 免费资源筛选区 */}
+          <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-gray-100">
+            <input
+              value={freeQ}
+              onChange={(e) => setFreeQ(e.target.value)}
+              placeholder="搜索标题 / 备注 / URL…"
+              className="flex-1 min-w-[160px] rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-gray-700 outline-none focus:border-brand-400"
+            />
+            <select value={freeCat} onChange={(e) => setFreeCat(e.target.value)}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-gray-600 outline-none">
+              <option value="">全部分类</option>
+              <option value="open_source">开源权重</option>
+              <option value="vendor_free_tier">厂商免费额度</option>
+              <option value="local_deploy">本地部署方案</option>
+              <option value="online_trial">在线试用</option>
+              <option value="community">社区镜像/教程</option>
+            </select>
+            <select value={freeCommercial} onChange={(e) => setFreeCommercial(e.target.value as any)}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-gray-600 outline-none">
+              <option value="all">商用不限</option>
+              <option value="yes">允许商用</option>
+              <option value="no">商用受限</option>
+            </select>
+            {(freeQ || freeCat || freeCommercial !== 'all') && (
+              <button onClick={() => { setFreeQ(''); setFreeCat(''); setFreeCommercial('all') }}
+                className="text-xs text-gray-500 hover:text-gray-700 underline">清除</button>
+            )}
+          </div>
+
+          {/* 免费资源卡片列表 */}
+          <div className="flex-1 overflow-auto scroll-thin pt-3">
+            {(() => {
+              const catLabel: Record<string, string> = {
+                open_source: '开源权重', vendor_free_tier: '厂商免费额度',
+                local_deploy: '本地部署方案', online_trial: '在线试用',
+                community: '社区镜像/教程'
+              }
+              let r = freeResources
+              if (freeCat) r = r.filter((x) => x.category === freeCat)
+              if (freeCommercial === 'yes') r = r.filter((x) => x.commercial_allowed)
+              if (freeCommercial === 'no') r = r.filter((x) => !x.commercial_allowed)
+              if (freeQ.trim()) {
+                const kw = freeQ.trim().toLowerCase()
+                r = r.filter((x) =>
+                  x.title.toLowerCase().includes(kw) ||
+                  (x.notes ?? '').toLowerCase().includes(kw) ||
+                  x.url.toLowerCase().includes(kw)
+                )
+              }
+              if (r.length === 0) return <p className="py-10 text-center text-xs text-gray-400">
+                {freeResources.length === 0 ? '暂无免费资源，由管理员在后台录入' : '没有找到匹配的资源'}
+              </p>
+              return (
+                <div className="grid grid-cols-1 gap-2">
+                  {r.map((x) => (
+                    <a
+                      key={x.id}
+                      href={x.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block rounded-lg border border-gray-100 bg-white p-3 hover:border-brand-300 hover:shadow-sm transition-all cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-gray-900 text-sm truncate">{x.title}</h3>
+                            <span className="text-[10px] text-gray-400">{catLabel[x.category] ?? x.category}</span>
+                          </div>
+                          {x.free_quota && (
+                            <span className="mt-0.5 inline-block rounded bg-sky-50 px-1.5 py-0.5 text-[10px] text-sky-700 border border-sky-100">{x.free_quota}</span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-brand-600 shrink-0">打开 →</span>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        {x.license && <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-50 text-gray-600 border border-gray-100">{x.license}</span>}
+                        {x.commercial_allowed && <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-600">✓ 可商用</span>}
+                        {x.region && <span className="text-[10px] text-gray-400">{x.region}</span>}
+                        <span className="text-[10px] text-gray-400 truncate ml-auto max-w-[180px]">{x.url}</span>
+                      </div>
+                      {x.notes && <p className="mt-1 text-[11px] text-gray-500 line-clamp-2">{x.notes}</p>}
+                    </a>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      </div>
+      )}
+      </>
       )}
     </div>
   )
@@ -450,7 +829,7 @@ function ModelCard({
               className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 transition-colors hover:border-red-300 hover:text-red-600"
               title="删除该自定义模型"
             >
-              🗑 删除
+              删除
             </button>
           </div>
         )}

@@ -125,7 +125,7 @@ const api: ExposedAPI = {
     return () => ipcRenderer.removeListener(IPC.UPDATE_WINDOW_EVENT, listener)
   },
   // ===== 模型推荐助手弹窗 =====
-  openRecommendationWindow: () => ipcRenderer.invoke(IPC.RECOMMENDATION_WINDOW_OPEN),
+  openRecommendationWindow: (token?: string) => ipcRenderer.invoke(IPC.RECOMMENDATION_WINDOW_OPEN, token),
   closeRecommendationWindow: () => ipcRenderer.invoke(IPC.RECOMMENDATION_WINDOW_CLOSE)
 }
  

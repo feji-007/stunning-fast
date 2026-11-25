@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '../store/useStore'
+import { getToken } from '../api/client'
 import type { CardSize, CardStyle, FeatureId, LayoutColumns } from '../types'
 import VideoGeneration from './features/VideoGeneration'
 import ResourceLibrary from './features/ResourceLibrary'
@@ -285,7 +286,7 @@ export default function MainPanel() {
                 setModal('login')
                 return
               }
-              window.api?.openRecommendationWindow?.()
+              window.api?.openRecommendationWindow?.(getToken() ?? undefined)
             }}
             className="group grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-500 text-white shadow-sm transition hover:scale-105 hover:shadow-md"
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
