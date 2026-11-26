@@ -272,6 +272,59 @@ export const freeResourcesApi = {
   check: (id: string) => api.post<{ id: string; status: string; failReason: string }>(`/api/free-resources/${id}/check`)
 }
 
+// ===== AI 视频工具导购目录（管理后台 CRUD） =====
+export interface Tool {
+  id: string
+  name: string
+  subtitle: string
+  provider: string
+  official_url: string
+  api_docs_url: string
+  api_key_url: string
+  logo_url: string
+  banner_url: string
+  categories: string
+  scenarios: string
+  difficulty: string
+  pricing_tier: string
+  starting_price: string
+  has_api: boolean
+  has_web_app: boolean
+  has_mobile_app: boolean
+  has_open_source: boolean
+  synced_audio: boolean
+  max_resolution: string
+  max_clip_sec: number
+  supports_i2v: boolean
+  supports_t2v: boolean
+  supports_reference: boolean
+  short_desc: string
+  highlights: string
+  limitations: string
+  setup_steps: string
+  notes: string
+  artificial_analysis_score: number
+  sort_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+export const toolsApi = {
+  list: (params: Record<string, any> = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === '') return
+      qs.set(k, String(v))
+    })
+    const q = qs.toString()
+    return api.get<{ tools: Tool[]; total: number }>(`/api/tools${q ? `?${q}` : ''}`)
+  },
+  get: (id: string) => api.get<{ tool: Tool }>(`/api/tools/${id}`),
+  create: (b: any) => api.post('/api/tools', b),
+  update: (id: string, b: any) => api.put(`/api/tools/${id}`, b),
+  remove: (id: string) => api.del(`/api/tools/${id}`)
+}
+
 // ===== 系统参数（SMTP 邮件配置，授权码不回显） =====
 export interface SmtpSettings {
   host: string
