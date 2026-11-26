@@ -244,6 +244,55 @@ const SCHEMA_STATEMENTS: string[] = [
   updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  // ========== AI 视频工具导购目录表（2026-11 新增） ==========
+
+  `CREATE TABLE IF NOT EXISTS tools (
+  id              VARCHAR(64)  NOT NULL,
+  name            VARCHAR(128) NOT NULL,
+  subtitle        VARCHAR(128) NOT NULL DEFAULT '',
+  provider        VARCHAR(128) NOT NULL DEFAULT '',
+  official_url    VARCHAR(256) NOT NULL DEFAULT '',
+  api_docs_url    VARCHAR(256) NOT NULL DEFAULT '',
+  api_key_url     VARCHAR(256) NOT NULL DEFAULT '',
+  logo_url        VARCHAR(512) NOT NULL DEFAULT '',
+  banner_url      VARCHAR(512) NOT NULL DEFAULT '',
+  categories      VARCHAR(512) NOT NULL DEFAULT '',
+  scenarios       VARCHAR(1024) NOT NULL DEFAULT '',
+  difficulty      VARCHAR(16)  NOT NULL DEFAULT 'beginner',
+  pricing_tier    VARCHAR(16)  NOT NULL DEFAULT 'free',
+  starting_price  VARCHAR(64)  NOT NULL DEFAULT '',
+  has_api         TINYINT(1)   NOT NULL DEFAULT 0,
+  has_web_app     TINYINT(1)   NOT NULL DEFAULT 1,
+  has_mobile_app  TINYINT(1)   NOT NULL DEFAULT 0,
+  has_open_source TINYINT(1)   NOT NULL DEFAULT 0,
+  synced_audio    TINYINT(1)   NOT NULL DEFAULT 0,
+  max_resolution  VARCHAR(16)  NOT NULL DEFAULT '',
+  max_clip_sec    INT          NOT NULL DEFAULT 0,
+  supports_i2v    TINYINT(1)   NOT NULL DEFAULT 0,
+  supports_t2v    TINYINT(1)   NOT NULL DEFAULT 1,
+  supports_reference TINYINT(1) NOT NULL DEFAULT 0,
+  short_desc      VARCHAR(256) NOT NULL DEFAULT '',
+  highlights      TEXT         NOT NULL,
+  limitations     TEXT         NOT NULL,
+  setup_steps     TEXT         NOT NULL,
+  notes           TEXT         NOT NULL,
+  artificial_analysis_score INT NOT NULL DEFAULT 0,
+  sort_order      INT          NOT NULL DEFAULT 0,
+  is_active       TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+  `CREATE TABLE IF NOT EXISTS tool_favorites (
+  user_id    INT          NOT NULL,
+  tool_id    VARCHAR(64)  NOT NULL,
+  note       VARCHAR(512) NOT NULL DEFAULT '',
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, tool_id),
+  CONSTRAINT fk_tf_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
   // 一次性数据迁移的执行标记（避免重复回填覆盖管理员修改）
   `CREATE TABLE IF NOT EXISTS meta (
   \`key\`     VARCHAR(64)  NOT NULL,

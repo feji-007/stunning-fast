@@ -4,6 +4,7 @@ import path from 'path'
 import { config } from './config'
 import { ensureSchema } from './db/schema'
 import { seedAll } from './db/seed'
+import { seedTools } from './db/seed-tools'
 import { pingDb } from './db/pool'
 import apiRoutes from './routes'
 import { errorHandler } from './middleware/error'
@@ -23,6 +24,9 @@ async function bootstrap() {
 
   // 3. 种子数据（各表为空时才插入，不覆盖管理员修改）
   await seedAll()
+
+  // 3.5 工具导购目录种子（30 家主流 AI 视频工具，幂等，有 meta 标记避免重复）
+  await seedTools()
 
   // 4. 启动 HTTP 服务
   const app = express()

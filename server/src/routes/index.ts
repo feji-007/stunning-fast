@@ -13,6 +13,8 @@ import feedbackRoute from '../modules/feedback/route'
 import recommendRoute from '../modules/recommend/route'
 import guideRoute from '../modules/guide/route'
 import systemConfigRoute from '../modules/systemConfig/route'
+import toolsRoute from '../modules/tools/route'
+import favoritesRoute from '../modules/favorites/route'
 
 const api = Router()
 
@@ -23,6 +25,9 @@ api.get('/health', (_req, res) => res.json({ code: 0, message: 'ok' }))
 api.use('/auth', authRoute)
 // 客户端启动聚合配置
 api.use('/bootstrap', bootstrapRoute)
+
+// 工具导购目录（公开读 + 管理员写）
+api.use('/tools', toolsRoute)
 
 // 系统配置（公开读 / 管理员写）
 api.use('/providers', providersRoute)
@@ -49,5 +54,6 @@ api.use('/system-config', systemConfigRoute)
 // 用户私有配置（按用户隔离）
 api.use('/user/api-keys', userApiKeysRoute)
 api.use('/user/configs', userConfigsRoute)
+api.use('/user/favorites', favoritesRoute)
 
 export default api

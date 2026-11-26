@@ -42,6 +42,15 @@ router.get('/', async (_req, res, next) => {
     const guideQuestions = await query(
       `SELECT id, category, question, answer FROM guide_questions WHERE is_active = TRUE ORDER BY sort_order, id`
     )
+    // 新增：活跃工具导购目录（前端首页/资源库消费）
+    const tools = await query(
+      `SELECT id, name, subtitle, provider, official_url, logo_url,
+              categories, scenarios, difficulty, pricing_tier, starting_price,
+              has_api, has_web_app, has_mobile_app, has_open_source, synced_audio,
+              max_resolution, max_clip_sec, supports_i2v, supports_t2v, supports_reference,
+              short_desc, notes
+       FROM tools WHERE is_active = TRUE ORDER BY sort_order, artificial_analysis_score DESC, id`
+    )
 
     const providersTree = providers.rows.map((p: any) => ({
       ...p,
@@ -73,7 +82,8 @@ router.get('/', async (_req, res, next) => {
       videoConfig,
       recommendModels,
       recommendQuestions,
-      guideQuestions: guideQuestions.rows
+      guideQuestions: guideQuestions.rows,
+      tools: tools.rows
     })
   } catch (e) {
     next(e)
