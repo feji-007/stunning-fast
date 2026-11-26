@@ -4,6 +4,7 @@ import { authApi } from '../api/client'
 import {
   getStoredLoginPreferences,
   isLoginStorageSupported,
+  loadLastUsedCredential,
   loadRememberedCredential
 } from '../utils/loginStorage'
 
@@ -206,20 +207,27 @@ function LoginPane() {
   // 浏览器不支持 localStorage / Web Crypto 时降级：不展示可用勾选项，登录流程不受影响
   const storageSupported = useMemo(() => isLoginStorageSupported(), [])
 
-  // 打开登录表单时：恢复上次勾选状态，并用本地保存的账号密码自动填充
+  // 打开登录表单时：恢复上次勾选状态，并用本地保存的账号密码自动填充。
+  // 回填优先级：记住密码记录（显式勾选）→ 最近一次使用记录（退出登录 / 重启后保留）。
   useEffect(() => {
     if (!storageSupported) return
     let alive = true
     void (async () => {
       const prefs = getStoredLoginPreferences()
-      const remembered = await loadRememberedCredential()
       if (!alive) return
       setRememberPassword(prefs.rememberPassword)
       setAutoLogin(prefs.autoLogin)
-      if (remembered) {
-        setUsername(remembered.username)
-        setPassword(remembered.password)
+
+      // 先读用户主动勾选「记住密码」时保存的凭据
+      let credential = await loadRememberedCredential()
+      if (!credential) {
+        // 没有显式记住密码 → 回退读「上次登录」凭据（退出登录后也保留）
+        credential = await loadLastUsedCredential()
       }
+      if (!alive || !credential) return
+      setUsername(credential.username)
+      // 邮箱验证码登录等场景可能没有持久化密码（空字符串），此时只填账号
+      if (credential.password) setPassword(credential.password)
     })()
     return () => {
       alive = false

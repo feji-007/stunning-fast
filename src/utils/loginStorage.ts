@@ -10,6 +10,17 @@
 
 const REMEMBER_KEY = 'stunning-fast-login-remember'
 const AUTO_LOGIN_KEY = 'stunning-fast-login-auto'
+/**
+ * 最近一次登录成功的用户名（localStorage，重启保留）——
+ * 跨会话重启后仅用于自动回填用户名，不回填密码。
+ */
+const LAST_USERNAME_KEY = 'stunning-fast-login-last-username'
+/**
+ * 当前会话内刚登录过的密码（sessionStorage，重启清空）——
+ * 仅当前会话内退出登录时用；重启软件后该 key 随 sessionStorage 消失，
+ * 登录弹窗只回填用户名、不回填密码。
+ */
+const SESSION_CRED_KEY = 'stunning-fast-login-session-password'
 
 /** 自动登录有效期：30 天 */
 export const AUTO_LOGIN_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -52,6 +63,19 @@ function getLocalStorage(): Storage | null {
     ls.setItem(probe, '1')
     ls.removeItem(probe)
     return ls
+  } catch {
+    return null
+  }
+}
+
+/** 安全获取 sessionStorage；不可用时返回 null */
+function getSessionStorage(): Storage | null {
+  try {
+    const ss = window.sessionStorage
+    const probe = '__stunning_fast_probe__'
+    ss.setItem(probe, '1')
+    ss.removeItem(probe)
+    return ss
   } catch {
     return null
   }
@@ -149,23 +173,60 @@ function readRecord<T>(ls: Storage, key: string): T | null {
   }
 }
 
-/** 清除全部本地登录信息（记住密码 + 自动登录） */
+/**
+ * 主动退出登录 / 401 时调用：
+ * - localStorage 侧：仅清自动登录标识（AUTO_LOGIN_KEY）；REMEMBER_KEY 与 LAST_USERNAME_KEY 保留
+ * - sessionStorage 侧：清当前会话的密码（SESSION_CRED_KEY），保证重启后 sessionStorage 自然消失，
+ *   登录弹窗只回填用户名、不回填密码
+ */
 export function clearLoginStorage(): void {
   const ls = getLocalStorage()
-  if (!ls) return
-  try {
-    ls.removeItem(REMEMBER_KEY)
-    ls.removeItem(AUTO_LOGIN_KEY)
-  } catch {
-    // 忽略：清理失败不影响登录流程
+  if (ls) {
+    try {
+      ls.removeItem(AUTO_LOGIN_KEY)
+    } catch {
+      // 忽略
+    }
+  }
+  const ss = getSessionStorage()
+  if (ss) {
+    try {
+      ss.removeItem(SESSION_CRED_KEY)
+    } catch {
+      // 忽略
+    }
+  }
+}
+
+/** 显式清除全部本地登录信息（记住密码 + 自动登录 + 上次用户名 + 当前会话密码） */
+export function clearAllLoginStorage(): void {
+  const ls = getLocalStorage()
+  if (ls) {
+    try {
+      ls.removeItem(REMEMBER_KEY)
+      ls.removeItem(AUTO_LOGIN_KEY)
+      ls.removeItem(LAST_USERNAME_KEY)
+    } catch {
+      // 忽略
+    }
+  }
+  const ss = getSessionStorage()
+  if (ss) {
+    try {
+      ss.removeItem(SESSION_CRED_KEY)
+    } catch {
+      // 忽略
+    }
   }
 }
 
 /**
  * 登录成功后按勾选情况写入本地存储。
  * - 记住密码：账号 + 加密密码
- * - 下次自动登录：登录态标识 + 账号 + 加密密码 + 7 天后过期时间
- * - 都未勾选：清除旧的本地登录信息，仅保持当前会话登录态
+ * - 下次自动登录：登录态标识 + 账号 + 加密密码 + 30 天后过期时间
+ * - 都未勾选：清除 REMEMBER_KEY / AUTO_LOGIN_KEY，但 LAST_USED_KEY 保留
+ *
+ * 注意：LAST_USED_KEY 不由本函数管理，每次登录成功应显式调用 saveLastUsedCredential。
  */
 export async function saveLoginPreferences(
   username: string,
@@ -177,7 +238,13 @@ export async function saveLoginPreferences(
   const name = username.trim()
 
   if (!prefs.rememberPassword && !prefs.autoLogin) {
-    clearLoginStorage()
+    // 用户主动取消所有勾选：清掉 remember / auto（但 last-used 留给登录入口单独管理）
+    try {
+      ls.removeItem(REMEMBER_KEY)
+      ls.removeItem(AUTO_LOGIN_KEY)
+    } catch {
+      // 忽略
+    }
     return
   }
   if (!getSubtle()) return
@@ -265,6 +332,75 @@ export async function loadRememberedCredential(): Promise<{ username: string; pa
     return null
   }
   return { username: record.username, password }
+}
+
+/**
+ * 最近一次登录成功的用户名（localStorage，跨会话保留）
+ * —— 只存用户名，密码不走 localStorage，避免重启软件后自动回填密码。
+ */
+export function saveLastUsername(username: string): void {
+  const ls = getLocalStorage()
+  if (!ls) return
+  const name = username.trim()
+  if (!name) return
+  try {
+    ls.setItem(LAST_USERNAME_KEY, name)
+  } catch {
+    // 忽略
+  }
+}
+
+export function loadLastUsername(): string | null {
+  const ls = getLocalStorage()
+  if (!ls) return null
+  try {
+    const name = ls.getItem(LAST_USERNAME_KEY)
+    return typeof name === 'string' && name.length > 0 ? name : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 当前会话内刚登录成功的密码（sessionStorage，重启自动清空）
+ * —— 仅用于：用户在同一个会话内退出登录后重新打开登录弹窗时回填密码。
+ * 重启软件后 sessionStorage 消失，登录弹窗只回填用户名、不回填密码。
+ */
+export async function saveSessionPassword(password: string): Promise<void> {
+  const ss = getSessionStorage()
+  if (!ss || !getSubtle()) return
+  if (!password) return
+  try {
+    const cipher = await encryptText(password)
+    ss.setItem(SESSION_CRED_KEY, cipher)
+  } catch {
+    // 忽略
+  }
+}
+
+export async function loadSessionPassword(): Promise<string | null> {
+  const ss = getSessionStorage()
+  if (!ss) return null
+  try {
+    const cipher = ss.getItem(SESSION_CRED_KEY)
+    if (!cipher) return null
+    return await decryptText(cipher)
+  } catch {
+    return null
+  }
+}
+
+/** 兼容层：同时读「记住密码」与「最近使用」凭据，返回 { username, password }。
+ *  - username：优先取「记住密码」记录；没有则回退到「最近用户名」
+ *  - password：仅当「记住密码」记录存在时返回（localStorage）；否则读 sessionStorage 的当前会话密码
+ */
+export async function loadLastUsedCredential(): Promise<{ username: string; password: string } | null> {
+  const remembered = await loadRememberedCredential()
+  if (remembered) return remembered
+  const username = loadLastUsername()
+  if (!username) return null
+  const password = await loadSessionPassword()
+  return { username, password: password ?? '' }
 }
 
 /** 读取本地已保存的勾选状态（自动登录需未过期），用于登录表单初始勾选 */

@@ -25,7 +25,7 @@ import {
   userApiKeysApi,
   userConfigsApi
 } from '../api/client'
-import { clearLoginStorage, saveLoginPreferences } from '../utils/loginStorage'
+import { clearLoginStorage, saveLastUsername, saveLoginPreferences, saveSessionPassword } from '../utils/loginStorage'
 import type { LoginPreferences } from '../utils/loginStorage'
 
 type Modal = 'none' | 'login' | 'settings' | 'feedback'
@@ -436,6 +436,9 @@ export const useStore = create<AppState>()(
         if (opts?.prefs) {
           await saveLoginPreferences(username, password, opts.prefs)
         }
+        // 不依赖勾选框，每次登录成功都记录最近用户名（localStorage，重启保留）和当前会话密码（sessionStorage，重启清空）
+        saveLastUsername(username)
+        await saveSessionPassword(password)
         // 登录成功后拉取该用户的私有配置（密钥/布局）并合并
         await get().pullUserConfig()
       },
@@ -452,10 +455,13 @@ export const useStore = create<AppState>()(
           },
           modal: 'none'
         })
+        // 邮箱验证码无持久密码：只记录最近使用的邮箱地址即可
+        saveLastUsername(email.trim())
         await get().pullUserConfig()
       },
       logout: () => {
-        // 主动退出：清除登录态与全部本地保存的账号、密码、自动登录标识
+        // 主动退出：清除登录态与自动登录标识（记住密码 / 上次使用凭据保留，
+        // 保证退出后重新打开登录弹窗仍能看到上次填过的账号密码）
         clearToken()
         clearLoginStorage()
         set({ user: { loggedIn: false, userId: null, username: '', token: '' } })
@@ -472,6 +478,9 @@ export const useStore = create<AppState>()(
           },
           modal: 'none'
         })
+        // 注册成功同样记录最近用户名和当前会话密码
+        saveLastUsername(username)
+        await saveSessionPassword(password)
         await get().pullUserConfig()
       },
 

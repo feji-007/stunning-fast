@@ -27,6 +27,8 @@ import { AUTO_LOGIN_TTL_MS, loadAutoLoginCredential, loadRememberedCredential } 
 const TOKEN_KEY = 'stunning-fast-token'
 const REMEMBER_KEY = 'stunning-fast-login-remember'
 const AUTO_KEY = 'stunning-fast-login-auto'
+const LAST_USERNAME_KEY = 'stunning-fast-login-last-username'
+const SESSION_CRED_KEY = 'stunning-fast-login-session-password'
 
 function createMemoryStorage(): Storage {
   const map = new Map<string, string>()
@@ -146,7 +148,7 @@ describe('登录：记住密码 / 下次自动登录', () => {
     })
   })
 
-  it('不勾选任何选项：不写入账号密码与自动登录标识，仅当前会话保持登录', async () => {
+  it('不勾选任何选项：不写入记住密码与自动登录标识，但最近用户名(localStorage)与会话密码(sessionStorage)仍会记录', async () => {
     await useStore.getState().login('alice', 'Secret#123', {
       persistToken: false,
       prefs: { rememberPassword: false, autoLogin: false }
@@ -157,6 +159,10 @@ describe('登录：记住密码 / 下次自动登录', () => {
     expect(local.getItem(TOKEN_KEY)).toBeNull()
     expect(local.getItem(REMEMBER_KEY)).toBeNull()
     expect(local.getItem(AUTO_KEY)).toBeNull()
+    // 不依赖勾选框的最近用户名写在 localStorage（重启保留）
+    expect(local.getItem(LAST_USERNAME_KEY)).toBe('alice')
+    // 当前会话密码写在 sessionStorage（重启自动清空）
+    expect(session.getItem(SESSION_CRED_KEY)).toBeTruthy()
     await expect(loadRememberedCredential()).resolves.toBeNull()
     await expect(loadAutoLoginCredential()).resolves.toEqual({ status: 'none' })
   })
@@ -178,21 +184,31 @@ describe('登录：记住密码 / 下次自动登录', () => {
     expect(local.getItem(AUTO_KEY)).toBeNull()
   })
 
-  it('主动退出登录：清除账号、密码与自动登录标识', async () => {
+  it('主动退出登录：清自动登录标识 + 当前会话密码；记住密码 / 最近用户名保留', async () => {
     await useStore.getState().login('alice', 'Secret#123', {
       persistToken: true,
       prefs: { rememberPassword: true, autoLogin: true }
     })
     expect(local.getItem(AUTO_KEY)).toBeTruthy()
+    expect(local.getItem(LAST_USERNAME_KEY)).toBe('alice')
+    expect(session.getItem(SESSION_CRED_KEY)).toBeTruthy()
 
     useStore.getState().logout()
 
     expect(useStore.getState().user.loggedIn).toBe(false)
     expect(local.getItem(TOKEN_KEY)).toBeNull()
     expect(session.getItem(TOKEN_KEY)).toBeNull()
-    expect(local.getItem(REMEMBER_KEY)).toBeNull()
+    // 自动登录标识清除（用户主动退出 = 不要再自动登录）
     expect(local.getItem(AUTO_KEY)).toBeNull()
-    await expect(loadRememberedCredential()).resolves.toBeNull()
+    // 当前会话密码也清了（sessionStorage 侧）
+    expect(session.getItem(SESSION_CRED_KEY)).toBeNull()
+    // 记住密码 + 最近用户名保留，重启软件后只回填用户名；同会话内重新打开弹窗还能靠 REMEMBER_KEY 读到密码
+    expect(local.getItem(REMEMBER_KEY)).toBeTruthy()
+    expect(local.getItem(LAST_USERNAME_KEY)).toBe('alice')
     await expect(loadAutoLoginCredential()).resolves.toEqual({ status: 'none' })
+    await expect(loadRememberedCredential()).resolves.toEqual({
+      username: 'alice',
+      password: 'Secret#123'
+    })
   })
 })
