@@ -13,6 +13,7 @@ import feedbackRoute from '../modules/feedback/route'
 import recommendRoute from '../modules/recommend/route'
 import guideRoute from '../modules/guide/route'
 import systemConfigRoute from '../modules/systemConfig/route'
+import freeResourcesRoute from '../modules/freeResources/route'
 import toolsRoute from '../modules/tools/route'
 import favoritesRoute from '../modules/favorites/route'
 
@@ -44,6 +45,9 @@ api.use('/feedback', feedbackRoute)
 
 // 模型推荐助手配置（管理员编辑问答字段）
 api.use('/recommend', recommendRoute)
+
+// 免费模型资源聚合（步骤二：公开读 / 管理员写）
+api.use('/free-resources', freeResourcesRoute)
 
 // AI 助手「使用指南」问答（管理员编辑）
 api.use('/guide', guideRoute)

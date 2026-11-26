@@ -27,6 +27,18 @@ interface Model {
   source: string
   sort_order: number
   is_active: boolean
+  // ===== 步骤一新增字段 =====
+  scenarios?: string | null       // 后端存 JSON 字符串，前端表单操作 string[]
+  capabilities?: string | null
+  limits_text?: string | null
+  verified_score?: number
+  source_url?: string
+  license?: string
+  commercial_allowed?: boolean
+  deployment?: string
+  review_status?: string
+  reviewer_id?: number | null
+  reviewed_at?: string | null
 }
 
 interface Provider {
@@ -57,6 +69,16 @@ interface Form {
   source: string
   sort_order: number
   is_active: boolean
+  // ===== 步骤一新增字段 =====
+  scenarios: string[]       // 表单内用数组，保存时 JSON.stringify
+  capabilities: string
+  limits_text: string
+  verified_score: number
+  source_url: string
+  license: string
+  commercial_allowed: boolean
+  deployment: string
+  review_status: string
 }
 
 const EMPTY_FORM: Form = {
@@ -81,7 +103,17 @@ const EMPTY_FORM: Form = {
   docs_url: '',
   source: 'system',
   sort_order: 0,
-  is_active: true
+  is_active: true,
+  // 步骤一新增默认值
+  scenarios: [],
+  capabilities: '',
+  limits_text: '',
+  verified_score: 0,
+  source_url: '',
+  license: '',
+  commercial_allowed: false,
+  deployment: 'cloud',
+  review_status: 'published'
 }
 
 // 图生视频多选下拉的选项：首帧模式为基础 i2v 能力，首尾帧/参考图为子模式；全不选=不支持图生视频
@@ -157,6 +189,7 @@ export default function Models() {
   // 过滤
   const [filterProvider, setFilterProvider] = useState('')
   const [filterName, setFilterName] = useState('')
+  const [filterReview, setFilterReview] = useState('')
   // 排序（client 侧; 服务器先按 sort_order/id 返回）
   const [sortField, setSortField] = useState('sort')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
@@ -170,7 +203,7 @@ export default function Models() {
     setLoading(true)
     setError('')
     Promise.all([
-      modelsApi.list({ page: targetPage, pageSize: targetSize }),
+      modelsApi.list({ page: targetPage, pageSize: targetSize, reviewStatus: filterReview } as any),
       providersApi.list()
     ])
       .then(([m, p]) => {
@@ -196,6 +229,7 @@ export default function Models() {
   const filteredList = useMemo(() => {
     let r = list
     if (filterProvider) r = r.filter((m) => m.provider_id === filterProvider)
+    if (filterReview) r = r.filter((m) => (m.review_status || 'published') === filterReview)
     if (filterName.trim()) {
       const kw = filterName.trim().toLowerCase()
       r = r.filter((m) => m.name.toLowerCase().includes(kw) || m.id.toLowerCase().includes(kw))
@@ -232,9 +266,6 @@ export default function Models() {
     if (!modal.data.provider_id) { alert('请选择供应商'); return }
     if (!modal.data.name.trim()) { alert('请填写模型名称'); return }
     setSaving(true)
-    // 后端 API 接收 camelCase: id / providerId / name / type / description /
-    //   supportsI2V / supportsFirstLast / supportsReference / resolution / speed /
-    //   price / defaultResolution / defaultRatio / defaultDuration / source / sortOrder / isActive
     const d = modal.data
     const body: any = {
       providerId: d.provider_id,
@@ -257,7 +288,17 @@ export default function Models() {
       docsUrl: d.docs_url,
       source: d.source,
       sortOrder: Number(d.sort_order) || 0,
-      isActive: d.is_active
+      isActive: d.is_active,
+      // 步骤一新增
+      scenarios: d.scenarios,  // 数组，后端会 JSON.stringify
+      capabilities: d.capabilities || null,
+      limitsText: d.limits_text || null,
+      verifiedScore: Number(d.verified_score) || 0,
+      sourceUrl: d.source_url,
+      license: d.license,
+      commercialAllowed: d.commercial_allowed,
+      deployment: d.deployment,
+      reviewStatus: d.review_status
     }
     if (modal.mode === 'create') {
       body.id = (d.id || '').trim()
@@ -305,7 +346,7 @@ export default function Models() {
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
       )}
 
-      <div className="mb-4 flex items-center gap-3 bg-white rounded-xl shadow-float px-4 py-3">
+      <div className="mb-4 flex items-center gap-3 bg-white rounded-xl shadow-float px-4 py-3 flex-wrap">
         <span className="text-xs text-gray-500">筛选</span>
         <select
           value={filterProvider}
@@ -315,6 +356,16 @@ export default function Models() {
           <option value="">全部服务商</option>
           {providers.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
         </select>
+        <select
+          value={filterReview}
+          onChange={(e) => setFilterReview(e.target.value)}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="">全部状态</option>
+          <option value="published">已发布</option>
+          <option value="review">审核中</option>
+          <option value="draft">草稿</option>
+        </select>
         <input
           value={filterName}
           onChange={(e) => setFilterName(e.target.value)}
@@ -322,9 +373,9 @@ export default function Models() {
           className="flex-1 max-w-xs px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         {FilterInfo}
-        {(filterProvider || filterName) && (
+        {(filterProvider || filterName || filterReview) && (
           <button
-            onClick={() => { setFilterProvider(''); setFilterName('') }}
+            onClick={() => { setFilterProvider(''); setFilterName(''); setFilterReview(''); load(1, pageSize) }}
             className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
           >清除</button>
         )}
@@ -345,11 +396,9 @@ export default function Models() {
                 <SortableTh label="类型" field="type" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="来源" field="source" current={sortField} order={sortOrder} onSort={onSort} />
                 <th className="px-4 py-3 text-left">说明</th>
-                <th className="px-4 py-3 text-left">图生视频</th>
-                <th className="px-4 py-3 text-left">首尾帧</th>
-                <th className="px-4 py-3 text-left">参考图</th>
-                <th className="px-4 py-3 text-left">分辨率</th>
-                <th className="px-4 py-3 text-left">速度</th>
+                <th className="px-4 py-3 text-left">场景</th>
+                <th className="px-4 py-3 text-left">实测</th>
+                <th className="px-4 py-3 text-left">状态</th>
                 <SortableTh label="价格" field="price" current={sortField} order={sortOrder} onSort={onSort} />
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
@@ -370,44 +419,71 @@ export default function Models() {
                   </td>
                   <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{m.description || '-'}</td>
                   <td className="px-4 py-3">
-                    {m.supports_i2v
-                      ? <span className="px-2 py-0.5 rounded text-xs bg-emerald-50 text-emerald-600">支持</span>
-                      : <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-500">不支持</span>}
+                    {(() => {
+                      let tags: string[] = []
+                      try { tags = m.scenarios ? JSON.parse(m.scenarios) : [] } catch { tags = [] }
+                      if (tags.length === 0) return <span className="text-xs text-gray-400">—</span>
+                      return <div className="flex flex-wrap gap-1 max-w-[180px]">{tags.slice(0,3).map(t => (
+                        <span key={t} className="px-1.5 py-0.5 rounded text-[10px] bg-sky-50 text-sky-600">{t}</span>
+                      ))}{tags.length > 3 && <span className="text-[10px] text-gray-400">+{tags.length-3}</span>}</div>
+                    })()}
                   </td>
                   <td className="px-4 py-3">
-                    {m.supports_first_last
-                      ? <span className="px-2 py-0.5 rounded text-xs bg-cyan-50 text-cyan-600">支持</span>
-                      : <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-400">—</span>}
+                    {(() => {
+                      const score = m.verified_score ?? 0
+                      return score > 0
+                        ? <span className={`text-xs font-medium ${score >= 70 ? 'text-emerald-600' : score >= 40 ? 'text-amber-600' : 'text-gray-500'}`}>{score}/100</span>
+                        : <span className="text-xs text-gray-400">未实测</span>
+                    })()}
                   </td>
                   <td className="px-4 py-3">
-                    {m.supports_reference
-                      ? <span className="px-2 py-0.5 rounded text-xs bg-purple-50 text-purple-600">支持</span>
-                      : <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-400">—</span>}
+                    {(() => {
+                      const s = m.review_status || 'published'
+                      const map: Record<string, { cls: string; label: string }> = {
+                        published: { cls: 'bg-emerald-50 text-emerald-600', label: '已发布' },
+                        review:    { cls: 'bg-amber-50 text-amber-600', label: '审核中' },
+                        draft:     { cls: 'bg-gray-100 text-gray-500', label: '草稿' }
+                      }
+                      const cfg = map[s] || map.published
+                      return <span className={`px-2 py-0.5 rounded text-xs ${cfg.cls}`}>{cfg.label}</span>
+                    })()}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{m.resolution || '-'}</td>
-                  <td className="px-4 py-3 text-gray-600">{m.speed || '-'}</td>
                   <td className="px-4 py-3 text-gray-600">{m.price ?? '-'}</td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <button
-                      onClick={() => setModal({
-                        mode: 'edit', id: m.id,
-                        data: {
-                          id: m.id, provider_id: m.provider_id, name: m.name, type: m.type || 'video',
-                          description: m.description || '', supports_i2v: m.supports_i2v,
-                          supports_first_last: m.supports_first_last, supports_reference: m.supports_reference,
-                          max_images: m.max_images ?? 5, max_videos: m.max_videos ?? 0, max_audios: m.max_audios ?? 0,
-                          max_total_assets: m.max_total_assets ?? 0,
-                          resolution: m.resolution || '', speed: m.speed || '',
-                          price: String(m.price ?? '0'),
-                          default_resolution: m.default_resolution || '',
-                          default_ratio: m.default_ratio || '',
-                          default_duration: m.default_duration || '',
-                          docs_url: m.docs_url || '',
-                          source: m.source ?? 'system',
-                          sort_order: m.sort_order ?? 0,
-                          is_active: m.is_active
-                        }
-                      })}
+                      onClick={() => {
+                    let parsedScenarios: string[] = []
+                    try { parsedScenarios = m.scenarios ? JSON.parse(m.scenarios) : [] } catch { parsedScenarios = [] }
+                    setModal({
+                      mode: 'edit', id: m.id,
+                      data: {
+                        id: m.id, provider_id: m.provider_id, name: m.name, type: m.type || 'video',
+                        description: m.description || '', supports_i2v: m.supports_i2v,
+                        supports_first_last: m.supports_first_last, supports_reference: m.supports_reference,
+                        max_images: m.max_images ?? 5, max_videos: m.max_videos ?? 0, max_audios: m.max_audios ?? 0,
+                        max_total_assets: m.max_total_assets ?? 0,
+                        resolution: m.resolution || '', speed: m.speed || '',
+                        price: String(m.price ?? '0'),
+                        default_resolution: m.default_resolution || '',
+                        default_ratio: m.default_ratio || '',
+                        default_duration: m.default_duration || '',
+                        docs_url: m.docs_url || '',
+                        source: m.source ?? 'system',
+                        sort_order: m.sort_order ?? 0,
+                        is_active: m.is_active,
+                        // 步骤一新增字段
+                        scenarios: parsedScenarios,
+                        capabilities: m.capabilities || '',
+                        limits_text: m.limits_text || '',
+                        verified_score: m.verified_score ?? 0,
+                        source_url: m.source_url || '',
+                        license: m.license || '',
+                        commercial_allowed: !!m.commercial_allowed,
+                        deployment: m.deployment || 'cloud',
+                        review_status: m.review_status || 'published'
+                      }
+                    })
+                  }}
                       className="px-2 py-1 text-xs bg-brand-50 text-brand-700 rounded hover:bg-brand-100"
                     >编辑</button>
                     <button
@@ -616,6 +692,118 @@ export default function Models() {
                 <p className="col-span-2 text-xs text-gray-400">仅「参考图模式」生效；视频/音频为 0 表示该模型不支持对应模态输入；总素材上限 = 图片+视频+音频合计</p>
               </div>
               )}
+
+              {/* ===== 步骤一新增：六层模型档案 ===== */}
+              <div className="col-span-2 pt-3 border-t border-dashed border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">模型百科档案（步骤一）</h4>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-700 mb-1">适用场景标签</label>
+                <input
+                  value={modal.data.scenarios.join(', ')}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, scenarios: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="叙事, 产品展示, 角色一致性, 风景动画 …（逗号分隔多个）"
+                />
+                <p className="mt-1 text-xs text-gray-400">用户端模型中心会展示这些标签作为筛选维度</p>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-700 mb-1">能力边界说明</label>
+                <textarea
+                  value={modal.data.capabilities}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, capabilities: e.target.value } })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="擅长什么 / 不擅长什么（自由文本）"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-700 mb-1">使用限制</label>
+                <textarea
+                  value={modal.data.limits_text}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, limits_text: e.target.value } })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="需要显存 / 免费额度 / 调用频率限制等"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">实测评分 (0-100)</label>
+                <input
+                  type="number" min={0} max={100}
+                  value={modal.data.verified_score}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, verified_score: Number(e.target.value) || 0 } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">部署要求</label>
+                <select
+                  value={modal.data.deployment}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, deployment: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="cloud">云端调用</option>
+                  <option value="local">本地部署</option>
+                  <option value="hybrid">混合</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">授权类型</label>
+                <input
+                  value={modal.data.license}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, license: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="MIT / Apache / 商用 / 免费额度 …"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">商用允许</label>
+                <label className="flex items-center gap-2 mt-2">
+                  <input
+                    type="checkbox"
+                    checked={modal.data.commercial_allowed}
+                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, commercial_allowed: e.target.checked } })}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm text-gray-600">允许商用</span>
+                </label>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-700 mb-1">内容来源 URL</label>
+                <input
+                  value={modal.data.source_url}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, source_url: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="官方文档 / 社区帖子链接（需与正文内容对得上）"
+                />
+              </div>
+
+              {/* ===== 步骤一新增：审核状态 ===== */}
+              <div className="col-span-2 pt-3 border-t border-dashed border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">审核状态</h4>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">发布状态</label>
+                <select
+                  value={modal.data.review_status}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, review_status: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="published">已发布（客户端可见）</option>
+                  <option value="review">审核中</option>
+                  <option value="draft">草稿</option>
+                </select>
+              </div>
+
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button

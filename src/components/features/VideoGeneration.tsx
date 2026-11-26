@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore, availableModels, availableProviders } from '../../store/useStore'
-import { tasksApi } from '../../api/client'
+import { tasksApi, getToken } from '../../api/client'
 import type { ProviderModel } from '../../types'
 
 // 自动匹配优先级
@@ -465,7 +465,7 @@ export default function VideoGeneration() {
               setModal('login')
               return
             }
-            window.api?.openRecommendationWindow?.()
+            window.api?.openRecommendationWindow?.(getToken() ?? undefined)
           }}
           className="group flex shrink-0 items-center gap-1.5"
           title="不知道选什么模型？让AI助手帮你推荐"

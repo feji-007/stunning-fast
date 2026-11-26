@@ -90,6 +90,15 @@ interface AppState {
   // 模型推荐助手配置（从 bootstrap 拉取）
   recommendModels: Record<string, { name: string; desc: string; tag: string }>
   recommendQuestions: Array<{ layer: string; title: string; options: Array<{ label: string; models: string[]; note?: string }> }>
+  // 步骤二：免费模型资源（从 bootstrap 一次性拉齐）
+  freeResources: Array<{
+    id: string; title: string; category: string; model_id: string | null
+    url: string; license: string; commercial_allowed: boolean
+    free_quota: string; entry_type: string; region: string
+    notes?: string | null; source_url: string
+    status: 'normal' | 'restricted' | 'invalid'
+    last_check_at?: string | null
+  }>
 
   // Actions
   setExpanded: (v: boolean) => void
@@ -264,6 +273,7 @@ export const useStore = create<AppState>()(
       bootstrapError: '',
       recommendModels: {},
       recommendQuestions: [],
+      freeResources: [],
 
       // 视频生成表单状态：内存级（不在 partialize 中，不写入 localStorage）
       videoForm: {
@@ -510,6 +520,11 @@ export const useStore = create<AppState>()(
               statusPathI2v: p.status_path_i2v || undefined,
               source: pSource,
               models: (p.models ?? []).map((m: any) => {
+                // scenarios: 后端 TEXT 字段存储 JSON 数组字符串，客户端解析为 string[]
+                let scenarios: string[] | undefined
+                if (m.scenarios) {
+                  try { scenarios = JSON.parse(m.scenarios) } catch { scenarios = undefined }
+                }
                 const base: ProviderModel = {
                   id: m.id,
                   name: m.name,
@@ -530,7 +545,18 @@ export const useStore = create<AppState>()(
                   defaultResolution: m.default_resolution || undefined,
                   defaultRatio: m.default_ratio || undefined,
                   defaultDuration: m.default_duration || undefined,
-                  source: (m.source as 'system' | 'user') ?? 'system'
+                  source: (m.source as 'system' | 'user') ?? 'system',
+                  // 步骤一新增：六层模型档案
+                  scenarios,
+                  capabilities: m.capabilities || undefined,
+                  limitsText: m.limits_text || undefined,
+                  verifiedScore: Number(m.verified_score) || undefined,
+                  sourceUrl: m.source_url || undefined,
+                  license: m.license || undefined,
+                  commercialAllowed: !!m.commercial_allowed,
+                  deployment: (m.deployment || 'cloud') as ProviderModel['deployment'],
+                  // 步骤一新增：审核状态
+                  reviewStatus: (m.review_status || 'published') as ProviderModel['reviewStatus']
                 }
                 return base
               })
@@ -550,12 +576,27 @@ export const useStore = create<AppState>()(
           }
           // 后端返回空列表时使用最小离线兜底，避免界面空白
           const baseProviders = providers.length > 0 ? providers : FALLBACK_PROVIDERS
+          // features：后端优先，默认值补齐（后端可能还没录入新功能入口）
+          const featuresFinal: Feature[] = (() => {
+            if (features.length === 0) return get().features
+            const byId = new Map(features.map((f) => [f.id, f]))
+            for (const d of DEFAULT_FEATURES) {
+              if (!byId.has(d.id)) byId.set(d.id, d)
+            }
+            // 按后端原有顺序 + 新增默认项追加在末尾
+            const order = new Map<string, number>()
+            features.forEach((f, i) => order.set(f.id, i))
+            let tail = features.length
+            DEFAULT_FEATURES.forEach((d) => { if (!order.has(d.id)) { order.set(d.id, tail++) } })
+            return Array.from(byId.values()).sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
+          })()
           set({
             providers: mergeCustomProviders(baseProviders, get().customProviders, get().customModels),
-            features: features.length > 0 ? features : get().features,
+            features: featuresFinal,
             videoConfig,
             recommendModels: data.recommendModels ?? {},
             recommendQuestions: data.recommendQuestions ?? [],
+            freeResources: data.freeResources ?? [],
             bootstrapped: true,
             bootstrapError: ''
           })

@@ -8,6 +8,7 @@ import { seedTools } from './db/seed-tools'
 import { pingDb } from './db/pool'
 import apiRoutes from './routes'
 import { errorHandler } from './middleware/error'
+import { startFrChecker, stopFrChecker, runOnce } from './modules/freeResources/checker'
 
 async function bootstrap() {
   // 1. 检查数据库连接
@@ -68,8 +69,23 @@ async function bootstrap() {
     console.log('--------------------------------------------------------')
     console.log(`  管理员账号：${config.adminUsername} / ${config.adminPassword}`)
     console.log('========================================================')
+    // 免费资源定时校验调度器启动（立即启动；首次延迟 runOnce 在 checker 内部）
+    startFrChecker()
   })
 }
+
+/** 优雅退出：清理定时器 + 释放 DB 连接后再退出 */
+function registerGracefulShutdown() {
+  const cleanup = async (signal: string) => {
+    console.log(`\n[shutdown] 收到 ${signal}，开始清理…`)
+    stopFrChecker()
+    // tsx watch 热重载时也会触发 SIGTERM；若有需要可在此关闭 DB pool
+    process.exit(0)
+  }
+  process.on('SIGINT', () => cleanup('SIGINT'))
+  process.on('SIGTERM', () => cleanup('SIGTERM'))
+}
+registerGracefulShutdown()
 
 bootstrap().catch((err) => {
   console.error('[startup] 启动失败：', err)

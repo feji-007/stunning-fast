@@ -3,7 +3,7 @@ import { type ReactNode } from 'react'
 import { type AdminUser } from '../api'
 
 // 页面视图类型
-export type View = 'dashboard' | 'providers' | 'models' | 'features' | 'videoConfig' | 'users' | 'tasks' | 'feedback' | 'recommendModels' | 'recommendQuestions' | 'guideQuestions' | 'smtpSettings'
+export type View = 'dashboard' | 'providers' | 'models' | 'features' | 'videoConfig' | 'users' | 'tasks' | 'feedback' | 'recommendModels' | 'recommendQuestions' | 'guideQuestions' | 'freeResources' | 'smtpSettings'
 
 interface NavItem {
   key: View
@@ -24,6 +24,7 @@ const NAV: NavItem[] = [
   { key: 'recommendModels', label: '推荐模型', icon: '🎯' },
   { key: 'recommendQuestions', label: '推荐问答', icon: '❓' },
   { key: 'guideQuestions', label: '使用指南', icon: '📖' },
+  { key: 'freeResources', label: '免费资源', icon: '🎁' },
   { key: 'smtpSettings', label: '邮件配置', icon: '✉️' }
 ]
 
@@ -40,6 +41,7 @@ const TITLES: Record<View, string> = {
   recommendModels: '推荐模型管理',
   recommendQuestions: '推荐问答管理',
   guideQuestions: '使用指南管理',
+  freeResources: '免费模型资源聚合',
   smtpSettings: '邮件配置'
 }
 

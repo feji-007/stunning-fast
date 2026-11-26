@@ -233,6 +233,45 @@ export const guideApi = {
   removeQuestion: (id: number) => api.del(`/api/guide/questions/${id}`)
 }
 
+// ===== 步骤二：免费模型资源聚合（管理后台 CRUD + 手动校验） =====
+export interface FreeResource {
+  id: string
+  title: string
+  category: string
+  model_id: string | null
+  url: string
+  license: string
+  commercial_allowed: boolean
+  free_quota: string
+  entry_type: string
+  region: string
+  notes: string | null
+  source_url: string
+  status: 'normal' | 'restricted' | 'invalid'
+  last_check_at: string | null
+  check_count: number
+  fail_reason: string
+  sort_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+export const freeResourcesApi = {
+  list: (params: { status?: string; category?: string; q?: string } = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === '') return
+      qs.set(k, String(v))
+    })
+    const q = qs.toString()
+    return api.get<{ resources: FreeResource[] }>(`/api/free-resources/admin${q ? `?${q}` : ''}`)
+  },
+  create: (b: any) => api.post(`/api/free-resources`, b),
+  update: (id: string, b: any) => api.put(`/api/free-resources/${id}`, b),
+  remove: (id: string) => api.del(`/api/free-resources/${id}`),
+  check: (id: string) => api.post<{ id: string; status: string; failReason: string }>(`/api/free-resources/${id}/check`)
+}
+
 // ===== 系统参数（SMTP 邮件配置，授权码不回显） =====
 export interface SmtpSettings {
   host: string

@@ -95,8 +95,8 @@ export interface ExposedAPI {
   /** 主进程推送更新事件到弹窗窗口（phase / progress / version / error） */
   onUpdateWindowEvent: (cb: (data: { phase: string; progress?: number; version?: string; releaseNotes?: string; currentVersion?: string; errorMsg?: string }) => void) => () => void
   // ===== 模型推荐助手弹窗 =====
-  /** 打开模型推荐助手独立窗口 */
-  openRecommendationWindow: () => Promise<void>
+  /** 打开模型推荐助手独立窗口（token 用于向弹窗传递当前登录态） */
+  openRecommendationWindow: (token?: string) => Promise<void>
   /** 关闭模型推荐助手独立窗口 */
   closeRecommendationWindow: () => Promise<void>
 }
