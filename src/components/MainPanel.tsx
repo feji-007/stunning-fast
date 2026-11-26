@@ -4,7 +4,7 @@ import { useStore } from '../store/useStore'
 import { getToken } from '../api/client'
 import type { CardSize, CardStyle, FeatureId, LayoutColumns } from '../types'
 import VideoGeneration from './features/VideoGeneration'
-import ResourceLibrary from './features/ResourceLibrary'
+import ToolCatalog from './features/ToolCatalog'
 import Customize from './features/Customize'
 import PlaceholderFeature from './features/PlaceholderFeature'
 
@@ -232,7 +232,7 @@ export default function MainPanel() {
       case 'video':
         return <VideoGeneration />
       case 'library':
-        return <ResourceLibrary />
+        return <ToolCatalog />
       case 'custom':
         return <Customize />
       default:

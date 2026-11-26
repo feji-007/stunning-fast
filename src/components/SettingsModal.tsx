@@ -10,6 +10,8 @@ export default function SettingsModal() {
   const saveKey = useStore((s) => s.saveKey)
   const removeKey = useStore((s) => s.removeKey)
   const providers = useStore((s) => s.providers)
+  const developerMode = useStore((s) => s.developerMode)
+  const setDeveloperMode = useStore((s) => s.setDeveloperMode)
 
   const connected = new Set(availableProviders(providers, keys).map((p) => p.id))
 
@@ -32,6 +34,20 @@ export default function SettingsModal() {
           </span>
           <span>保存密钥后将自动探测，并在视频生成页展示可用模型</span>
         </div>
+
+        {/* 开发者模式：普通用户默认看不到自定义模型接入入口 */}
+        <label className="mx-5 mb-2 flex cursor-pointer items-center justify-between rounded-lg border border-black/5 bg-gray-50/60 px-3 py-2">
+          <span className="text-[11px] text-gray-600">
+            开发者模式
+            <span className="ml-1 text-gray-400">（在资源库显示「模型接入」，可自定义供应商）</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={developerMode}
+            onChange={(e) => setDeveloperMode(e.target.checked)}
+            className="h-3.5 w-3.5 accent-brand-600"
+          />
+        </label>
 
         <div className="flex-1 overflow-auto scroll-thin px-5 pb-5">
           <div className="space-y-2">

@@ -11,6 +11,7 @@ import type {
   ProviderId,
   ProviderModel,
   Theme,
+  Tool,
   UserState,
   VideoProtocol
 } from '../types'
@@ -19,6 +20,7 @@ import {
   authApi,
   bootstrapApi,
   clearToken,
+  mapToolRow,
   setToken,
   userApiKeysApi,
   userConfigsApi
@@ -99,6 +101,12 @@ interface AppState {
     status: 'normal' | 'restricted' | 'invalid'
     last_check_at?: string | null
   }>
+
+  // AI 视频工具导购目录（bootstrap 下发，资源库主页消费）
+  tools: Tool[]
+  // 开发者模式：控制资源库中「模型接入」标签是否可见（默认关闭）
+  developerMode: boolean
+  setDeveloperMode: (v: boolean) => void
 
   // Actions
   setExpanded: (v: boolean) => void
@@ -274,6 +282,8 @@ export const useStore = create<AppState>()(
       recommendModels: {},
       recommendQuestions: [],
       freeResources: [],
+      tools: [],
+      developerMode: false,
 
       // 视频生成表单状态：内存级（不在 partialize 中，不写入 localStorage）
       videoForm: {
@@ -494,6 +504,7 @@ export const useStore = create<AppState>()(
       },
 
       setAutoLaunch: (v) => set({ autoLaunch: v }),
+      setDeveloperMode: (v) => set({ developerMode: v }),
 
       // ===== 后端同步 =====
       bootstrap: async () => {
@@ -588,7 +599,10 @@ export const useStore = create<AppState>()(
             features.forEach((f, i) => order.set(f.id, i))
             let tail = features.length
             DEFAULT_FEATURES.forEach((d) => { if (!order.has(d.id)) { order.set(d.id, tail++) } })
-            return Array.from(byId.values()).sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
+            const list = Array.from(byId.values()).sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
+            // 产品重心已转向导购：资源库置顶，生成入口紧随其后
+            const priority: Record<string, number> = { library: 0, video: 1 }
+            return list.sort((a, b) => (priority[a.id] ?? 9) - (priority[b.id] ?? 9))
           })()
           set({
             providers: mergeCustomProviders(baseProviders, get().customProviders, get().customModels),
@@ -597,6 +611,7 @@ export const useStore = create<AppState>()(
             recommendModels: data.recommendModels ?? {},
             recommendQuestions: data.recommendQuestions ?? [],
             freeResources: data.freeResources ?? [],
+            tools: (data.tools ?? []).map(mapToolRow),
             bootstrapped: true,
             bootstrapError: ''
           })
@@ -893,6 +908,7 @@ export const useStore = create<AppState>()(
         columns: s.columns,
         cardStyle: s.cardStyle,
         cardSize: s.cardSize,
+        developerMode: s.developerMode,
         panelWidth: s.panelWidth,
         panelHeight: s.panelHeight,
         panelOpacity: s.panelOpacity,

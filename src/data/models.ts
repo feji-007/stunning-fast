@@ -102,17 +102,17 @@ export const FALLBACK_PROVIDERS: Provider[] = [
 // 默认主面板功能入口（后端 features 为空时的最小兜底）
 export const DEFAULT_FEATURES: Feature[] = [
   {
-    id: 'video',
-    name: '视频生成',
-    icon: '🎬',
-    desc: '文生视频 / 图生视频，自动匹配或手动切换 API',
-    pinned: true
-  },
-  {
     id: 'library',
     name: '资源库',
     icon: '📚',
-    desc: '罗列主流常用模型，搜索最适配的资源',
+    desc: 'AI 视频工具导购：挑工具、看价格、配 API',
+    pinned: true
+  },
+  {
+    id: 'video',
+    name: '视频生成',
+    icon: '🎬',
+    desc: '已配置 Key 的工具可在此快速体验生成',
     pinned: true
   },
   {

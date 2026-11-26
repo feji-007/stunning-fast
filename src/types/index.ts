@@ -162,4 +162,47 @@ export interface GuideQuestion {
   answer: string
 }
 
+// ===== AI 视频工具导购目录 =====
+export type ToolDifficulty = 'beginner' | 'intermediate' | 'advanced'
+export type ToolPricingTier = 'free' | 'freemium' | 'pay-per-use' | 'subscription' | 'premium-only'
+
+/** 工具目录条目（bootstrap 下发的基础字段） */
+export interface Tool {
+  id: string
+  name: string
+  subtitle: string
+  provider: string
+  officialUrl: string
+  logoUrl: string
+  categories: string[]
+  scenarios: string[]
+  difficulty: ToolDifficulty
+  pricingTier: ToolPricingTier
+  startingPrice: string
+  hasApi: boolean
+  hasWebApp: boolean
+  hasMobileApp: boolean
+  hasOpenSource: boolean
+  syncedAudio: boolean
+  maxResolution: string
+  maxClipSec: number
+  supportsI2v: boolean
+  supportsT2v: boolean
+  supportsReference: boolean
+  shortDesc: string
+  notes: string
+}
+
+/** 工具详情（/api/tools/:id，额外包含长文本字段） */
+export interface ToolDetail extends Tool {
+  apiDocsUrl: string
+  apiKeyUrl: string
+  bannerUrl: string
+  highlights: string[]
+  limitations: string[]
+  /** 配置引导 Markdown */
+  setupSteps: string
+  artificialAnalysisScore: number
+}
+
 

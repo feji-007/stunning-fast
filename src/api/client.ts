@@ -3,7 +3,7 @@
 // 未设置时回退到 http://localhost:4178（本地开发）。
 // 所有响应走 { code, message, data } 结构；401 自动清理本地登录态。
 
-import type { GuideQuestion } from '../types'
+import type { GuideQuestion, Tool, ToolDetail } from '../types'
 
 const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4178').replace(/\/+$/, '')
 const API_BASE_KEY = 'stunning-fast-api-base'
@@ -150,6 +150,8 @@ export const bootstrapApi = {
       recommendModels: Record<string, { name: string; desc: string; tag: string }>
       recommendQuestions: Array<{ layer: string; title: string; options: Array<{ label: string; models: string[]; note?: string }> }>
       guideQuestions: GuideQuestion[]
+      // 工具导购目录（2026-11 新增）
+      tools?: Array<Record<string, any>>
       // 步骤二：免费模型资源聚合
       freeResources: Array<{
         id: string; title: string; category: string; model_id: string | null
@@ -270,5 +272,120 @@ export const freeResourcesApi = {
   },
   byModel: (modelId: string) =>
     api.get<{ resources: FreeResource[] }>(`/api/free-resources/by-model/${modelId}`),
+}
+
+// ===== AI 视频工具导购目录 =====
+
+/** 逗号分隔字符串 → 数组 */
+function splitTags(v: unknown): string[] {
+  if (typeof v !== 'string' || !v.trim()) return []
+  return v.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+/** 后端 tools 行（snake_case）→ 客户端 Tool */
+export function mapToolRow(m: any): Tool {
+  return {
+    id: String(m.id ?? ''),
+    name: String(m.name ?? ''),
+    subtitle: String(m.subtitle ?? ''),
+    provider: String(m.provider ?? ''),
+    officialUrl: String(m.official_url ?? ''),
+    logoUrl: String(m.logo_url ?? ''),
+    categories: splitTags(m.categories),
+    scenarios: splitTags(m.scenarios),
+    difficulty: (m.difficulty ?? 'beginner') as Tool['difficulty'],
+    pricingTier: (m.pricing_tier ?? 'free') as Tool['pricingTier'],
+    startingPrice: String(m.starting_price ?? ''),
+    hasApi: !!m.has_api,
+    hasWebApp: !!m.has_web_app,
+    hasMobileApp: !!m.has_mobile_app,
+    hasOpenSource: !!m.has_open_source,
+    syncedAudio: !!m.synced_audio,
+    maxResolution: String(m.max_resolution ?? ''),
+    maxClipSec: Number(m.max_clip_sec) || 0,
+    supportsI2v: !!m.supports_i2v,
+    supportsT2v: !!m.supports_t2v,
+    supportsReference: !!m.supports_reference,
+    shortDesc: String(m.short_desc ?? ''),
+    notes: String(m.notes ?? '')
+  }
+}
+
+/** 后端工具详情（snake_case）→ ToolDetail */
+export function mapToolDetailRow(m: any): ToolDetail {
+  const parseList = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.map(String)
+    if (typeof v !== 'string' || !v.trim()) return []
+    try {
+      const arr = JSON.parse(v)
+      return Array.isArray(arr) ? arr.map(String) : []
+    } catch {
+      return []
+    }
+  }
+  return {
+    ...mapToolRow(m),
+    apiDocsUrl: String(m.api_docs_url ?? ''),
+    apiKeyUrl: String(m.api_key_url ?? ''),
+    bannerUrl: String(m.banner_url ?? ''),
+    highlights: parseList(m.highlights),
+    limitations: parseList(m.limitations),
+    setupSteps: String(m.setup_steps ?? ''),
+    artificialAnalysisScore: Number(m.artificial_analysis_score) || 0
+  }
+}
+
+export const toolsApi = {
+  list: (params?: {
+    category?: string
+    scenario?: string
+    hasApi?: boolean
+    hasOpenSource?: boolean
+    pricingTier?: string
+    difficulty?: string
+    syncedAudio?: boolean
+    search?: string
+    sort?: 'popular' | 'new'
+    limit?: number
+    offset?: number
+  }) => {
+    const qs = new URLSearchParams()
+    if (params?.category) qs.set('category', params.category)
+    if (params?.scenario) qs.set('scenario', params.scenario)
+    if (params?.hasApi !== undefined) qs.set('has_api', String(params.hasApi))
+    if (params?.hasOpenSource !== undefined) qs.set('has_open_source', String(params.hasOpenSource))
+    if (params?.pricingTier) qs.set('pricing_tier', params.pricingTier)
+    if (params?.difficulty) qs.set('difficulty', params.difficulty)
+    if (params?.syncedAudio !== undefined) qs.set('synced_audio', String(params.syncedAudio))
+    if (params?.search) qs.set('search', params.search)
+    if (params?.sort) qs.set('sort', params.sort)
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.offset) qs.set('offset', String(params.offset))
+    const q = qs.toString()
+    return api
+      .get<{ tools: any[]; total: number }>(`/api/tools${q ? `?${q}` : ''}`)
+      .then((r) => ({ tools: (r.tools ?? []).map(mapToolRow), total: r.total }))
+  },
+  detail: (id: string) =>
+    api
+      .get<{ tool: any }>(`/api/tools/${encodeURIComponent(id)}`)
+      .then((r) => mapToolDetailRow(r.tool)),
+  recommend: (scenario: string, limit = 8) =>
+    api
+      .get<{ tools: any[] }>(`/api/tools/recommend?scenario=${encodeURIComponent(scenario)}&limit=${limit}`)
+      .then((r) => (r.tools ?? []).map(mapToolRow)),
+  feedback: (b: { toolName?: string; toolUrl?: string; message?: string; userContact?: string }) =>
+    api.post('/api/tools/feedback', b)
+}
+
+export const favoritesApi = {
+  list: () =>
+    api.get<{ favorites: Array<{ tool_id: string; note: string; created_at: string }> }>('/api/user/favorites'),
+  add: (toolId: string, note = '') =>
+    api.post(`/api/user/favorites/${encodeURIComponent(toolId)}`, { note }),
+  remove: (toolId: string) =>
+    api.del(`/api/user/favorites/${encodeURIComponent(toolId)}`),
+  check: (toolId: string) =>
+    api.get<{ favorited: boolean }>(`/api/user/favorites/check/${encodeURIComponent(toolId)}`)
 }
 
