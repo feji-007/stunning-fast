@@ -13,7 +13,11 @@ const PROTOCOL_DEFAULTS: Record<VideoProtocol, { submitPath: string; statusPath:
   runway:    { submitPath: '/v1/text_to_video',                            statusPath: '/v1/tasks/{taskId}' },
   luma:      { submitPath: '/generations',                                 statusPath: '/generations/{taskId}' },
   openai:    { submitPath: '/v1/videos',                                  statusPath: '/v1/videos/{taskId}' },
-  pika:      { submitPath: '/v1/videos',                                   statusPath: '/v1/videos/{taskId}' }
+  pika:      { submitPath: '/v1/media/pika/pika-2.5/text-to-video',       statusPath: '/v1/media/jobs/{taskId}' },
+  google:    { submitPath: '/v1beta/models/{model}:predictLongRunning',   statusPath: '/v1beta/{taskId}' },
+  heygen:    { submitPath: '/v2/video/generate',                          statusPath: '/v1/video_status.get?video_id={taskId}' },
+  synthesia: { submitPath: '/v2/videos',                                  statusPath: '/v2/videos/{taskId}' },
+  'd-id':    { submitPath: '/talks',                                      statusPath: '/talks/{taskId}' }
 }
 
 const PROTOCOL_OPTIONS: Array<{ value: VideoProtocol; label: string }> = [
@@ -25,7 +29,11 @@ const PROTOCOL_OPTIONS: Array<{ value: VideoProtocol; label: string }> = [
   { value: 'runway',    label: 'Runway Gen-3' },
   { value: 'luma',      label: 'Luma Dream Machine' },
   { value: 'openai',    label: 'OpenAI Sora' },
-  { value: 'pika',      label: 'Pika' }
+  { value: 'pika',      label: 'Pika' },
+  { value: 'google',    label: 'Google Veo / Gemini Omni' },
+  { value: 'heygen',    label: 'HeyGen 数字人' },
+  { value: 'synthesia', label: 'Synthesia 数字人' },
+  { value: 'd-id',      label: 'D-ID 数字人' }
 ]
 
 // 资源库：罗列主流常用模型，帮用户搜索更适配的资源。

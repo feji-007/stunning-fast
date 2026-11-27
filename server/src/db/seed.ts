@@ -85,10 +85,12 @@ const PROVIDERS_SEED: Array<{
   },
   {
     id: 'pika', name: 'Pika', keyHint: '', url: 'https://pika.art/', sort: 6,
-    protocol: 'pika', apiBaseUrl: 'https://pika.pikaslabs.com/v1',
-    submitPath: '/v1/videos', statusPath: '/v1/videos/{taskId}',
+    protocol: 'pika', apiBaseUrl: 'https://api.dev.pika.art',
+    submitPath: '/v1/media/pika/pika-2.5/text-to-video',
+    statusPath: '/v1/media/jobs/{taskId}',
+    submitPathI2v: '/v1/media/pika/pika-2.5/image-to-video',
     models: [
-      { id: 'pika-1-5', name: 'Pika 1.5', type: 'video', desc: 'Pika 视频生成，特效与 Pikaffects。', supportsI2V: true, supportsFirstLast: false, supportsReference: true, res: 720, speed: 30, price: 2, sort: 1 }
+      { id: 'pika-1-5', name: 'Pika 2.5', type: 'video', desc: 'Pika 2.5 视频生成，特效与 Pikaffects。', supportsI2V: true, supportsFirstLast: false, supportsReference: true, res: 720, speed: 30, price: 2, sort: 1 }
     ]
   },
   {
@@ -116,6 +118,41 @@ const PROVIDERS_SEED: Array<{
       { id: 'sora-2', name: 'Sora 2', type: 'video', desc: 'OpenAI Sora 2 视频生成模型。', res: 1080, speed: 60, price: 3, sort: 1 },
       { id: 'dall-e-3', name: 'DALL\u00b7E 3', type: 'image', desc: 'OpenAI 图像生成。', res: 0, speed: 0, price: 2, sort: 2 },
       { id: 'gpt-4o', name: 'GPT-4o', type: 'text', desc: 'OpenAI 通用对话模型。', res: 0, speed: 0, price: 3, sort: 3 }
+    ]
+  },
+  {
+    id: 'google', name: 'Google Veo (Gemini API)', keyHint: 'AIza', url: 'https://deepmind.google/models/veo/', sort: 10,
+    protocol: 'google', apiBaseUrl: 'https://generativelanguage.googleapis.com',
+    // 模型名位于 URL 中，提交路径支持 {model} 占位符；轮询路径由 operation name 整体替换
+    submitPath: '/v1beta/models/{model}:predictLongRunning',
+    statusPath: '/v1beta/{taskId}',
+    models: [
+      { id: 'veo-3-1', name: 'Veo 3.1', type: 'video', desc: 'Google Veo 3.1，电影级文生/图生视频，原生音频，支持竖屏。', supportsI2V: true, supportsFirstLast: false, supportsReference: false, res: 1080, speed: 120, price: 3, sort: 1 },
+      { id: 'veo-3-1-fast', name: 'Veo 3.1 Fast', type: 'video', desc: 'Google Veo 3.1 快速版，成本更低，适合快速出片。', supportsI2V: true, supportsFirstLast: false, supportsReference: false, res: 720, speed: 60, price: 2, sort: 2 }
+    ]
+  },
+  {
+    id: 'heygen', name: 'HeyGen', keyHint: '', url: 'https://www.heygen.com/', sort: 11,
+    protocol: 'heygen', apiBaseUrl: 'https://api.heygen.com',
+    submitPath: '/v2/video/generate', statusPath: '/v1/video_status.get?video_id={taskId}',
+    models: [
+      { id: 'heygen-avatar', name: 'HeyGen 数字人视频', type: 'video', desc: 'HeyGen 数字人播报：文本作为台词，自动匹配账号下的数字人形象与音色。', supportsI2V: false, res: 1080, speed: 60, price: 3, sort: 1 }
+    ]
+  },
+  {
+    id: 'synthesia', name: 'Synthesia', keyHint: '', url: 'https://www.synthesia.io/', sort: 12,
+    protocol: 'synthesia', apiBaseUrl: 'https://api.synthesia.io',
+    submitPath: '/v2/videos', statusPath: '/v2/videos/{taskId}',
+    models: [
+      { id: 'synthesia-avatar', name: 'Synthesia 数字人视频', type: 'video', desc: 'Synthesia 数字人播报：文本作为台词，自动匹配账号下的数字人形象。', supportsI2V: false, res: 1080, speed: 60, price: 3, sort: 1 }
+    ]
+  },
+  {
+    id: 'd-id', name: 'D-ID', keyHint: 'user:password', url: 'https://www.d-id.com/', sort: 13,
+    protocol: 'd-id', apiBaseUrl: 'https://api.d-id.com',
+    submitPath: '/talks', statusPath: '/talks/{taskId}',
+    models: [
+      { id: 'did-talks', name: 'D-ID Talks', type: 'video', desc: 'D-ID 照片说话数字人：需上传人物照片，文本作为台词生成口型同步视频。', supportsI2V: true, supportsFirstLast: false, supportsReference: false, res: 720, speed: 60, price: 2, sort: 1 }
     ]
   }
 ]
@@ -415,10 +452,35 @@ async function backfillApiBaseUrls() {
       statusPath: '/v1/videos/{taskId}'
     },
     pika: {
-      apiBaseUrl: 'https://pika.pikaslabs.com/v1',
+      apiBaseUrl: 'https://api.dev.pika.art',
       protocol: 'pika',
-      submitPath: '/v1/videos',
-      statusPath: '/v1/videos/{taskId}'
+      submitPath: '/v1/media/pika/pika-2.5/text-to-video',
+      statusPath: '/v1/media/jobs/{taskId}',
+      submitPathI2v: '/v1/media/pika/pika-2.5/image-to-video'
+    },
+    google: {
+      apiBaseUrl: 'https://generativelanguage.googleapis.com',
+      protocol: 'google',
+      submitPath: '/v1beta/models/{model}:predictLongRunning',
+      statusPath: '/v1beta/{taskId}'
+    },
+    heygen: {
+      apiBaseUrl: 'https://api.heygen.com',
+      protocol: 'heygen',
+      submitPath: '/v2/video/generate',
+      statusPath: '/v1/video_status.get?video_id={taskId}'
+    },
+    synthesia: {
+      apiBaseUrl: 'https://api.synthesia.io',
+      protocol: 'synthesia',
+      submitPath: '/v2/videos',
+      statusPath: '/v2/videos/{taskId}'
+    },
+    'd-id': {
+      apiBaseUrl: 'https://api.d-id.com',
+      protocol: 'd-id',
+      submitPath: '/talks',
+      statusPath: '/talks/{taskId}'
     }
   }
   for (const [id, d] of Object.entries(DEFAULTS)) {
@@ -447,7 +509,11 @@ async function backfillUrls() {
     pika: 'https://pika.art/profile',
     luma: 'https://lumalabs.ai/api',
     zhipu: 'https://open.bigmodel.cn/usercenter/apikeys',
-    openai: 'https://platform.openai.com/api-keys'
+    openai: 'https://platform.openai.com/api-keys',
+    google: 'https://aistudio.google.com/app/apikey',
+    heygen: 'https://app.heygen.com/settings?nav=API',
+    synthesia: 'https://app.synthesia.io/#/account/api-keys',
+    'd-id': 'https://studio.d-id.com/'
   }
   for (const [id, url] of Object.entries(PROVIDER_KEY_URLS)) {
     await query(
@@ -457,12 +523,12 @@ async function backfillUrls() {
   }
 
   const MODEL_DOCS: Record<string, string> = {
-    'wan2.7-t2v': 'https://help.aliyun.com/zh/model-studio/wan2.7-video-generation',
-    'wan2.7-t2v-2026-06-12': 'https://help.aliyun.com/zh/model-studio/wan2.7-video-generation',
-    'wan2.6-t2v': 'https://help.aliyun.com/zh/model-studio/wan2.6-video-generation',
-    'wan2.2-t2v-plus': 'https://help.aliyun.com/zh/model-studio/wan2.2-video-generation',
-    'wan2.1-t2v-turbo': 'https://help.aliyun.com/zh/model-studio/wan2.1-video-generation',
-    'wan2.1-t2v-plus': 'https://help.aliyun.com/zh/model-studio/wan2.1-video-generation',
+    'wan2.7-t2v': 'https://help.aliyun.com/zh/model-studio/text-to-video-guide/',
+    'wan2.7-t2v-2026-06-12': 'https://help.aliyun.com/zh/model-studio/text-to-video-guide/',
+    'wan2.6-t2v': 'https://help.aliyun.com/zh/model-studio/legacy-wan-text-to-video-api-reference',
+    'wan2.2-t2v-plus': 'https://help.aliyun.com/zh/model-studio/legacy-wan-text-to-video-api-reference',
+    'wan2.1-t2v-turbo': 'https://help.aliyun.com/zh/model-studio/legacy-wan-text-to-video-api-reference',
+    'wan2.1-t2v-plus': 'https://help.aliyun.com/zh/model-studio/legacy-wan-text-to-video-api-reference',
     'qwen-max': 'https://help.aliyun.com/zh/model-studio/getting-started/models',
     'doubao-seedance-2-5': 'https://www.volcengine.com/docs/82379/1521657',
     'doubao-seedance-2-0-260128': 'https://www.volcengine.com/docs/82379/1521657',
@@ -483,7 +549,12 @@ async function backfillUrls() {
     'glm-4': 'https://open.bigmodel.cn/dev/api/normal-model/glm-4',
     'sora-2': 'https://platform.openai.com/docs/guides/video',
     'dall-e-3': 'https://platform.openai.com/docs/guides/image-generation',
-    'gpt-4o': 'https://platform.openai.com/docs/models/gpt-4o'
+    'gpt-4o': 'https://platform.openai.com/docs/models/gpt-4o',
+    'veo-3-1': 'https://ai.google.dev/gemini-api/docs/video',
+    'veo-3-1-fast': 'https://ai.google.dev/gemini-api/docs/video',
+    'heygen-avatar': 'https://docs.heygen.com/reference/create-an-avatar-video-v2',
+    'synthesia-avatar': 'https://docs.synthesia.io/reference/create-a-video',
+    'did-talks': 'https://docs.d-id.com/reference/create-a-talk'
   }
   for (const [id, url] of Object.entries(MODEL_DOCS)) {
     await query(

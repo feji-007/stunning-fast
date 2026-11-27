@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Tool, ToolDetail } from '../../types'
 import { toolsApi } from '../../api/client'
+import { useStore } from '../../store/useStore'
 import {
   CATEGORY_LABEL,
   DIFFICULTY_LABEL,
@@ -34,6 +35,14 @@ export default function ToolDetailPanel({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  // 供应商 / 密钥 / 生成联动（数据全部来自后台配置，不再硬编码映射）
+  const providers = useStore((s) => s.providers)
+  const keys = useStore((s) => s.keys)
+  const freeResources = useStore((s) => s.freeResources)
+  const openProviderSettings = useStore((s) => s.openProviderSettings)
+  const openFeature = useStore((s) => s.openFeature)
+  const setVideoForm = useStore((s) => s.setVideoForm)
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -58,6 +67,25 @@ export default function ToolDetailPanel({
   if (!fallback && !detail) return null
 
   const deprecated = /停服|关停/.test(tool.notes || '')
+
+  // 关联供应商 → 是否已配 Key → 可调用模型（后台配置驱动）
+  const linkedProvider = tool.providerId
+    ? providers.find((p) => p.id === tool.providerId)
+    : undefined
+  const hasKey = !!tool.providerId && keys.some((k) => k.provider === tool.providerId && k.key.trim().length > 0)
+  const callableModels = linkedProvider
+    ? linkedProvider.models.filter((m) => !tool.modelIds?.length || tool.modelIds.includes(m.id))
+    : []
+  // 该工具关联的免费资源（后台 free_resources.tool_id）
+  const linkedFree = freeResources.filter((r) => r.tool_id === tool.id)
+
+  // 带上该工具的首个可用模型，直接跳到视频生成页
+  const handleGenerate = () => {
+    const first = callableModels[0]
+    if (first) setVideoForm({ selected: first.id, genMode: 't2v' })
+    onClose()
+    openFeature('video')
+  }
 
   return (
     <div
@@ -212,6 +240,25 @@ export default function ToolDetailPanel({
             </section>
           )}
 
+          {linkedFree.length > 0 && (
+            <section className="mt-3">
+              <p className="mb-1.5 text-[11px] font-semibold text-gray-700">免费额度 / 免费资源</p>
+              <div className="flex flex-wrap gap-1.5">
+                {linkedFree.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => openExternal(r.url)}
+                    className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700 hover:bg-emerald-100"
+                  >
+                    {r.title}
+                    {r.free_quota ? ` · ${r.free_quota}` : ''}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
           {tool.notes && (
             <p className="mt-3 rounded-lg bg-gray-50 px-2.5 py-1.5 text-[11px] leading-relaxed text-gray-500">
               备注：{tool.notes}
@@ -221,7 +268,11 @@ export default function ToolDetailPanel({
 
         <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-black/5 px-4 py-2.5">
           <span className="text-[10px] text-gray-400">
-            {canQuickTry(tool) ? '支持在绝色内快速体验' : '仅提供配置引导'}
+            {hasKey
+              ? `已接入 ${linkedProvider?.name ?? tool.providerId}，可直接生成`
+              : canQuickTry(tool)
+                ? '支持在绝色内快速体验'
+                : '仅提供配置引导'}
           </span>
           <div className="flex gap-2">
             <button
@@ -231,13 +282,33 @@ export default function ToolDetailPanel({
             >
               去官网
             </button>
-            <button
-              type="button"
-              onClick={() => onSetup(tool)}
-              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
-            >
-              配置引导 / 获取 Key
-            </button>
+            {tool.providerId ? (
+              hasKey ? (
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+                >
+                  立即生成
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { onClose(); openProviderSettings(tool.providerId!) }}
+                  className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+                >
+                  配置 API Key
+                </button>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSetup(tool)}
+                className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+              >
+                配置引导 / 获取 Key
+              </button>
+            )}
           </div>
         </footer>
       </div>

@@ -86,6 +86,10 @@ export type VideoProtocol =
   | 'luma'        // Luma Dream Machine（API 端点已录入，协议待实现）
   | 'openai'      // OpenAI Sora（API 端点已录入，协议待实现）
   | 'pika'        // Pika（API 端点占位，协议待实现）
+  | 'google'      // Google Veo / Gemini Omni（predictLongRunning + operations 轮询）
+  | 'heygen'      // HeyGen 数字人（video/generate + video_status）
+  | 'synthesia'   // Synthesia 数字人（v2/videos 轮询）
+  | 'd-id'        // D-ID 数字人（talks 轮询，需公网图片）
 
 export interface Provider {
   id: ProviderId
@@ -191,6 +195,10 @@ export interface Tool {
   supportsReference: boolean
   shortDesc: string
   notes: string
+  /** 关联的后端供应商 id（有值表示可在 App 内直接生成） */
+  providerId?: string
+  /** 可调用模型白名单（为空表示该供应商全部已发布模型） */
+  modelIds?: string[]
 }
 
 /** 工具详情（/api/tools/:id，额外包含长文本字段） */

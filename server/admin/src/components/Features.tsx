@@ -13,6 +13,7 @@ interface Feature {
 }
 
 interface Form {
+  id: string
   name: string
   icon: string
   description: string
@@ -22,6 +23,7 @@ interface Form {
 }
 
 const EMPTY_FORM: Form = {
+  id: '',
   name: '',
   icon: '',
   description: '',
@@ -75,6 +77,10 @@ export default function Features() {
 
   const save = () => {
     if (!modal) return
+    if (modal.mode === 'create' && !modal.data.id.trim()) {
+      alert('请填写功能 ID')
+      return
+    }
     if (!modal.data.name.trim()) {
       alert('请填写功能名称')
       return
@@ -165,6 +171,7 @@ export default function Features() {
                           mode: 'edit',
                           id: f.id,
                           data: {
+                            id: f.id,
                             name: f.name,
                             icon: f.icon || '',
                             description: f.description || '',
@@ -200,6 +207,18 @@ export default function Features() {
               {modal.mode === 'create' ? '新增功能' : '编辑功能'}
             </h3>
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-700 mb-1">功能 ID</label>
+                <input
+                  value={modal.data.id}
+                  disabled={modal.mode === 'edit'}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, id: e.target.value } })}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono ${
+                    modal.mode === 'edit' ? 'border-gray-200 bg-gray-50 text-gray-400' : 'border-gray-300'
+                  }`}
+                  placeholder="如 video / library（客户端按此 ID 匹配功能）"
+                />
+              </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">图标</label>
                 <input

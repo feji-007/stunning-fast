@@ -50,12 +50,12 @@ router.get('/', async (_req, res, next) => {
               categories, scenarios, difficulty, pricing_tier, starting_price,
               has_api, has_web_app, has_mobile_app, has_open_source, synced_audio,
               max_resolution, max_clip_sec, supports_i2v, supports_t2v, supports_reference,
-              short_desc, notes
+              short_desc, notes, provider_id, model_ids
        FROM tools WHERE is_active = TRUE ORDER BY sort_order, artificial_analysis_score DESC, id`
     )
     // 步骤二：免费模型资源聚合（客户端启动时一次性拉齐）
     const freeResources = await query(
-      `SELECT fr.id, fr.title, fr.category, fr.model_id, fr.url, fr.license,
+      `SELECT fr.id, fr.title, fr.category, fr.model_id, fr.tool_id, fr.url, fr.license,
               fr.commercial_allowed, fr.free_quota, fr.entry_type, fr.region,
               fr.notes, fr.source_url, fr.status, fr.last_check_at
        FROM free_resources fr

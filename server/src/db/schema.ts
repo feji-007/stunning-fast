@@ -290,12 +290,15 @@ const SCHEMA_STATEMENTS: string[] = [
   limitations     TEXT         NOT NULL,
   setup_steps     TEXT         NOT NULL,
   notes           TEXT         NOT NULL,
+  provider_id     VARCHAR(64)  NULL COMMENT '关联 providers.id：该工具对应的可调用供应商',
+  model_ids       VARCHAR(512) NOT NULL DEFAULT '' COMMENT '可调用模型白名单（逗号分隔 models.id；留空=该供应商全部模型）',
   artificial_analysis_score INT NOT NULL DEFAULT 0,
   sort_order      INT          NOT NULL DEFAULT 0,
   is_active       TINYINT(1)   NOT NULL DEFAULT 1,
   created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  INDEX idx_tools_provider (provider_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
   `CREATE TABLE IF NOT EXISTS tool_favorites (
@@ -321,6 +324,7 @@ const SCHEMA_STATEMENTS: string[] = [
   title         VARCHAR(256) NOT NULL,
   category      VARCHAR(32)  NOT NULL COMMENT 'open_source / vendor_free_tier / local_deploy / online_trial / community',
   model_id      VARCHAR(64)  NULL COMMENT '关联到 models.id (可选)',
+  tool_id       VARCHAR(64)  NULL COMMENT '关联到 tools.id (可选)',
   url           VARCHAR(512) NOT NULL COMMENT '资源访问地址',
   license       VARCHAR(64)  NOT NULL DEFAULT '',
   commercial_allowed TINYINT(1) NOT NULL DEFAULT 0,
@@ -406,6 +410,10 @@ export async function ensureSchema(): Promise<void> {
   await addColumnIfMissing('models', 'review_status', "VARCHAR(16) NOT NULL DEFAULT 'published'")
   await addColumnIfMissing('models', 'reviewer_id', 'INT NULL')
   await addColumnIfMissing('models', 'reviewed_at', 'DATETIME NULL')
+  // 统一管理：工具导购 ↔ 供应商 ↔ 模型 / 免费资源 关联
+  await addColumnIfMissing('tools', 'provider_id', 'VARCHAR(64) NULL')
+  await addColumnIfMissing('tools', 'model_ids', "VARCHAR(512) NOT NULL DEFAULT ''")
+  await addColumnIfMissing('free_resources', 'tool_id', 'VARCHAR(64) NULL')
   console.log('[db] 表结构检查完成（已存在则跳过）')
 }
 

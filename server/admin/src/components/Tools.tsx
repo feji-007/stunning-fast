@@ -1,6 +1,6 @@
 // AI 视频工具导购目录管理：列表 / 筛选 / 搜索 / 增删改
 import { useEffect, useState } from 'react'
-import { toolsApi, type Tool } from '../api'
+import { toolsApi, providersApi, type Tool } from '../api'
 
 const DIFFICULTY_OPTIONS = [
   { v: 'beginner', l: '🟢 新手友好' },
@@ -44,6 +44,8 @@ interface FormState {
   limitations: string
   setup_steps: string
   notes: string
+  provider_id: string
+  model_ids: string[]
   artificial_analysis_score: number
   sort_order: number
   is_active: boolean
@@ -60,6 +62,7 @@ const blankForm = (): FormState => ({
   max_resolution: '', max_clip_sec: 0,
   supports_i2v: false, supports_t2v: true, supports_reference: false,
   short_desc: '', highlights: '', limitations: '', setup_steps: '', notes: '',
+  provider_id: '', model_ids: [],
   artificial_analysis_score: 0, sort_order: 0, is_active: true
 })
 
@@ -70,6 +73,8 @@ export default function Tools() {
   const [q, setQ] = useState('')
   const [pricingFilter, setPricingFilter] = useState('')
   const [diffFilter, setDiffFilter] = useState('')
+  // 供应商列表（含其下模型），用于工具 ↔ 供应商 ↔ 模型 关联
+  const [providers, setProviders] = useState<any[]>([])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<FormState>(blankForm())
@@ -79,7 +84,7 @@ export default function Tools() {
   const load = async () => {
     setLoading(true)
     try {
-      const r = await toolsApi.list({
+      const r = await toolsApi.listAdmin({
         search: q, pricing_tier: pricingFilter, difficulty: diffFilter, limit: 100
       })
       setList(r.tools ?? [])
@@ -92,6 +97,14 @@ export default function Tools() {
   }
 
   useEffect(() => { load() }, [])
+
+  // 供应商/模型关联下拉的数据源：一次拉全量（管理端只读全量列表）
+  useEffect(() => {
+    providersApi
+      .list({ page: 1, pageSize: 200 })
+      .then((r) => setProviders(r.providers ?? []))
+      .catch(() => setProviders([]))
+  }, [])
 
   const openCreate = () => {
     setEditingId(null)
@@ -113,6 +126,8 @@ export default function Tools() {
       supports_i2v: t.supports_i2v, supports_t2v: t.supports_t2v, supports_reference: t.supports_reference,
       short_desc: t.short_desc, highlights: t.highlights, limitations: t.limitations,
       setup_steps: t.setup_steps, notes: t.notes,
+      provider_id: t.provider_id || '',
+      model_ids: (t.model_ids || '').split(',').map((s) => s.trim()).filter(Boolean),
       artificial_analysis_score: t.artificial_analysis_score,
       sort_order: t.sort_order, is_active: t.is_active
     })
@@ -125,21 +140,23 @@ export default function Tools() {
     try {
       const b: any = {
         id: form.id, name: form.name, subtitle: form.subtitle, provider: form.provider,
-        officialUrl: form.official_url, apiDocsUrl: form.api_docs_url, apiKeyUrl: form.api_key_url,
-        logoUrl: form.logo_url, bannerUrl: form.banner_url,
+        official_url: form.official_url, api_docs_url: form.api_docs_url, api_key_url: form.api_key_url,
+        logo_url: form.logo_url, banner_url: form.banner_url,
         categories: form.categories, scenarios: form.scenarios,
-        difficulty: form.difficulty, pricingTier: form.pricing_tier,
-        startingPrice: form.starting_price,
-        hasApi: form.has_api, hasWebApp: form.has_web_app, hasMobileApp: form.has_mobile_app,
-        hasOpenSource: form.has_open_source, syncedAudio: form.synced_audio,
-        maxResolution: form.max_resolution, maxClipSec: Number(form.max_clip_sec) || 0,
-        supportsI2v: form.supports_i2v, supportsT2v: form.supports_t2v,
-        supportsReference: form.supports_reference,
-        shortDesc: form.short_desc, highlights: form.highlights,
-        limitations: form.limitations, setupSteps: form.setup_steps, notes: form.notes,
-        artificialAnalysisScore: Number(form.artificial_analysis_score) || 0,
-        sortOrder: Number(form.sort_order) || 0,
-        isActive: form.is_active
+        difficulty: form.difficulty, pricing_tier: form.pricing_tier,
+        starting_price: form.starting_price,
+        has_api: form.has_api, has_web_app: form.has_web_app, has_mobile_app: form.has_mobile_app,
+        has_open_source: form.has_open_source, synced_audio: form.synced_audio,
+        max_resolution: form.max_resolution, max_clip_sec: Number(form.max_clip_sec) || 0,
+        supports_i2v: form.supports_i2v, supports_t2v: form.supports_t2v,
+        supports_reference: form.supports_reference,
+        short_desc: form.short_desc, highlights: form.highlights,
+        limitations: form.limitations, setup_steps: form.setup_steps, notes: form.notes,
+        provider_id: form.provider_id || null,
+        model_ids: form.model_ids.join(','),
+        artificial_analysis_score: Number(form.artificial_analysis_score) || 0,
+        sort_order: Number(form.sort_order) || 0,
+        is_active: form.is_active
       }
       if (editingId) {
         delete b.id  // update 不需要传 id
@@ -167,6 +184,12 @@ export default function Tools() {
   }
 
   const handleSearch = () => load()
+
+  // 当前表单所选供应商下的模型（用于「可调用模型」多选）
+  const linkModels: any[] = providers.find((p) => p.id === form.provider_id)?.models ?? []
+  // 工具列表中展示关联供应商名称
+  const providerName = (id: string | null) =>
+    id ? (providers.find((p) => p.id === id)?.name ?? id) : ''
 
   const boolTag = (v: boolean, label: string) =>
     v ? <span className="text-emerald-600 text-xs">✓ {label}</span> : null
@@ -237,7 +260,12 @@ export default function Tools() {
                       <div className="font-medium text-gray-800">{t.name}</div>
                       {t.short_desc && <div className="text-xs text-gray-400 max-w-[200px] truncate">{t.short_desc}</div>}
                     </td>
-                    <td className="px-3 py-2 text-gray-600">{t.provider || '-'}</td>
+                    <td className="px-3 py-2 text-gray-600">
+                      <div>{t.provider || '-'}</div>
+                      {t.provider_id && (
+                        <div className="mt-0.5 text-[10px] text-brand-600">↔ {providerName(t.provider_id)}</div>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <span className="px-2 py-0.5 rounded text-xs bg-emerald-50 text-emerald-600">{priceLabel}</span>
                       {t.starting_price && <div className="text-[10px] text-gray-400 mt-0.5">{t.starting_price}</div>}
@@ -310,6 +338,54 @@ export default function Tools() {
                 <input value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })}
                   className="w-full rounded border border-gray-300 px-2 py-1" placeholder="快手 / 可灵 / Runway" />
               </Field>
+
+              {/* 统一管理：关联到供应商 / 模型，前端据此判断能否直接生成 */}
+              <div className="col-span-2 rounded-lg border border-gray-200 bg-gray-50/60 p-3">
+                <p className="mb-2 text-xs font-medium text-gray-600">可调用链路（关联供应商 / 模型）</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="关联供应商">
+                    <select
+                      value={form.provider_id}
+                      onChange={(e) => setForm({ ...form, provider_id: e.target.value, model_ids: [] })}
+                      className="w-full rounded border border-gray-300 px-2 py-1"
+                    >
+                      <option value="">不关联（仅导购，不参与生成）</option>
+                      {providers.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}（{p.id}）</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="可调用模型">
+                    <div className="max-h-24 overflow-auto rounded border border-gray-300 bg-white px-2 py-1">
+                      {!form.provider_id ? (
+                        <span className="text-gray-400">请先选择供应商</span>
+                      ) : (linkModels.length === 0 ? (
+                        <span className="text-gray-400">该供应商暂无模型</span>
+                      ) : (
+                        linkModels.map((m: any) => (
+                          <label key={m.id} className="flex cursor-pointer items-center gap-1.5 py-0.5">
+                            <input
+                              type="checkbox"
+                              checked={form.model_ids.includes(m.id)}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...form.model_ids, m.id]
+                                  : form.model_ids.filter((x) => x !== m.id)
+                                setForm({ ...form, model_ids: next })
+                              }}
+                            />
+                            <span className="truncate">{m.name}</span>
+                            <span className="ml-auto text-[10px] text-gray-400">{m.id}</span>
+                          </label>
+                        ))
+                      ))}
+                    </div>
+                  </Field>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  不勾选任何模型 = 该供应商下全部已发布模型都可调用；勾选后仅这些模型在前端可选
+                </p>
+              </div>
               <Field label="分类标签" full>
                 <input value={form.categories} onChange={(e) => setForm({ ...form, categories: e.target.value })}
                   className="w-full rounded border border-gray-300 px-2 py-1"

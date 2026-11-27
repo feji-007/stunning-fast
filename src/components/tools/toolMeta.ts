@@ -1,28 +1,5 @@
 import type { Tool, ToolDifficulty, ToolPricingTier } from '../../types'
 
-/** 工具 id → 后端 providers.id 的映射（仅这些工具支持在 App 内"快速体验"） */
-export const TOOL_PROVIDER_MAP: Record<string, string> = {
-  kling: 'kling',
-  runway: 'runway',
-  'minimax-hailuo': 'minimax',
-  'luma-dream-machine': 'luma',
-  pika: 'pika',
-  'bytedance-seedance': 'volcengine',
-  'dreamina-seedance': 'volcengine',
-  'openai-sora': 'openai'
-}
-
-/** 后端供应商 → 工具的展示名（配置引导里提示"打开哪个平台"） */
-export const PROVIDER_LABEL: Record<string, string> = {
-  kling: '可灵 Kling',
-  runway: 'Runway',
-  minimax: 'MiniMax',
-  luma: 'Luma',
-  pika: 'Pika',
-  volcengine: '火山引擎 / 豆包',
-  openai: 'OpenAI'
-}
-
 export const DIFFICULTY_LABEL: Record<ToolDifficulty, string> = {
   beginner: '新手友好',
   intermediate: '需要一点经验',
@@ -75,7 +52,7 @@ export function pricingClass(t: ToolPricingTier): string {
   return 'bg-rose-50 text-rose-600'
 }
 
-/** 是否可以在 App 内直接"快速体验"（有对应后端供应商协议） */
+/** 是否可以在 App 内直接"快速体验"：由后台配置的供应商关联决定 */
 export function canQuickTry(tool: Tool): boolean {
-  return !!TOOL_PROVIDER_MAP[tool.id]
+  return !!tool.providerId
 }

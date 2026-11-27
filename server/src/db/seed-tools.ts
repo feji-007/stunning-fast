@@ -142,8 +142,8 @@ const TOOLS: ToolSeed[] = [
     subtitle: '性价比 · 中文语音 · 最长 15 秒',
     provider: '快手',
     official_url: 'https://kling.ai',
-    api_docs_url: 'https://klingai.com/api/introduction',
-    api_key_url: 'https://platform.klingai.com',
+    api_docs_url: 'https://kling.ai/dev/document-api',
+    api_key_url: 'https://kling.ai/dev/api-key',
     logo_url: '',
     banner_url: '',
     categories: 'text-to-video,image-to-video,multi-reference',
@@ -167,7 +167,7 @@ const TOOLS: ToolSeed[] = [
     setup_steps: [
       '**Step 1：注册可灵开放平台拿 API Key**',
       '',
-      '访问 [https://platform.klingai.com](https://platform.klingai.com)，用手机号或邮箱注册 → 实名认证（API 调用需要）→ 左侧菜单「API 密钥管理」→ 创建 Key（只会显示一次，记得复制保存）。',
+      '访问 [https://kling.ai/dev/api-key](https://kling.ai/dev/api-key)，用手机号或邮箱注册 → 实名认证（API 调用需要）→ 开发者控制台「API Key 管理」→ 创建 Key（只会显示一次，记得复制保存）。',
       '',
       '**Step 2：回到绝色 → 设置 → API Key 管理 → Kling → 粘贴保存**',
       '',
@@ -186,8 +186,8 @@ const TOOLS: ToolSeed[] = [
     subtitle: '专业工作区 · 聚合 3+ 模型',
     provider: 'Runway ML',
     official_url: 'https://runway.com',
-    api_docs_url: 'https://runwayml.github.io/api/',
-    api_key_url: 'https://runway.com/user/manage/api-keys',
+    api_docs_url: 'https://docs.dev.runwayml.com/',
+    api_key_url: 'https://dev.runwayml.com/',
     logo_url: '',
     banner_url: '',
     categories: 'text-to-video,image-to-video,editing',
@@ -279,7 +279,7 @@ const TOOLS: ToolSeed[] = [
     provider: 'MiniMax',
     official_url: 'https://hailuoai.video',
     api_docs_url: 'https://platform.minimaxi.com/document/Guides',
-    api_key_url: 'https://platform.minimaxi.com/user/apikey',
+    api_key_url: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
     logo_url: '',
     banner_url: '',
     categories: 'text-to-video,image-to-video',
@@ -770,7 +770,7 @@ const TOOLS: ToolSeed[] = [
     provider: 'D-ID',
     official_url: 'https://www.d-id.com',
     api_docs_url: 'https://docs.d-id.com',
-    api_key_url: 'https://console.d-id.com',
+    api_key_url: 'https://studio.d-id.com/',
     logo_url: '',
     banner_url: '',
     categories: 'avatar,lip-sync,photo-to-video',
@@ -802,7 +802,7 @@ const TOOLS: ToolSeed[] = [
       '',
       '**Step 3：API Key**',
       '',
-      '需要 $5.99/月以上订阅 → 到 [https://console.d-id.com](https://console.d-id.com) 创建 API Key。'
+      '需要 $5.99/月以上订阅 → 到 [https://studio.d-id.com](https://studio.d-id.com) 创建 API Key。'
     ].join('\n'),
     notes: '',
     artificial_analysis_score: 0,
@@ -1084,6 +1084,29 @@ const TOOLS: ToolSeed[] = [
   }
 ]
 
+/**
+ * 工具 → 可调用供应商映射（用于首次回填 tools.provider_id）。
+ * 只有能在 App 内实际发起生成的工具才需要关联；其余工具仅做导购展示。
+ * 后续可在后台「工具导购」中随时修改。
+ */
+export const TOOL_PROVIDER_LINK: Record<string, string> = {
+  kling: 'kling',
+  runway: 'runway',
+  'minimax-hailuo': 'minimax',
+  'luma-dream-machine': 'luma',
+  pika: 'pika',
+  'bytedance-seedance': 'volcengine',
+  'dreamina-seedance': 'volcengine',
+  'openai-sora': 'openai',
+  'wan-2-2': 'alibaba',
+  'wan-3': 'alibaba',
+  'google-veo3': 'google',
+  'gemini-omni': 'google',
+  heygen: 'heygen',
+  synthesia: 'synthesia',
+  'd-id': 'd-id'
+}
+
 /** 幂等执行：若 meta 表标记 tools_seed_done → 跳过；否则清理旧数据 + 批量 INSERT。 */
 export async function seedTools(): Promise<void> {
   const done = await queryOne<{ value: string }>(
@@ -1104,7 +1127,7 @@ export async function seedTools(): Promise<void> {
     'starting_price', 'has_api', 'has_web_app', 'has_mobile_app', 'has_open_source',
     'synced_audio', 'max_resolution', 'max_clip_sec', 'supports_i2v', 'supports_t2v',
     'supports_reference', 'short_desc', 'highlights', 'limitations', 'setup_steps',
-    'notes', 'artificial_analysis_score', 'sort_order', 'is_active'
+    'notes', 'provider_id', 'model_ids', 'artificial_analysis_score', 'sort_order', 'is_active'
   ]
   const placeholders = columns.map(() => '?').join(',')
   const sql = `INSERT INTO tools (${columns.map((c) => `\`${c}\``).join(',')}) VALUES (${placeholders})`
@@ -1117,7 +1140,8 @@ export async function seedTools(): Promise<void> {
       t.starting_price, t.has_api, t.has_web_app, t.has_mobile_app, t.has_open_source,
       t.synced_audio, t.max_resolution, t.max_clip_sec, t.supports_i2v, t.supports_t2v,
       t.supports_reference, t.short_desc, t.highlights, t.limitations, t.setup_steps,
-      t.notes, t.artificial_analysis_score, t.sort_order, t.id !== 'openai-sora' ? 1 : 0
+      t.notes, TOOL_PROVIDER_LINK[t.id] ?? null, '',
+      t.artificial_analysis_score, t.sort_order, t.id !== 'openai-sora' ? 1 : 0
     ]
     await query(sql, rows)
     ok++
@@ -1127,4 +1151,32 @@ export async function seedTools(): Promise<void> {
   await query(`INSERT INTO meta (\`key\`, \`value\`) VALUES ('tools_seed_done', '1') ON DUPLICATE KEY UPDATE \`value\` = '1'`)
 
   console.log(`[seed-tools] 已种子化 ${ok} 个工具`)
+}
+
+/**
+ * 为已存在的工具回填 provider_id（老库升级用，只执行一次）。
+ * 仅当 providers 表存在对应供应商时才写入，避免关联出无效 id。
+ */
+export async function backfillToolProviderLinks(): Promise<void> {
+  const done = await queryOne<{ value: string }>(
+    `SELECT \`value\` AS v FROM meta WHERE \`key\` = 'tools_provider_link_done'`
+  )
+  if (done && (done as any).v === '1') return
+
+  let linked = 0
+  for (const [toolId, providerId] of Object.entries(TOOL_PROVIDER_LINK)) {
+    const provider = await queryOne('SELECT 1 FROM providers WHERE id = ?', [providerId])
+    if (!provider) continue
+    const r: any = await query(
+      'UPDATE tools SET provider_id = ? WHERE id = ? AND (provider_id IS NULL OR provider_id = \'\')',
+      [providerId, toolId]
+    )
+    if (r?.affectedRows) linked += Number(r.affectedRows)
+  }
+
+  await query(
+    `INSERT INTO meta (\`key\`, \`value\`) VALUES ('tools_provider_link_done', '1')
+     ON DUPLICATE KEY UPDATE \`value\` = '1'`
+  )
+  console.log(`[seed-tools] 已回填 ${linked} 个工具的供应商关联`)
 }

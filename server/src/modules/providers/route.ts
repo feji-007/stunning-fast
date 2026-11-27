@@ -19,14 +19,34 @@ function parsePagination(req: any) {
 router.get('/', async (req, res, next) => {
   try {
     const { page, pageSize, offset } = parsePagination(req)
+    // 筛选：search（id/名称/密钥提示）、source（system/user）、status（active/inactive）
+    const search = String(req.query.search ?? '').trim()
+    const source = String(req.query.source ?? '').trim()
+    const status = String(req.query.status ?? '').trim()
+
+    const wh: string[] = []
+    const params: unknown[] = []
+    if (search) {
+      const s = `%${search.toLowerCase()}%`
+      wh.push('(LOWER(id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(key_hint) LIKE ?)')
+      params.push(s, s, s)
+    }
+    if (source) {
+      wh.push('source = ?')
+      params.push(source)
+    }
+    if (status === 'active') wh.push('is_active = TRUE')
+    else if (status === 'inactive') wh.push('is_active = FALSE')
+    const where = wh.length ? `WHERE ${wh.join(' AND ')}` : ''
+
     // 先计数（按供应商颗粒度）
-    const cnt = await queryOne<any>('SELECT COUNT(*) AS c FROM providers')
+    const cnt = await queryOne<any>(`SELECT COUNT(*) AS c FROM providers ${where}`, params)
     const total = Number(cnt?.c ?? 0)
     const providers = await query<{
       id: string; name: string; key_hint: string; url: string; api_base_url: string; api_key_url: string
       protocol: string; submit_path: string; status_path: string; submit_path_i2v: string; status_path_i2v: string
       source: string; sort_order: number; is_active: boolean
-    }>('SELECT id, name, key_hint, url, api_base_url, api_key_url, protocol, submit_path, status_path, submit_path_i2v, status_path_i2v, source, sort_order, is_active FROM providers ORDER BY sort_order, id LIMIT ? OFFSET ?', [pageSize, offset])
+    }>(`SELECT id, name, key_hint, url, api_base_url, api_key_url, protocol, submit_path, status_path, submit_path_i2v, status_path_i2v, source, sort_order, is_active FROM providers ${where} ORDER BY sort_order, id LIMIT ? OFFSET ?`, [...params, pageSize, offset])
     const models = await query<{
       id: string; provider_id: string; name: string; type: string; description: string
       supports_i2v: boolean; supports_first_last: boolean; supports_reference: boolean;
@@ -117,10 +137,14 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   }
 })
 
-/** 删除供应商（级联删除其下模型）。 */
+/** 删除供应商（级联删除其下模型，并解除工具关联）。 */
 router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params
+    // 先删除其下模型，避免留下无法归属的孤儿数据
+    await query('DELETE FROM models WHERE provider_id = ?', [id])
+    // 工具导购中指向该供应商的关联一并解除
+    await query('UPDATE tools SET provider_id = NULL WHERE provider_id = ?', [id])
     await query('DELETE FROM providers WHERE id = ?', [id])
     ok(res, { id }, '已删除')
   } catch (e) {

@@ -4,7 +4,8 @@ import path from 'path'
 import { config } from './config'
 import { ensureSchema } from './db/schema'
 import { seedAll } from './db/seed'
-import { seedTools } from './db/seed-tools'
+import { seedTools, backfillToolProviderLinks } from './db/seed-tools'
+import { applyResourceLinkFixes, applyPikaApiMigration, applyNewProviderProtocols } from './db/link-fixes'
 import { pingDb } from './db/pool'
 import apiRoutes from './routes'
 import { errorHandler } from './middleware/error'
@@ -28,6 +29,18 @@ async function bootstrap() {
 
   // 3.5 工具导购目录种子（30 家主流 AI 视频工具，幂等，有 meta 标记避免重复）
   await seedTools()
+
+  // 3.6 老库升级：回填工具 ↔ 供应商关联（只执行一次）
+  await backfillToolProviderLinks()
+
+  // 3.7 修正失效的资源链接并补齐免费资源的模型关联（只执行一次）
+  await applyResourceLinkFixes()
+
+  // 3.8 Pika 供应商迁移到新开发者 API（只执行一次）
+  await applyPikaApiMigration()
+
+  // 3.9 补入 Google/HeyGen/Synthesia/D-ID 供应商、模型及工具关联（只执行一次）
+  await applyNewProviderProtocols()
 
   // 4. 启动 HTTP 服务
   const app = express()

@@ -1,6 +1,6 @@
 // 供应商管理:列表/新增/编辑/删除/启用停用切换。支持列排序+分页。
 import { useEffect, useMemo, useState } from 'react'
-import { providersApi } from '../api'
+import { providersApi, toolsApi } from '../api'
 import SortableTh from './SortableTh'
 import Pagination from './Pagination'
 
@@ -54,7 +54,12 @@ const PROTOCOL_DEFAULTS: Record<string, { submit: string; status: string; submit
   runway:    { submit: '/v1/text_to_video',                               status: '/v1/tasks/{taskId}' },
   luma:      { submit: '/generations',                                    status: '/generations/{taskId}' },
   openai:    { submit: '/v1/videos',                                      status: '/v1/videos/{taskId}' },
-  pika:      { submit: '/v1/videos',                                      status: '/v1/videos/{taskId}' }
+  pika:      { submit: '/v1/media/pika/pika-2.5/text-to-video',          status: '/v1/media/jobs/{taskId}',
+               submitI2v: '/v1/media/pika/pika-2.5/image-to-video' },
+  google:    { submit: '/v1beta/models/{model}:predictLongRunning',       status: '/v1beta/{taskId}' },
+  heygen:    { submit: '/v2/video/generate',                              status: '/v1/video_status.get?video_id={taskId}' },
+  synthesia: { submit: '/v2/videos',                                      status: '/v2/videos/{taskId}' },
+  'd-id':    { submit: '/talks',                                          status: '/talks/{taskId}' }
 }
 
 const PROVIDER_GETTERS: Record<string, (p: Provider) => string | number> = {
@@ -83,12 +88,42 @@ export default function Providers() {
   const [pageSize, setPageSize] = useState(20)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  // 搜索与筛选
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterSource, setFilterSource] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  // 反向引用：哪些工具导购关联了该供应商
+  const [tools, setTools] = useState<Array<{ id: string; name: string; provider_id: string | null }>>([])
+
+  useEffect(() => {
+    toolsApi
+      .listAdmin({ limit: 200 })
+      .then((r) => setTools((r.tools ?? []).map((t) => ({ id: t.id, name: t.name, provider_id: t.provider_id }))))
+      .catch(() => setTools([]))
+  }, [])
+
+  const toolsByProvider = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; name: string }>>()
+    for (const t of tools) {
+      if (!t.provider_id) continue
+      const arr = map.get(t.provider_id) ?? []
+      arr.push({ id: t.id, name: t.name })
+      map.set(t.provider_id, arr)
+    }
+    return map
+  }, [tools])
 
   const load = (targetPage = page, targetSize: number = pageSize) => {
     setLoading(true)
     setError('')
     providersApi
-      .list({ page: targetPage, pageSize: targetSize })
+      .list({
+        page: targetPage,
+        pageSize: targetSize,
+        search: searchTerm.trim() || undefined,
+        source: filterSource || undefined,
+        status: filterStatus || undefined
+      })
       .then((r) => {
         setList(r.providers ?? [])
         setTotal(r.total ?? (r.providers?.length ?? 0))
@@ -100,7 +135,12 @@ export default function Providers() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load(1, pageSize) }, [])
+  // 搜索/筛选变化后防抖重新加载（重置到第 1 页）
+  useEffect(() => {
+    const t = setTimeout(() => load(1, pageSize), 300)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filterSource, filterStatus])
 
   const sortedList = useMemo(() => {
     const getter = PROVIDER_GETTERS[sortField] ?? PROVIDER_GETTERS.sort
@@ -175,6 +215,43 @@ export default function Providers() {
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
       )}
 
+      {/* 搜索与筛选 */}
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-float">
+        <span className="text-xs text-gray-500">筛选</span>
+        <input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="搜索 ID / 名称 / 密钥提示"
+          className="flex-1 max-w-xs rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+        <select
+          value={filterSource}
+          onChange={(e) => setFilterSource(e.target.value)}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="">全部来源</option>
+          <option value="system">系统</option>
+          <option value="user">用户</option>
+        </select>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="">全部状态</option>
+          <option value="active">启用</option>
+          <option value="inactive">停用</option>
+        </select>
+        {(searchTerm || filterSource || filterStatus) && (
+          <button
+            onClick={() => { setSearchTerm(''); setFilterSource(''); setFilterStatus('') }}
+            className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
+          >清除</button>
+        )}
+        <div className="flex-1" />
+        <span className="text-xs text-gray-400">共 {total} 条</span>
+      </div>
+
       <div className="bg-white rounded-xl shadow-float overflow-hidden overflow-x-auto">
         {loading ? (
           <div className="p-8 text-center text-gray-400">加载中…</div>
@@ -186,6 +263,7 @@ export default function Providers() {
               <tr className="text-xs text-gray-500 border-b border-gray-200">
                 <SortableTh label="ID" field="id" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="名称" field="name" current={sortField} order={sortOrder} onSort={onSort} />
+                <th className="px-4 py-3 text-left" title="仅统计启用中的工具导购">关联工具</th>
                 <SortableTh label="密钥提示" field="key" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="官网/API端点" field="apiBase" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="来源" field="source" current={sortField} order={sortOrder} onSort={onSort} />
@@ -203,6 +281,25 @@ export default function Providers() {
                     {p.protocol && (
                       <span className="ml-2 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-[11px] font-mono">{p.protocol}</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {(() => {
+                      const refs = toolsByProvider.get(p.id) ?? []
+                      if (refs.length === 0) return <span className="text-xs text-gray-400">—</span>
+                      return (
+                        <div
+                          className="flex flex-wrap gap-1 max-w-[220px]"
+                          title={refs.map((r) => r.name).join('、')}
+                        >
+                          {refs.slice(0, 2).map((r) => (
+                            <span key={r.id} className="px-1.5 py-0.5 rounded text-[10px] bg-brand-50 text-brand-700">
+                              {r.name}
+                            </span>
+                          ))}
+                          {refs.length > 2 && <span className="text-[10px] text-gray-400">+{refs.length - 2}</span>}
+                        </div>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-gray-600 font-mono text-xs">{p.key_hint || '-'}</td>
                   <td className="px-4 py-3 text-gray-600">
@@ -332,6 +429,10 @@ export default function Providers() {
                   <option value="luma">Luma Dream Machine</option>
                   <option value="openai">OpenAI Sora</option>
                   <option value="pika">Pika</option>
+                  <option value="google">Google Veo / Gemini Omni</option>
+                  <option value="heygen">HeyGen 数字人</option>
+                  <option value="synthesia">Synthesia 数字人</option>
+                  <option value="d-id">D-ID 数字人</option>
                 </select>
                 <p className="mt-1 text-xs text-gray-400">决定请求体格式、鉴权方式与状态解析；必须选择，客户端不再按供应商 ID 推断</p>
               </div>

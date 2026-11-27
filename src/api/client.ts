@@ -154,7 +154,7 @@ export const bootstrapApi = {
       tools?: Array<Record<string, any>>
       // 步骤二：免费模型资源聚合
       freeResources: Array<{
-        id: string; title: string; category: string; model_id: string | null
+        id: string; title: string; category: string; model_id: string | null; tool_id?: string | null
         url: string; license: string; commercial_allowed: boolean
         free_quota: string; entry_type: string; region: string
         notes?: string | null; source_url: string
@@ -307,7 +307,9 @@ export function mapToolRow(m: any): Tool {
     supportsT2v: !!m.supports_t2v,
     supportsReference: !!m.supports_reference,
     shortDesc: String(m.short_desc ?? ''),
-    notes: String(m.notes ?? '')
+    notes: String(m.notes ?? ''),
+    providerId: m.provider_id ? String(m.provider_id) : undefined,
+    modelIds: splitTags(m.model_ids)
   }
 }
 

@@ -31,7 +31,7 @@ router.get('/', async (req, res, next) => {
     if (category) { where.push('fr.category = ?'); params.push(category) }
     if (modelId)  { where.push('fr.model_id = ?');  params.push(modelId) }
     const r = await query(
-      `SELECT fr.id, fr.title, fr.category, fr.model_id, fr.url, fr.license,
+      `SELECT fr.id, fr.title, fr.category, fr.model_id, fr.tool_id, fr.url, fr.license,
               fr.commercial_allowed, fr.free_quota, fr.entry_type, fr.region,
               fr.notes, fr.source_url, fr.status, fr.last_check_at
        FROM free_resources fr
@@ -63,7 +63,7 @@ router.get('/admin', requireAuth, requireAdmin, async (req, res, next) => {
       params.push(`%${q}%`, `%${q}%`, `%${q}%`)
     }
     const r = await query(
-      `SELECT id, title, category, model_id, url, license, commercial_allowed,
+      `SELECT id, title, category, model_id, tool_id, url, license, commercial_allowed,
               free_quota, entry_type, region, notes, source_url, status,
               last_check_at, check_count, fail_reason, sort_order, is_active,
               created_at, updated_at
@@ -100,12 +100,12 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
     if (!b.id || !b.title || !b.category || !b.url) throw badRequest('id / title / category / url 必填')
     await queryOne(
       `INSERT INTO free_resources
-        (id, title, category, model_id, url, license, commercial_allowed,
+        (id, title, category, model_id, tool_id, url, license, commercial_allowed,
          free_quota, entry_type, region, notes, source_url,
          status, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, TRUE)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, TRUE)`,
       [
-        b.id, b.title, b.category, b.modelId || null, b.url,
+        b.id, b.title, b.category, b.modelId || null, b.toolId || null, b.url,
         b.license || '', !!b.commercialAllowed,
         b.freeQuota || '', b.entryType || 'official', b.region || '',
         b.notes || null, b.sourceUrl || '',
@@ -130,6 +130,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
          title = COALESCE(?, title),
          category = COALESCE(?, category),
          model_id = ?,
+         tool_id = ?,
          url = COALESCE(?, url),
          license = COALESCE(?, license),
          commercial_allowed = COALESCE(?, commercial_allowed),
@@ -146,6 +147,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
       [
         b.title, b.category,
         b.modelId === undefined ? null : (b.modelId || null),
+        b.toolId === undefined ? null : (b.toolId || null),
         b.url, b.license,
         b.commercialAllowed === undefined ? null : !!b.commercialAllowed,
         b.freeQuota, b.entryType, b.region,

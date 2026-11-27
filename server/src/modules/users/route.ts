@@ -40,7 +40,8 @@ router.get('/', requireAuth, requireAdmin, async (req, res, next) => {
 
 router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const { username, password, role = 'user', isActive = true, email = '' } = req.body ?? {}
+    const { username, password, role = 'user', isActive: isActiveCamel, is_active, email = '' } = req.body ?? {}
+    const isActive = isActiveCamel !== undefined ? isActiveCamel : (is_active !== undefined ? is_active : true)
     if (!username || !password) throw badRequest('用户名和密码必填')
     if (!['admin', 'user'].includes(role)) throw badRequest('role 仅支持 admin / user')
     const exists = await query('SELECT 1 FROM users WHERE username = ?', [username])

@@ -21,11 +21,21 @@ router.get('/', async (req, res, next) => {
     const { page, pageSize, offset } = parsePagination(req)
     const reviewStatus = (req.query.reviewStatus as string) || ''
     const providerId = (req.query.providerId as string) || ''
-    const statusFilter = reviewStatus ? ' AND review_status = ?' : ''
-    const providerFilter = providerId ? ' AND provider_id = ?' : ''
-    const where = reviewStatus || providerId ? `WHERE 1=1${statusFilter}${providerFilter}` : ''
+    const search = String(req.query.search ?? '').trim()
+
+    const wh: string[] = []
+    const params: unknown[] = []
+    if (reviewStatus) { wh.push('review_status = ?'); params.push(reviewStatus) }
+    if (providerId) { wh.push('provider_id = ?'); params.push(providerId) }
+    if (search) {
+      const s = `%${search.toLowerCase()}%`
+      wh.push('(LOWER(id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(description) LIKE ?)')
+      params.push(s, s, s)
+    }
+    const where = wh.length ? `WHERE ${wh.join(' AND ')}` : ''
+
     const cntSql = `SELECT COUNT(*) AS c FROM models ${where}`
-    const cnt = await queryOne<any>(cntSql, [reviewStatus, providerId].filter(Boolean))
+    const cnt = await queryOne<any>(cntSql, params)
     const total = Number(cnt?.c ?? 0)
     const r = await query(
       `SELECT id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
@@ -38,7 +48,7 @@ router.get('/', async (req, res, next) => {
        FROM models ${where}
        ORDER BY sort_order, id
        LIMIT ? OFFSET ?`,
-      [...[reviewStatus, providerId].filter(Boolean), pageSize, offset]
+      [...params, pageSize, offset]
     )
     ok(res, {
       models: r.rows,

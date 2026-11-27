@@ -112,6 +112,10 @@ export type VideoProtocol =
   | 'luma'        // Luma Dream Machine（API 端点已录入，协议待实现）
   | 'openai'      // OpenAI Sora（API 端点已录入，协议待实现）
   | 'pika'        // Pika（API 端点占位，协议待实现）
+  | 'google'      // Google Veo / Gemini Omni（predictLongRunning + operations 轮询）
+  | 'heygen'      // HeyGen 数字人（video/generate + video_status）
+  | 'synthesia'   // Synthesia 数字人（v2/videos 轮询）
+  | 'd-id'        // D-ID 数字人（talks 轮询，需公网图片）
 
 export interface GenerateVideoParams {
   /** 供应商 id（用于日志/任务记录） */

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../../store/useStore'
 import type { Tool, ToolDetail } from '../../types'
 import SimpleMarkdown, { openExternal } from './SimpleMarkdown'
-import { PROVIDER_LABEL, TOOL_PROVIDER_MAP, canQuickTry } from './toolMeta'
+import { canQuickTry } from './toolMeta'
 
 interface Props {
   tool: Tool | ToolDetail
@@ -17,8 +17,9 @@ export default function SetupWizard({ tool, onClose }: Props) {
   const saveKey = useStore((s) => s.saveKey)
   const openFeature = useStore((s) => s.openFeature)
 
-  const providerId = TOOL_PROVIDER_MAP[tool.id]
+  const providerId = tool.providerId
   const quickTry = canQuickTry(tool)
+  const providerName = useStore((s) => s.providers.find((p) => p.id === providerId)?.name ?? providerId ?? '')
   const existing = keys.find((k) => k.provider === providerId)?.key ?? ''
   const [key, setKey] = useState('')
   const [saved, setSaved] = useState(false)
@@ -63,7 +64,7 @@ export default function SetupWizard({ tool, onClose }: Props) {
             <p className="text-sm font-semibold text-gray-800">配置 {tool.name}</p>
             <p className="mt-0.5 text-[11px] text-gray-400">
               {quickTry
-                ? `保存后可在绝色内直接生成（供应商：${PROVIDER_LABEL[providerId!] ?? providerId}）`
+                ? `保存后可在绝色内直接生成（供应商：${providerName}）`
                 : '该工具暂不支持在绝色内直接生成，按引导到官网使用'}
             </p>
           </div>

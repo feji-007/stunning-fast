@@ -81,15 +81,18 @@ export interface PageResult<T> {
   list?: T[]
 }
 
-function withPage(qs: URLSearchParams, p: PageQuery | undefined) {
+function withPage(qs: URLSearchParams, p?: Record<string, any>) {
   if (!p) return
-  if (p.page)     qs.set('page', String(p.page))
-  if (p.pageSize) qs.set('pageSize', String(p.pageSize))
+  // 除分页外，允许透传任意筛选参数（search / status / source / reviewStatus / providerId …）
+  Object.entries(p).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === '') return
+    qs.set(k, String(v))
+  })
 }
 
 // ===== 系统配置 =====
 export const providersApi = {
-  list: (p?: PageQuery) => {
+  list: (p?: Record<string, any>) => {
     const qs = new URLSearchParams()
     withPage(qs, p)
     const q = qs.toString()
@@ -103,7 +106,7 @@ export const providersApi = {
   remove: (id: string) => api.del(`/api/providers/${id}`)
 }
 export const modelsApi = {
-  list: (p?: PageQuery) => {
+  list: (p?: Record<string, any>) => {
     const qs = new URLSearchParams()
     withPage(qs, p)
     const q = qs.toString()
@@ -239,6 +242,7 @@ export interface FreeResource {
   title: string
   category: string
   model_id: string | null
+  tool_id: string | null
   url: string
   license: string
   commercial_allowed: boolean
@@ -303,6 +307,8 @@ export interface Tool {
   limitations: string
   setup_steps: string
   notes: string
+  provider_id: string | null
+  model_ids: string
   artificial_analysis_score: number
   sort_order: number
   is_active: boolean
@@ -318,6 +324,16 @@ export const toolsApi = {
     })
     const q = qs.toString()
     return api.get<{ tools: Tool[]; total: number }>(`/api/tools${q ? `?${q}` : ''}`)
+  },
+  /** 管理端列表：包含停用项。 */
+  listAdmin: (params: Record<string, any> = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === '') return
+      qs.set(k, String(v))
+    })
+    const q = qs.toString()
+    return api.get<{ tools: Tool[]; total: number }>(`/api/tools/admin${q ? `?${q}` : ''}`)
   },
   get: (id: string) => api.get<{ tool: Tool }>(`/api/tools/${id}`),
   create: (b: any) => api.post('/api/tools', b),

@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { query, queryOne } from '../../db/pool'
 import { badRequest, notFound } from '../../utils/http'
 import { ok } from '../../utils/response'
-import { requireAuth } from '../../middleware/auth'
+import { requireAuth, requireAdmin } from '../../middleware/auth'
 
 const router = Router()
 
@@ -84,12 +84,56 @@ router.get('/', async (req, res, next) => {
   }
 })
 
-/** 工具详情（公开，含 setup_steps Markdown）。 */
-router.get('/:id', async (req, res, next) => {
+/**
+ * 管理后台完整列表（含停用项）。筛选参数与公开列表一致。
+ * 必须定义在 /:id 之前，避免被详情路由吞掉。
+ */
+router.get('/admin', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const tool = await queryOne('SELECT * FROM tools WHERE id = ?', [req.params.id])
-    if (!tool) throw notFound('工具不存在')
-    ok(res, { tool })
+    const {
+      category, scenario, pricing_tier, difficulty,
+      search, sort, limit = 100, offset = 0
+    } = req.query as Record<string, string | undefined>
+
+    const wh: string[] = ['1=1']
+    const params: unknown[] = []
+
+    const likeIn = (col: string, val: string | undefined) => {
+      if (!val) return
+      val.split(',').forEach((v) => {
+        const trim = v.trim()
+        if (trim) {
+          wh.push(`FIND_IN_SET(?, ${col}) > 0`)
+          params.push(trim)
+        }
+      })
+    }
+    likeIn('categories', category)
+    likeIn('scenarios', scenario)
+
+    if (pricing_tier) { wh.push('pricing_tier = ?'); params.push(pricing_tier) }
+    if (difficulty)   { wh.push('difficulty = ?');   params.push(difficulty) }
+    if (search) {
+      const s = `%${search.toLowerCase()}%`
+      wh.push('(LOWER(name) LIKE ? OR LOWER(provider) LIKE ? OR LOWER(short_desc) LIKE ? OR LOWER(categories) LIKE ?)')
+      params.push(s, s, s, s)
+    }
+
+    let order = 'sort_order ASC, artificial_analysis_score DESC, id ASC'
+    if (sort === 'popular') order = 'artificial_analysis_score DESC, sort_order ASC, id ASC'
+    if (sort === 'new') order = 'created_at DESC, sort_order ASC'
+
+    const lim = Math.max(1, Math.min(200, Number(limit)))
+    const off = Math.max(0, Number(offset))
+    const cnt = await queryOne<any>(
+      `SELECT COUNT(*) AS c FROM tools WHERE ${wh.join(' AND ')}`,
+      params
+    )
+    const result = await query(
+      `SELECT * FROM tools WHERE ${wh.join(' AND ')} ORDER BY ${order} LIMIT ? OFFSET ?`,
+      [...params, lim, off]
+    )
+    ok(res, { tools: result.rows, total: Number(cnt?.c ?? 0) })
   } catch (e) {
     next(e)
   }
@@ -98,6 +142,7 @@ router.get('/:id', async (req, res, next) => {
 /**
  * 按场景标签推荐（公开）。
  * GET /api/tools/recommend?scenario=shorts,talking-head&limit=8
+ * 注意：必须定义在 /:id 之前，否则会被详情路由吞掉。
  */
 router.get('/recommend', async (req, res, next) => {
   try {
@@ -123,6 +168,17 @@ router.get('/recommend', async (req, res, next) => {
   }
 })
 
+/** 工具详情（公开，含 setup_steps Markdown）。 */
+router.get('/:id', async (req, res, next) => {
+  try {
+    const tool = await queryOne('SELECT * FROM tools WHERE id = ?', [req.params.id])
+    if (!tool) throw notFound('工具不存在')
+    ok(res, { tool })
+  } catch (e) {
+    next(e)
+  }
+})
+
 /** 用户提交工具反馈（公开，不需要登录）。 */
 router.post('/feedback', async (req, res, next) => {
   try {
@@ -138,7 +194,7 @@ router.post('/feedback', async (req, res, next) => {
 // ========== 管理员 CRUD（预留） ==========
 
 /** 新增工具（管理员）。 */
-router.post('/', requireAuth, async (req, res, next) => {
+router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const { id, name } = req.body ?? {}
     if (!id || !name) throw badRequest('id 和 name 必填')
@@ -151,11 +207,21 @@ router.post('/', requireAuth, async (req, res, next) => {
       'starting_price', 'has_api', 'has_web_app', 'has_mobile_app', 'has_open_source',
       'synced_audio', 'max_resolution', 'max_clip_sec', 'supports_i2v', 'supports_t2v',
       'supports_reference', 'short_desc', 'highlights', 'limitations', 'setup_steps',
-      'notes', 'artificial_analysis_score', 'sort_order'
+      'notes', 'provider_id', 'model_ids', 'artificial_analysis_score', 'sort_order', 'is_active'
     ]
     const placeholders = columns.map(() => '?').join(',')
     const sql = `INSERT INTO tools (${columns.map((c) => `\`${c}\``).join(',')}) VALUES (${placeholders})`
-    await query(sql, columns.map((c) => body[c] ?? ''))
+    await query(
+      sql,
+      columns.map((c) => {
+        const v = body[c]
+        // provider_id 允许为空 → 存 NULL（避免空串关联到不存在的供应商）
+        if (c === 'provider_id') return v ? String(v) : null
+        // is_active 未传时默认启用
+        if (c === 'is_active') return v === undefined ? 1 : (v ? 1 : 0)
+        return v ?? ''
+      })
+    )
     ok(res, { id }, '已创建')
   } catch (e) {
     next(e)
@@ -163,7 +229,7 @@ router.post('/', requireAuth, async (req, res, next) => {
 })
 
 /** 更新工具（管理员）。 */
-router.put('/:id', requireAuth, async (req, res, next) => {
+router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const exists = await queryOne('SELECT 1 FROM tools WHERE id = ?', [req.params.id])
     if (!exists) throw notFound('工具不存在')
@@ -174,14 +240,14 @@ router.put('/:id', requireAuth, async (req, res, next) => {
       'starting_price', 'has_api', 'has_web_app', 'has_mobile_app', 'has_open_source',
       'synced_audio', 'max_resolution', 'max_clip_sec', 'supports_i2v', 'supports_t2v',
       'supports_reference', 'short_desc', 'highlights', 'limitations', 'setup_steps',
-      'notes', 'artificial_analysis_score', 'sort_order', 'is_active'
+      'notes', 'provider_id', 'model_ids', 'artificial_analysis_score', 'sort_order', 'is_active'
     ]
     const sets: string[] = []
     const params: unknown[] = []
     for (const c of updatable) {
       if (body[c] !== undefined) {
         sets.push(`\`${c}\` = ?`)
-        params.push(body[c])
+        params.push(c === 'provider_id' ? (body[c] ? String(body[c]) : null) : body[c])
       }
     }
     if (sets.length === 0) return ok(res, { id: req.params.id }, '没有字段要更新')
@@ -194,7 +260,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
 })
 
 /** 删除工具（管理员）。 */
-router.delete('/:id', requireAuth, async (req, res, next) => {
+router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     await query('DELETE FROM tool_favorites WHERE tool_id = ?', [req.params.id])
     await query('DELETE FROM tools WHERE id = ?', [req.params.id])

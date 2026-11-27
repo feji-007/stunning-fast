@@ -36,10 +36,13 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const b = req.body ?? {}
     if (!b.id || !b.name) throw badRequest('id 和 name 必填')
+    // 兼容前端 snake_case 与 camelCase 两种字段命名
+    const sortOrder = b.sortOrder ?? b.sort_order ?? 0
+    const isActive = b.isActive ?? b.is_active ?? true
     await queryOne(
       `INSERT INTO features (id, name, icon, description, pinned, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-      [b.id, b.name, b.icon ?? '✨', b.description ?? '', b.pinned ?? true, b.sortOrder ?? 0]
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [b.id, b.name, b.icon ?? '✨', b.description ?? '', b.pinned ?? true, sortOrder, isActive]
     )
     ok(res, { feature: { id: b.id } }, '已创建')
   } catch (e) {
@@ -54,6 +57,9 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
     const b = req.body ?? {}
     const exists = await queryOne('SELECT 1 FROM features WHERE id = ?', [id])
     if (!exists) throw notFound('功能不存在')
+    // 兼容前端 snake_case 与 camelCase 两种字段命名
+    const sortOrder = b.sortOrder ?? b.sort_order
+    const isActive = b.isActive ?? b.is_active
     await query(
       `UPDATE features SET
          name = COALESCE(?, name),
@@ -64,7 +70,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
          is_active = COALESCE(?, is_active),
          updated_at = NOW()
        WHERE id = ?`,
-      [b.name, b.icon, b.description, b.pinned, b.sortOrder, b.isActive, id]
+      [b.name, b.icon, b.description, b.pinned, sortOrder, isActive, id]
     )
     ok(res, { id }, '已更新')
   } catch (e) {
@@ -75,7 +81,8 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
 /** 批量更新排序与 pinned 状态（拖拽保存用）。 */
 router.put('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const list: Array<{ id: string; pinned?: boolean; sortOrder?: number }> = req.body?.features ?? []
+    const list: Array<{ id: string; pinned?: boolean; sortOrder?: number; sort_order?: number }> =
+      req.body?.features ?? []
     if (!Array.isArray(list)) throw badRequest('features 必须为数组')
     await withTransaction(async (client) => {
       for (let i = 0; i < list.length; i++) {
@@ -86,7 +93,7 @@ router.put('/', requireAuth, requireAdmin, async (req, res, next) => {
              sort_order = COALESCE(?, sort_order),
              updated_at = NOW()
            WHERE id = ?`,
-          [it.pinned, it.sortOrder ?? i, it.id]
+          [it.pinned, it.sortOrder ?? it.sort_order ?? i, it.id]
         )
       }
     })

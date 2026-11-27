@@ -1,6 +1,6 @@
 // 模型管理:列表/新增/编辑/删除;分页;所有字段（含能力、默认参数）均由后台维护
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { modelsApi, providersApi } from '../api'
+import { modelsApi, providersApi, toolsApi } from '../api'
 import SortableTh from './SortableTh'
 import Pagination from './Pagination'
 
@@ -198,12 +198,46 @@ export default function Models() {
   const [pageSize, setPageSize] = useState(20)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  // 反向引用：哪些工具导购可调用该模型
+  const [toolRefs, setToolRefs] = useState<
+    Array<{ id: string; name: string; provider_id: string | null; model_ids: string }>
+  >([])
+
+  useEffect(() => {
+    toolsApi
+      .list({ limit: 200 })
+      .then((r) =>
+        setToolRefs(
+          (r.tools ?? []).map((t) => ({
+            id: t.id,
+            name: t.name,
+            provider_id: t.provider_id,
+            model_ids: t.model_ids ?? ''
+          }))
+        )
+      )
+      .catch(() => setToolRefs([]))
+  }, [])
+
+  // 工具可调用该模型：供应商一致，且模型白名单为空或包含该模型
+  const toolsForModel = (m: Model) =>
+    toolRefs.filter(
+      (t) =>
+        t.provider_id === m.provider_id &&
+        (!t.model_ids || t.model_ids.split(',').map((s) => s.trim()).includes(m.id))
+    )
 
   const load = (targetPage = page, targetSize: number = pageSize) => {
     setLoading(true)
     setError('')
     Promise.all([
-      modelsApi.list({ page: targetPage, pageSize: targetSize, reviewStatus: filterReview } as any),
+      modelsApi.list({
+        page: targetPage,
+        pageSize: targetSize,
+        reviewStatus: filterReview || undefined,
+        providerId: filterProvider || undefined,
+        search: filterName.trim() || undefined
+      } as any),
       providersApi.list()
     ])
       .then(([m, p]) => {
@@ -219,10 +253,12 @@ export default function Models() {
       .finally(() => setLoading(false))
   }
 
+  // 搜索/筛选变化后防抖重新加载（重置到第 1 页，服务端过滤）
   useEffect(() => {
-    load(1, pageSize)
+    const t = setTimeout(() => load(1, pageSize), 300)
+    return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [filterName, filterProvider, filterReview])
 
   const providerName = (id: string) => providers.find((p) => p.id === id)?.name ?? id
 
@@ -375,7 +411,7 @@ export default function Models() {
         {FilterInfo}
         {(filterProvider || filterName || filterReview) && (
           <button
-            onClick={() => { setFilterProvider(''); setFilterName(''); setFilterReview(''); load(1, pageSize) }}
+            onClick={() => { setFilterProvider(''); setFilterName(''); setFilterReview('') }}
             className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
           >清除</button>
         )}
@@ -392,6 +428,7 @@ export default function Models() {
               <tr className="text-xs text-gray-500 border-b border-gray-200">
                 <SortableTh label="ID" field="id" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="供应商" field="provider" current={sortField} order={sortOrder} onSort={onSort} />
+                <th className="px-4 py-3 text-left" title="仅统计启用中的工具导购">关联工具</th>
                 <SortableTh label="名称" field="name" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="类型" field="type" current={sortField} order={sortOrder} onSort={onSort} />
                 <SortableTh label="来源" field="source" current={sortField} order={sortOrder} onSort={onSort} />
@@ -408,6 +445,25 @@ export default function Models() {
                 <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-500 font-mono text-xs">{m.id}</td>
                   <td className="px-4 py-3 text-gray-700">{providerName(m.provider_id)}</td>
+                  <td className="px-4 py-3">
+                    {(() => {
+                      const refs = toolsForModel(m)
+                      if (refs.length === 0) return <span className="text-xs text-gray-400">—</span>
+                      return (
+                        <div
+                          className="flex flex-wrap gap-1 max-w-[220px]"
+                          title={refs.map((r) => r.name).join('、')}
+                        >
+                          {refs.slice(0, 2).map((r) => (
+                            <span key={r.id} className="px-1.5 py-0.5 rounded text-[10px] bg-brand-50 text-brand-700">
+                              {r.name}
+                            </span>
+                          ))}
+                          {refs.length > 2 && <span className="text-[10px] text-gray-400">+{refs.length - 2}</span>}
+                        </div>
+                      )
+                    })()}
+                  </td>
                   <td className="px-4 py-3 font-medium text-gray-800">{m.name}</td>
                   <td className="px-4 py-3 text-gray-600">{m.type || '-'}</td>
                   <td className="px-4 py-3">

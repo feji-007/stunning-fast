@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore, availableProviders } from '../store/useStore'
 import type { ProviderId } from '../types'
 
@@ -12,6 +12,12 @@ export default function SettingsModal() {
   const providers = useStore((s) => s.providers)
   const developerMode = useStore((s) => s.developerMode)
   const setDeveloperMode = useStore((s) => s.setDeveloperMode)
+  // 从工具导购跳转过来时，高亮并滚动到对应供应商
+  const focusId = useStore((s) => s.settingsFocusProvider)
+  const focusRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (focusId) focusRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focusId])
 
   const connected = new Set(availableProviders(providers, keys).map((p) => p.id))
 
@@ -53,19 +59,22 @@ export default function SettingsModal() {
           <div className="space-y-2">
             {providers.map((p) => {
               const existing = keys.find((k) => k.provider === p.id)
+              const focused = p.id === focusId
               return (
-                <ProviderRow
-                  key={p.id}
-                  id={p.id}
-                  name={p.name}
-                  url={p.url}
-                  keyHint={p.keyHint}
-                  models={p.models.map((m) => m.name)}
-                  connected={connected.has(p.id)}
-                  existingKey={existing?.key}
-                  onSave={(key) => saveKey(p.id, key)}
-                  onRemove={() => removeKey(p.id)}
-                />
+                <div key={p.id} ref={focused ? focusRef : undefined}>
+                  <ProviderRow
+                    id={p.id}
+                    name={p.name}
+                    url={p.url}
+                    keyHint={p.keyHint}
+                    models={p.models.map((m) => m.name)}
+                    connected={connected.has(p.id)}
+                    existingKey={existing?.key}
+                    highlight={focused}
+                    onSave={(key) => saveKey(p.id, key)}
+                    onRemove={() => removeKey(p.id)}
+                  />
+                </div>
               )
             })}
           </div>
@@ -82,6 +91,7 @@ function ProviderRow({
   models,
   connected,
   existingKey,
+  highlight,
   onSave,
   onRemove
 }: {
@@ -92,6 +102,7 @@ function ProviderRow({
   models: string[]
   connected: boolean
   existingKey?: string
+  highlight?: boolean
   onSave: (key: string) => void
   onRemove: () => void
 }) {
@@ -104,7 +115,7 @@ function ProviderRow({
     : ''
 
   return (
-    <div className="rounded-lg border border-black/5 bg-white p-3">
+    <div className={`rounded-lg border bg-white p-3 ${highlight ? 'border-brand-400 ring-1 ring-brand-300' : 'border-black/5'}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-gray-800">{name}</span>

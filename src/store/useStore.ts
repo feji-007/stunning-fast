@@ -77,6 +77,8 @@ interface AppState {
   ballSide: 'left' | 'right'
   // Modals
   modal: Modal
+  // 打开设置弹窗时要高亮定位的供应商（工具导购 → 配置 Key 联动）
+  settingsFocusProvider: string | null
   // User
   user: UserState
   // API keys + detected models
@@ -94,7 +96,7 @@ interface AppState {
   recommendQuestions: Array<{ layer: string; title: string; options: Array<{ label: string; models: string[]; note?: string }> }>
   // 步骤二：免费模型资源（从 bootstrap 一次性拉齐）
   freeResources: Array<{
-    id: string; title: string; category: string; model_id: string | null
+    id: string; title: string; category: string; model_id: string | null; tool_id?: string | null
     url: string; license: string; commercial_allowed: boolean
     free_quota: string; entry_type: string; region: string
     notes?: string | null; source_url: string
@@ -117,6 +119,8 @@ interface AppState {
   openFeature: (id: FeatureId) => void
   backToPanel: () => void
   setModal: (m: Modal) => void
+  /** 打开设置弹窗并高亮指定供应商（从工具导购跳转配置 Key） */
+  openProviderSettings: (providerId: string) => void
   setColumns: (c: LayoutColumns) => void
   setCardStyle: (s: CardStyle) => void
   setCardSize: (s: CardSize) => void
@@ -269,6 +273,7 @@ export const useStore = create<AppState>()(
       settingsFromToolbar: false,
       ballSide: 'left',
       modal: 'none',
+      settingsFocusProvider: null,
       user: { loggedIn: false, userId: null, username: '', token: '' },
       keys: [],
       autoLaunch: false,
@@ -374,7 +379,9 @@ export const useStore = create<AppState>()(
         } catch {}
         set({ activeFeature: null, expanded: true })
       },
-      setModal: (m) => set({ modal: m }),
+      setModal: (m) => set({ modal: m, ...(m === 'settings' ? {} : { settingsFocusProvider: null }) }),
+      openProviderSettings: (providerId) =>
+        set({ modal: 'settings', settingsFocusProvider: providerId }),
       setColumns: (c) => {
         set({ columns: c })
         schedulePush(get)
@@ -521,7 +528,7 @@ export const useStore = create<AppState>()(
               url: p.url || '',
               apiBaseUrl: p.api_base_url || undefined,
               apiKeyUrl: p.api_key_url || undefined,
-              protocol: ['dashscope', 'ark', 'kling', 'minimax', 'zhipu', 'runway', 'luma', 'openai', 'pika']
+              protocol: ['dashscope', 'ark', 'kling', 'minimax', 'zhipu', 'runway', 'luma', 'openai', 'pika', 'google', 'heygen', 'synthesia', 'd-id']
                 .includes(String(p.protocol))
                 ? (p.protocol as VideoProtocol)
                 : undefined,
@@ -765,7 +772,7 @@ export const useStore = create<AppState>()(
             keyHint: String(p.keyHint ?? ''),
             url: String(p.url ?? ''),
             apiBaseUrl: p.apiBaseUrl ? String(p.apiBaseUrl) : undefined,
-            protocol: ['dashscope', 'ark', 'kling'].includes(String(p.protocol))
+            protocol: ['dashscope', 'ark', 'kling', 'minimax', 'zhipu', 'runway', 'luma', 'openai', 'pika', 'google', 'heygen', 'synthesia', 'd-id'].includes(String(p.protocol))
               ? (p.protocol as VideoProtocol)
               : undefined,
             submitPath: p.submitPath ? String(p.submitPath) : undefined,

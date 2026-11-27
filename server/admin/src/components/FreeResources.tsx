@@ -1,6 +1,6 @@
 // 免费模型资源聚合（步骤二）：列表 / 筛选 / 增删改 / 手动链接校验
 import { useEffect, useState } from 'react'
-import { freeResourcesApi, type FreeResource } from '../api'
+import { freeResourcesApi, toolsApi, type FreeResource } from '../api'
 
 const CATEGORIES: { v: string; l: string }[] = [
   { v: 'open_source',      l: '📦 开源权重' },
@@ -21,6 +21,7 @@ interface FormState {
   title: string
   category: string
   model_id: string
+  tool_id: string
   url: string
   license: string
   commercial_allowed: boolean
@@ -35,7 +36,7 @@ interface FormState {
 }
 
 const blankForm = (): FormState => ({
-  id: '', title: '', category: 'vendor_free_tier', model_id: '',
+  id: '', title: '', category: 'vendor_free_tier', model_id: '', tool_id: '',
   url: '', license: '', commercial_allowed: false,
   free_quota: '', entry_type: 'official', region: '',
   notes: '', source_url: '', sort_order: 0, is_active: true, status: 'normal'
@@ -47,6 +48,15 @@ export default function FreeResources() {
   const [catFilter, setCatFilter] = useState('')
   const [q, setQ] = useState('')
   const [loading, setLoading] = useState(false)
+  // 工具导购列表（用于把免费资源挂到具体工具上）
+  const [toolOptions, setToolOptions] = useState<Array<{ id: string; name: string }>>([])
+
+  useEffect(() => {
+    toolsApi
+      .list({ limit: 200 })
+      .then((r) => setToolOptions((r.tools ?? []).map((t) => ({ id: t.id, name: t.name }))))
+      .catch(() => setToolOptions([]))
+  }, [])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<FormState>(blankForm())
@@ -76,7 +86,7 @@ export default function FreeResources() {
     setEditingId(r.id)
     setForm({
       id: r.id, title: r.title, category: r.category,
-      model_id: r.model_id ?? '', url: r.url, license: r.license,
+      model_id: r.model_id ?? '', tool_id: r.tool_id ?? '', url: r.url, license: r.license,
       commercial_allowed: r.commercial_allowed,
       free_quota: r.free_quota, entry_type: r.entry_type, region: r.region,
       notes: r.notes ?? '', source_url: r.source_url,
@@ -91,7 +101,7 @@ export default function FreeResources() {
     try {
       const b = {
         id: form.id, title: form.title, category: form.category,
-        modelId: form.model_id || null, url: form.url, license: form.license,
+        modelId: form.model_id || null, toolId: form.tool_id || null, url: form.url, license: form.license,
         commercialAllowed: form.commercial_allowed,
         freeQuota: form.free_quota, entryType: form.entry_type, region: form.region,
         notes: form.notes || null, sourceUrl: form.source_url,
@@ -231,6 +241,15 @@ export default function FreeResources() {
               <Field label="关联模型 ID（可选）">
                 <input value={form.model_id} onChange={(e) => setForm({ ...form, model_id: e.target.value })}
                   className="w-full rounded border border-gray-300 px-2 py-1" placeholder="对应 models.id" />
+              </Field>
+              <Field label="关联工具（可选）">
+                <select value={form.tool_id} onChange={(e) => setForm({ ...form, tool_id: e.target.value })}
+                  className="w-full rounded border border-gray-300 px-2 py-1">
+                  <option value="">不关联</option>
+                  {toolOptions.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}（{t.id}）</option>
+                  ))}
+                </select>
               </Field>
               <Field label="URL" required full>
                 <input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })}
