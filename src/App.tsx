@@ -223,18 +223,35 @@ function MainApp() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // 登录弹窗首次打开后保持挂载（仅隐藏）：自动收起、关闭或切到其它弹窗时都不销毁实例，
+  // 重新打开时已输入的账号密码、Tab 与各面板状态都还在。
+  const [loginMounted, setLoginMounted] = useState(modal === 'login')
+  useEffect(() => {
+    if (modal === 'login') setLoginMounted(true)
+  }, [modal])
+
   // 布局：悬浮窗 | 主面板
   return (
     <div onMouseEnter={handleEnter} onMouseLeave={handleLeave} className="h-screen w-screen">
       {!expanded ? <FloatingWindow /> : <MainPanel />}
 
-      {(modal === 'login' || modal === 'settings' || modal === 'feedback') && (
+      {loginMounted && (
+        <div
+          hidden={modal !== 'login'}
+          className="fixed inset-0 z-50 overflow-hidden rounded-2xl"
+          onMouseEnter={() => (overOverlay.current = true)}
+          onMouseLeave={() => (overOverlay.current = false)}
+        >
+          <LoginModal />
+        </div>
+      )}
+
+      {(modal === 'settings' || modal === 'feedback') && (
         <div
           className="fixed inset-0 z-50 overflow-hidden rounded-2xl"
           onMouseEnter={() => (overOverlay.current = true)}
           onMouseLeave={() => (overOverlay.current = false)}
         >
-          {modal === 'login' && <LoginModal />}
           {modal === 'settings' && <SettingsModal />}
           {modal === 'feedback' && <FeedbackModal />}
         </div>
