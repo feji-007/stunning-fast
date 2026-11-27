@@ -31,12 +31,12 @@ router.get('/questions', async (req, res, next) => {
 /** 新增使用指南问答。 */
 router.post('/questions', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const { category = '', question, answer, sortOrder = 0 } = req.body ?? {}
+    const { category = '', question, answer, sortOrder = 0, isActive = true } = req.body ?? {}
     if (!question || !answer) throw badRequest('question 和 answer 必填')
     const r = await query(
       `INSERT INTO guide_questions (category, question, answer, sort_order, is_active)
-       VALUES (?, ?, ?, ?, TRUE)`,
-      [category, question, answer, sortOrder]
+       VALUES (?, ?, ?, ?, ?)`,
+      [category, question, answer, sortOrder, isActive ? 1 : 0]
     )
     ok(res, { id: r.insertId }, '已创建')
   } catch (e) {

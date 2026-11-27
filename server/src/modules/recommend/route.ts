@@ -24,12 +24,12 @@ router.get('/models', async (_req, res, next) => {
 /** 新增推荐模型。 */
 router.post('/models', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const { id, name, desc = '', tag = '', sortOrder = 0 } = req.body ?? {}
+    const { id, name, desc = '', tag = '', sortOrder = 0, isActive = true } = req.body ?? {}
     if (!id || !name) throw badRequest('id 和 name 必填')
     await query(
       `INSERT INTO recommend_models (id, name, description, tag, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, TRUE)`,
-      [id, name, desc, tag, sortOrder]
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, name, desc, tag, sortOrder, isActive ? 1 : 0]
     )
     ok(res, { id }, '已创建')
   } catch (e) {
@@ -95,12 +95,12 @@ router.get('/questions', async (_req, res, next) => {
 /** 新增推荐问题。 */
 router.post('/questions', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const { layer, title, options = [], sortOrder = 0 } = req.body ?? {}
+    const { layer, title, options = [], sortOrder = 0, isActive = true } = req.body ?? {}
     if (!layer || !title) throw badRequest('layer 和 title 必填')
     const r = await query(
       `INSERT INTO recommend_questions (layer, title, options, sort_order, is_active)
-       VALUES (?, ?, ?, ?, TRUE)`,
-      [layer, title, JSON.stringify(options), sortOrder]
+       VALUES (?, ?, ?, ?, ?)`,
+      [layer, title, JSON.stringify(options), sortOrder, isActive ? 1 : 0]
     )
     ok(res, { id: r.insertId }, '已创建')
   } catch (e) {

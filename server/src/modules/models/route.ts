@@ -68,20 +68,21 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
     const provider = await queryOne('SELECT 1 FROM providers WHERE id = ?', [b.providerId])
     if (!provider) throw notFound('供应商不存在')
     const scenarios = b.scenarios ? JSON.stringify(b.scenarios) : null
+    const isActive = b.isActive ?? true
     await queryOne(
       `INSERT INTO models (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
          max_images, max_videos, max_audios, max_total_assets,
          resolution, speed, price, default_resolution, default_ratio, default_duration, docs_url, source, sort_order, is_active,
          scenarios, capabilities, limits_text, verified_score, source_url,
          license, commercial_allowed, deployment, review_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         b.id, b.providerId, b.name, b.type ?? 'video', b.description ?? '',
         b.supportsI2V ?? false, b.supportsFirstLast ?? false, b.supportsReference ?? false,
         b.maxImages ?? 5, b.maxVideos ?? 0, b.maxAudios ?? 0, b.maxTotalAssets ?? 0,
         b.resolution ?? 720, b.speed ?? 60, b.price ?? 2,
         b.defaultResolution ?? '', b.defaultRatio ?? '', b.defaultDuration ?? '',
-        b.docsUrl ?? '', b.source ?? 'system', b.sortOrder ?? 0,
+        b.docsUrl ?? '', b.source ?? 'system', b.sortOrder ?? 0, isActive ? 1 : 0,
         scenarios, b.capabilities ?? null, b.limitsText ?? null,
         Number(b.verifiedScore) || 0, b.sourceUrl ?? '',
         b.license ?? '', !!b.commercialAllowed, b.deployment ?? 'cloud',

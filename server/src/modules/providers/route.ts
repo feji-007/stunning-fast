@@ -92,12 +92,12 @@ router.get('/active', async (_req, res, next) => {
 /** 新增供应商。 */
 router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const { id, name, keyHint = '', url = '', apiBaseUrl = '', apiKeyUrl = '', protocol = '', submitPath = '', statusPath = '', submitPathI2v = '', statusPathI2v = '', source = 'system', sortOrder = 0 } = req.body ?? {}
+    const { id, name, keyHint = '', url = '', apiBaseUrl = '', apiKeyUrl = '', protocol = '', submitPath = '', statusPath = '', submitPathI2v = '', statusPathI2v = '', source = 'system', sortOrder = 0, isActive = true } = req.body ?? {}
     if (!id || !name) throw badRequest('id 和 name 必填')
     await queryOne(
       `INSERT INTO providers (id, name, key_hint, url, api_base_url, api_key_url, protocol, submit_path, status_path, submit_path_i2v, status_path_i2v, source, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
-      [id, name, keyHint, url, apiBaseUrl, apiKeyUrl, protocol, submitPath, statusPath, submitPathI2v, statusPathI2v, source, sortOrder]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, name, keyHint, url, apiBaseUrl, apiKeyUrl, protocol, submitPath, statusPath, submitPathI2v, statusPathI2v, source, sortOrder, isActive ? 1 : 0]
     )
     ok(res, { provider: { id, name } }, '已创建')
   } catch (e) {

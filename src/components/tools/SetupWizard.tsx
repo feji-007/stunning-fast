@@ -19,7 +19,8 @@ export default function SetupWizard({ tool, onClose }: Props) {
 
   const providerId = tool.providerId
   const quickTry = canQuickTry(tool)
-  const providerName = useStore((s) => s.providers.find((p) => p.id === providerId)?.name ?? providerId ?? '')
+  const provider = useStore((s) => s.providers.find((p) => p.id === providerId))
+  const providerName = provider?.name ?? providerId ?? ''
   const existing = keys.find((k) => k.provider === providerId)?.key ?? ''
   const [key, setKey] = useState('')
   const [saved, setSaved] = useState(false)
@@ -27,7 +28,8 @@ export default function SetupWizard({ tool, onClose }: Props) {
 
   const detail = tool as ToolDetail
   const steps = detail.setupSteps || ''
-  const apiKeyUrl = detail.apiKeyUrl || ''
+  // 工具自身未配置时，回退到所属供应商的 Key 获取页
+  const apiKeyUrl = detail.apiKeyUrl || provider?.apiKeyUrl || ''
   const docsUrl = detail.apiDocsUrl || ''
 
   const handleSave = () => {

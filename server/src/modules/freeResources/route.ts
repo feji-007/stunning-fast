@@ -98,18 +98,21 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const b = req.body ?? {}
     if (!b.id || !b.title || !b.category || !b.url) throw badRequest('id / title / category / url 必填')
+    const validStatus = ['normal', 'restricted', 'invalid']
+    const status = validStatus.includes(b.status) ? b.status : 'normal'
+    const isActive = b.isActive === undefined ? true : !!b.isActive
     await queryOne(
       `INSERT INTO free_resources
         (id, title, category, model_id, tool_id, url, license, commercial_allowed,
          free_quota, entry_type, region, notes, source_url,
          status, sort_order, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, TRUE)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         b.id, b.title, b.category, b.modelId || null, b.toolId || null, b.url,
         b.license || '', !!b.commercialAllowed,
         b.freeQuota || '', b.entryType || 'official', b.region || '',
         b.notes || null, b.sourceUrl || '',
-        b.sortOrder ?? 0
+        status, b.sortOrder ?? 0, isActive ? 1 : 0
       ]
     )
     ok(res, { resource: { id: b.id } }, '已创建')

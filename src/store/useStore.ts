@@ -589,37 +589,32 @@ export const useStore = create<AppState>()(
               })
             }
           })
-          const features: Feature[] = (data.features ?? []).map((f: any) => ({
+          // 后台响应中带 features 字段时，以后台为唯一来源（后台已按 is_active 过滤）。
+          // 后台返回空数组代表「全部禁用」，此时也不回填默认值；
+          // 只有后台不可用或响应里没有该字段（旧版后台）时，才沿用本地用户配置。
+          const remoteFeatures = Array.isArray((data as any)?.features) ? data.features : null
+          const features: Feature[] = (remoteFeatures ?? []).map((f: any) => ({
             id: f.id as FeatureId,
             name: f.name,
             icon: f.icon || '',
             desc: f.description || '',
             pinned: !!f.pinned
           }))
-          // 后端缺失的配置项回退到默认
-          const videoConfig: Record<string, Array<{ value: string; label: string }>> = {
-            ...DEFAULT_VIDEO_CONFIG,
-            ...(data.videoConfig ?? {})
-          }
+          // 产品重心已转向导购：资源库置顶，生成入口紧随其后。
+          const featurePriority: Record<string, number> = { library: 0, video: 1 }
+          const featuresFinal: Feature[] = remoteFeatures
+            ? features
+                .slice()
+                .sort((a, b) => (featurePriority[a.id] ?? 9) - (featurePriority[b.id] ?? 9))
+            : get().features
+          // 视频参数：后台有该字段时完全以后台为准（可能整组被禁用），
+          // 否则回退到本地默认，避免后台禁用的选项被默认值重新补回。
+          const videoConfig =
+            data.videoConfig && typeof data.videoConfig === 'object'
+              ? data.videoConfig
+              : DEFAULT_VIDEO_CONFIG
           // 后端返回空列表时使用最小离线兜底，避免界面空白
           const baseProviders = providers.length > 0 ? providers : FALLBACK_PROVIDERS
-          // features：后端优先，默认值补齐（后端可能还没录入新功能入口）
-          const featuresFinal: Feature[] = (() => {
-            if (features.length === 0) return get().features
-            const byId = new Map(features.map((f) => [f.id, f]))
-            for (const d of DEFAULT_FEATURES) {
-              if (!byId.has(d.id)) byId.set(d.id, d)
-            }
-            // 按后端原有顺序 + 新增默认项追加在末尾
-            const order = new Map<string, number>()
-            features.forEach((f, i) => order.set(f.id, i))
-            let tail = features.length
-            DEFAULT_FEATURES.forEach((d) => { if (!order.has(d.id)) { order.set(d.id, tail++) } })
-            const list = Array.from(byId.values()).sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
-            // 产品重心已转向导购：资源库置顶，生成入口紧随其后
-            const priority: Record<string, number> = { library: 0, video: 1 }
-            return list.sort((a, b) => (priority[a.id] ?? 9) - (priority[b.id] ?? 9))
-          })()
           set({
             providers: mergeCustomProviders(baseProviders, get().customProviders, get().customModels),
             features: featuresFinal,

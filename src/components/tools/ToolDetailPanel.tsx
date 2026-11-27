@@ -39,7 +39,6 @@ export default function ToolDetailPanel({
   const providers = useStore((s) => s.providers)
   const keys = useStore((s) => s.keys)
   const freeResources = useStore((s) => s.freeResources)
-  const openProviderSettings = useStore((s) => s.openProviderSettings)
   const openFeature = useStore((s) => s.openFeature)
   const setVideoForm = useStore((s) => s.setVideoForm)
 
@@ -282,8 +281,15 @@ export default function ToolDetailPanel({
             >
               去官网
             </button>
-            {tool.providerId ? (
-              hasKey ? (
+            {hasKey ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onSetup(tool)}
+                  className="rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50"
+                >
+                  配置引导
+                </button>
                 <button
                   type="button"
                   onClick={handleGenerate}
@@ -291,16 +297,9 @@ export default function ToolDetailPanel({
                 >
                   立即生成
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => { onClose(); openProviderSettings(tool.providerId!) }}
-                  className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
-                >
-                  配置 API Key
-                </button>
-              )
+              </>
             ) : (
+              // 统一走「配置引导」：在引导中查看步骤并保存 API Key，不再直接跳到设置页
               <button
                 type="button"
                 onClick={() => onSetup(tool)}
