@@ -49,6 +49,8 @@ const PROTOCOL_DEFAULTS: Record<string, { submit: string; status: string; submit
   ark:       { submit: '/contents/generations/tasks',                     status: '/contents/generations/tasks/{taskId}' },
   kling:     { submit: '/videos/text2video',                              status: '/videos/text2video/{taskId}',
                submitI2v: '/videos/image2video', statusI2v: '/videos/image2video/{taskId}' },
+  'kling-v2': { submit: '/text-to-video/{model}',                         status: '/tasks?task_ids={taskId}',
+               submitI2v: '/image-to-video/{model}', statusI2v: '/tasks?task_ids={taskId}' },
   minimax:   { submit: '/v1/video_generation',                           status: '/v1/query/video_generation?task_id={taskId}' },
   zhipu:     { submit: '/api/paas/v4/videos/generations',                status: '/api/paas/v4/videos/generations/{taskId}' },
   runway:    { submit: '/v1/text_to_video',                               status: '/v1/tasks/{taskId}' },
@@ -422,7 +424,8 @@ export default function Providers() {
                   <option value="">（未选择）</option>
                   <option value="dashscope">DashScope（通义万相）</option>
                   <option value="ark">Ark（火山引擎 Seedance）</option>
-                  <option value="kling">可灵（Kling）</option>
+                  <option value="kling">可灵（Kling 旧版标准 AK/SK）</option>
+                  <option value="kling-v2">可灵（Kling 新版标准 API Key）</option>
                   <option value="minimax">MiniMax</option>
                   <option value="zhipu">智谱 CogVideoX</option>
                   <option value="runway">Runway Gen-3</option>

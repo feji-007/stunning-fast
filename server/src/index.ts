@@ -5,7 +5,7 @@ import { config } from './config'
 import { ensureSchema } from './db/schema'
 import { seedAll } from './db/seed'
 import { seedTools, backfillToolProviderLinks } from './db/seed-tools'
-import { applyResourceLinkFixes, applyPikaApiMigration, applyNewProviderProtocols } from './db/link-fixes'
+import { applyResourceLinkFixes, applyPikaApiMigration, applyKlingApiMigration, applyNewProviderProtocols } from './db/link-fixes'
 import { pingDb } from './db/pool'
 import apiRoutes from './routes'
 import { errorHandler } from './middleware/error'
@@ -38,6 +38,9 @@ async function bootstrap() {
 
   // 3.8 Pika 供应商迁移到新开发者 API（只执行一次）
   await applyPikaApiMigration()
+
+  // 3.85 可灵供应商迁移到新版 API 设计标准（单个 API Key，只执行一次）
+  await applyKlingApiMigration()
 
   // 3.9 补入 Google/HeyGen/Synthesia/D-ID 供应商、模型及工具关联（只执行一次）
   await applyNewProviderProtocols()

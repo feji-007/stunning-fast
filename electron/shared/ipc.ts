@@ -105,7 +105,8 @@ export interface ExposedAPI {
 export type VideoProtocol =
   | 'dashscope'   // 通义万相 DashScope（已实现）
   | 'ark'         // 火山引擎 Ark / Seedance（已实现）
-  | 'kling'       // 可灵（已实现）
+  | 'kling'       // 可灵旧版设计标准（AccessKey:SecretKey + JWT）
+  | 'kling-v2'    // 可灵新版设计标准（单个 API Key + /text-to-video/{model}）
   | 'minimax'     // MiniMax（API 端点已录入，协议待实现）
   | 'zhipu'       // 智谱 CogVideoX（API 端点已录入，协议待实现）
   | 'runway'      // Runway Gen-3（API 端点已录入，协议待实现）

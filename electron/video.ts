@@ -10,7 +10,8 @@ import type {
 // 已内置的协议：
 //   - dashscope  通义万相 (DashScope)：wan2.7（resolution+ratio）/ wan2.1-2.6（size）
 //   - ark        火山引擎 (Ark)：Seedance 2.x / 1.5 / 1.0
-//   - kling      快手可灵：JWT(AK+SK) 鉴权，kling-v3/v2-master/v2.5-turbo/v1.6
+//   - kling      快手可灵旧版标准：JWT(AK+SK) 鉴权
+//   - kling-v2   快手可灵新版标准：单个 API Key，模型版本在路径中（/text-to-video/{model}）
 // 供应商的接口地址、协议、提交/查询路径全部由后台数据库配置下发，本文件不再硬编码任何供应商数据。
 
 const POLL_INTERVAL = 5000
@@ -297,6 +298,7 @@ function mapKlingStatus(s: string | undefined): VideoProgress['status'] {
     case 'processing':
       return 'RUNNING'
     case 'succeed':
+    case 'succeeded':
       return 'SUCCEEDED'
     case 'failed':
       return 'FAILED'
@@ -422,6 +424,112 @@ async function generateKlingVideo(
       throw new Error(
         `视频生成失败：${resp?.data?.task_status_msg || raw || '未知错误'}`
       )
+    }
+  }
+  throw new Error('视频生成超时，请稍后重试')
+}
+
+/* ------------------------------------------------------------------ */
+/* 快手可灵 - 新版 API 设计标准（单个 API Key）                        */
+/* ------------------------------------------------------------------ */
+
+// 新版标准：模型版本在路径中（/text-to-video/{model}），鉴权为 Bearer <API Key>，
+// 任务查询统一为 GET /tasks?task_ids={id}，返回 data 数组。
+function klingV2Headers(apiKey: string) {
+  const key = (apiKey ?? '').trim()
+  if (!key) {
+    throw new Error('可灵新版 API 需要 API Key，请到「设置 → API Key」或工具配置引导中填写。')
+  }
+  if (key.includes(':')) {
+    throw new Error(
+      '可灵已升级到新版 API：请在可灵控制台新建单个 API Key 并填写；旧的 AccessKey:SecretKey 仅适用于旧版接口。'
+    )
+  }
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${key}`
+  }
+}
+
+function klingV2BuildBody(params: GenerateVideoParams) {
+  const settings: Record<string, unknown> = {}
+  if (params.resolution) settings.resolution = params.resolution.toLowerCase()
+  if (params.duration) settings.duration = Number(params.duration)
+  const options = { watermark_info: { enabled: false } }
+  if (params.imageUrl) {
+    // 图生视频：contents 中分别放提示词与首帧图片，宽高比由图片决定
+    return {
+      contents: [
+        { type: 'prompt', text: params.prompt },
+        { type: 'first_frame', url: params.imageUrl }
+      ],
+      settings,
+      options
+    }
+  }
+  if (params.ratio) settings.aspect_ratio = params.ratio
+  return { prompt: params.prompt, settings, options }
+}
+
+// 新版提交/查询路径支持 {model} 占位符（模型版本位于路径中）。
+function resolveKlingV2Path(params: GenerateVideoParams, taskId?: string): string {
+  const raw = taskId ? resolveStatusPath(params, taskId) : resolveSubmitPath(params)
+  return raw.replace(/\{model\}/g, encodeURIComponent(params.model))
+}
+
+async function generateKlingV2Video(
+  params: GenerateVideoParams,
+  onProgress?: ProgressCb
+): Promise<GenerateVideoResult> {
+  const base = resolveBase(params)
+  const headers = klingV2Headers(params.apiKey)
+  onProgress?.({ status: 'PENDING', message: '提交生成任务…' })
+  const res = await fetch(`${base}${resolveKlingV2Path(params)}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(klingV2BuildBody(params))
+  })
+  const text = await res.text()
+  let data: any
+  try {
+    data = JSON.parse(text)
+  } catch {
+    throw new Error(`提交任务失败 (${res.status})：${text.slice(0, 200)}`)
+  }
+  if (!res.ok || data?.code !== 0) {
+    throw new Error(
+      `提交任务失败 (${res.status})：${data?.message || data?.data?.message || text}`
+    )
+  }
+  const taskId: string | undefined = data?.data?.id
+  if (!taskId) throw new Error(`未返回任务 ID：${text.slice(0, 200)}`)
+  onProgress?.({ status: 'PENDING', message: `任务已提交（${taskId.slice(0, 12)}…），排队中` })
+
+  const deadline = Date.now() + MAX_WAIT
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL))
+    let resp: any
+    try {
+      const q = await fetch(`${base}${resolveKlingV2Path(params, taskId)}`, { headers })
+      if (!q.ok) throw new Error(`查询失败 (${q.status})`)
+      resp = await q.json()
+    } catch {
+      onProgress?.({ status: 'RUNNING', message: '生成中…（查询重试）' })
+      continue
+    }
+    // 查询接口返回 data 数组
+    const row = Array.isArray(resp?.data) ? resp.data[0] : resp?.data
+    const raw: string | undefined = row?.status
+    const status = mapKlingStatus(raw)
+    onProgress?.({ status, message: humanStatus(status) })
+    if (status === 'SUCCEEDED') {
+      const outputs = Array.isArray(row?.outputs) ? row.outputs : []
+      const videoUrl = outputs.find((o: any) => o?.type === 'video' && o?.url)?.url
+      if (!videoUrl) throw new Error('任务成功但未返回视频地址')
+      return { videoUrl, taskId }
+    }
+    if (status === 'FAILED' || status === 'UNKNOWN') {
+      throw new Error(`视频生成失败：${row?.message || raw || '未知错误'}`)
     }
   }
   throw new Error('视频生成超时，请稍后重试')
@@ -1429,6 +1537,8 @@ export async function generateVideo(
       return generateSeedanceVideo(params, onProgress)
     case 'kling':
       return generateKlingVideo(params, onProgress)
+    case 'kling-v2':
+      return generateKlingV2Video(params, onProgress)
     case 'zhipu':
       return generateZhipuVideo(params, onProgress)
     case 'minimax':

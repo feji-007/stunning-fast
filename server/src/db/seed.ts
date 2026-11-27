@@ -51,19 +51,22 @@ const PROVIDERS_SEED: Array<{
     ]
   },
   {
-    id: 'kling', name: '快手可灵 (Kling)', keyHint: 'AccessKey:SecretKey',
-    url: 'https://klingai.com/', apiBaseUrl: 'https://api-beijing.klingai.com/v1', sort: 3,
-    // 可灵文生/图生视频使用不同端点，均在此配置，主进程不再内置路径
-    protocol: 'kling',
-    submitPath: '/videos/text2video',
-    statusPath: '/videos/text2video/{taskId}',
-    submitPathI2v: '/videos/image2video',
-    statusPathI2v: '/videos/image2video/{taskId}',
+    id: 'kling', name: '快手可灵 (Kling)', keyHint: 'API Key',
+    url: 'https://klingai.com/', apiBaseUrl: 'https://api-beijing.klingai.com', sort: 3,
+    // 可灵新版设计标准：单个 API Key 鉴权，模型版本位于路径中（{model} 占位）
+    protocol: 'kling-v2',
+    submitPath: '/text-to-video/{model}',
+    statusPath: '/tasks?task_ids={taskId}',
+    submitPathI2v: '/image-to-video/{model}',
+    statusPathI2v: '/tasks?task_ids={taskId}',
     models: [
-      { id: 'kling-v3', name: 'Kling 3.0', type: 'video', desc: '可灵最新一代文生视频，画质与一致性最佳，支持更长时长。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 120, price: 3, sort: 1 },
-      { id: 'kling-v2-master', name: 'Kling 2.0 Master', type: 'video', desc: '可灵 2.0 高质量文生视频，1080p，最长 10s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 90, price: 3, sort: 2 },
-      { id: 'kling-v2-5-turbo', name: 'Kling 2.5 Turbo', type: 'video', desc: '可灵 2.5 Turbo，速度更快成本更低，适合快速尝鲜。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 720, speed: 30, price: 1, sort: 3 },
-      { id: 'kling-v1-6', name: 'Kling 1.6', type: 'video', desc: '可灵上一代视频模型，性价比高。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 720, speed: 60, price: 2, sort: 4 }
+      { id: 'kling-4.0', name: 'Kling 4.0', type: 'video', desc: '可灵最新一代，3-30s，支持 4K、多镜头叙事与全能参考。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, maxImages: 10, maxVideos: 5, maxTotalAssets: 15, res: 1080, speed: 120, price: 4, sort: 1 },
+      { id: 'kling-4.0-flash', name: 'Kling 4.0 Flash', type: 'video', desc: '可灵 4.0 快速版，3-20s，720P，性价比高。', supportsI2V: true, supportsFirstLast: false, supportsReference: true, maxImages: 10, maxVideos: 5, maxTotalAssets: 15, res: 720, speed: 30, price: 2, sort: 2 },
+      { id: 'kling-3.0-turbo', name: 'Kling 3.0 Turbo', type: 'video', desc: '可灵 3.0 Turbo，3-15s，原生音频，效果稳定、性价比更优。', supportsI2V: true, supportsFirstLast: false, supportsReference: false, res: 1080, speed: 45, price: 2, sort: 3 },
+      { id: 'kling-v3', name: 'Kling 3.0', type: 'video', desc: '可灵 3.0，音画同步、主体一致性增强，支持多镜头，3-15s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, res: 1080, speed: 90, price: 3, sort: 4 },
+      { id: 'kling-v3-omni', name: 'Kling 3.0 Omni', type: 'video', desc: '可灵 3.0 全能多模态，支持参考图片/视频与分镜，3-15s。', supportsI2V: true, supportsFirstLast: true, supportsReference: true, maxImages: 10, maxVideos: 1, maxTotalAssets: 15, res: 1080, speed: 90, price: 3, sort: 5 },
+      { id: 'kling-v2-6', name: 'Kling 2.6', type: 'video', desc: '可灵 2.6，音画同步，5s/10s，1080P 支持有声与无声。', supportsI2V: true, supportsFirstLast: true, supportsReference: false, res: 1080, speed: 60, price: 2, sort: 6 },
+      { id: 'kling-v2-5-turbo', name: 'Kling 2.5 Turbo', type: 'video', desc: '可灵 2.5 Turbo，5s/10s，速度快、成本低，适合快速尝鲜。', supportsI2V: true, supportsFirstLast: true, supportsReference: false, res: 720, speed: 30, price: 1, sort: 7 }
     ]
   },
   {
@@ -414,12 +417,12 @@ async function backfillApiBaseUrls() {
       statusPath: '/contents/generations/tasks/{taskId}'
     },
     kling: {
-      apiBaseUrl: 'https://api-beijing.klingai.com/v1',
-      protocol: 'kling',
-      submitPath: '/videos/text2video',
-      statusPath: '/videos/text2video/{taskId}',
-      submitPathI2v: '/videos/image2video',
-      statusPathI2v: '/videos/image2video/{taskId}'
+      apiBaseUrl: 'https://api-beijing.klingai.com',
+      protocol: 'kling-v2',
+      submitPath: '/text-to-video/{model}',
+      statusPath: '/tasks?task_ids={taskId}',
+      submitPathI2v: '/image-to-video/{model}',
+      statusPathI2v: '/tasks?task_ids={taskId}'
     },
     minimax: {
       apiBaseUrl: 'https://api.minimaxi.com',

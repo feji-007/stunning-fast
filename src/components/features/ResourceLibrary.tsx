@@ -8,6 +8,7 @@ const PROTOCOL_DEFAULTS: Record<VideoProtocol, { submitPath: string; statusPath:
   dashscope: { submitPath: '/services/aigc/video-generation/video-synthesis', statusPath: '/tasks/{taskId}' },
   ark:       { submitPath: '/contents/generations/tasks',                  statusPath: '/contents/generations/tasks/{taskId}' },
   kling:     { submitPath: '/videos/text2video',                           statusPath: '/videos/text2video/{taskId}' },
+  'kling-v2': { submitPath: '/text-to-video/{model}',                      statusPath: '/tasks?task_ids={taskId}' },
   minimax:   { submitPath: '/v1/video_generation',                         statusPath: '/v1/query/video_generation?task_id={taskId}' },
   zhipu:     { submitPath: '/api/paas/v4/videos/generations',              statusPath: '/api/paas/v4/videos/generations/{taskId}' },
   runway:    { submitPath: '/v1/text_to_video',                            statusPath: '/v1/tasks/{taskId}' },
@@ -23,7 +24,8 @@ const PROTOCOL_DEFAULTS: Record<VideoProtocol, { submitPath: string; statusPath:
 const PROTOCOL_OPTIONS: Array<{ value: VideoProtocol; label: string }> = [
   { value: 'dashscope', label: 'DashScope（通义万相）' },
   { value: 'ark',       label: 'Ark（火山引擎 Seedance）' },
-  { value: 'kling',     label: '可灵（Kling）' },
+  { value: 'kling',     label: '可灵（Kling 旧版标准）' },
+  { value: 'kling-v2',  label: '可灵（Kling 新版标准）' },
   { value: 'minimax',   label: 'MiniMax' },
   { value: 'zhipu',     label: '智谱 CogVideoX' },
   { value: 'runway',    label: 'Runway Gen-3' },

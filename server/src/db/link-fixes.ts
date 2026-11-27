@@ -245,3 +245,67 @@ export async function applyPikaApiMigration(): Promise<void> {
   )
   console.log(`[link-fix] Pika 供应商已迁移到新 API（${Number(r.affectedRows ?? 0)} 行更新）`)
 }
+
+/**
+ * 可灵迁移到新版 API 设计标准（只执行一次）。
+ * 新版：单个 API Key（Authorization: Bearer <key>），模型版本在路径中，
+ * 任务查询统一为 GET /tasks?task_ids=。
+ * 旧的 AccessKey:SecretKey(JWT) 仅适用于旧版接口，故一并更新配置与模型。
+ */
+export async function applyKlingApiMigration(): Promise<void> {
+  const done = await queryOne<{ k: string }>(
+    `SELECT \`key\` AS k FROM meta WHERE \`key\` = 'kling_api_v2'`
+  )
+  if (done) return
+
+  const r = await query(
+    `UPDATE providers
+        SET protocol = 'kling-v2',
+            api_base_url = 'https://api-beijing.klingai.com',
+            key_hint = 'API Key',
+            submit_path = '/text-to-video/{model}',
+            status_path = '/tasks?task_ids={taskId}',
+            submit_path_i2v = '/image-to-video/{model}',
+            status_path_i2v = '/tasks?task_ids={taskId}',
+            api_key_url = 'https://app.klingai.com/cn/dev/api-key'
+      WHERE id = 'kling'
+        AND (protocol = 'kling' OR protocol IS NULL OR protocol = ''
+             OR api_base_url LIKE '%/v1' OR api_base_url LIKE '%api.klingai.com%')`
+  )
+
+  // 旧版标准下已下线的模型直接停用，避免选中后调用失败
+  await query(
+    `UPDATE models SET is_active = FALSE
+      WHERE provider_id = 'kling' AND id IN ('kling-v2-master', 'kling-v1-6')`
+  )
+
+  // 新版标准可用模型（已存在则跳过，不覆盖管理员修改）
+  const models: Array<[string, string, string, number, number, number, number, number, number, number, number]> = [
+    // id, name, desc, supportsI2V, firstLast, reference, maxImages, maxVideos, maxTotal, res, speed
+    ['kling-4.0', 'Kling 4.0', '可灵最新一代，3-30s，支持 4K、多镜头叙事与全能参考。', 1, 1, 1, 10, 5, 15, 1080, 120],
+    ['kling-4.0-flash', 'Kling 4.0 Flash', '可灵 4.0 快速版，3-20s，720P，性价比高。', 1, 0, 1, 10, 5, 15, 720, 30],
+    ['kling-3.0-turbo', 'Kling 3.0 Turbo', '可灵 3.0 Turbo，3-15s，原生音频，效果稳定、性价比更优。', 1, 0, 0, 5, 0, 0, 1080, 45],
+    ['kling-v3-omni', 'Kling 3.0 Omni', '可灵 3.0 全能多模态，支持参考图片/视频与分镜，3-15s。', 1, 1, 1, 10, 1, 15, 1080, 90],
+    ['kling-v2-6', 'Kling 2.6', '可灵 2.6，音画同步，5s/10s，1080P 支持有声与无声。', 1, 1, 0, 5, 0, 0, 1080, 60]
+  ]
+  for (let i = 0; i < models.length; i++) {
+    const [id, name, desc, i2v, firstLast, ref, img, video, total, res, speed] = models[i]
+    await query(
+      `INSERT IGNORE INTO models
+        (id, provider_id, name, type, description, supports_i2v, supports_first_last, supports_reference,
+         max_images, max_videos, max_audios, max_total_assets,
+         resolution, speed, price, default_resolution, default_ratio, default_duration, sort_order, is_active)
+       VALUES (?, 'kling', ?, 'video', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 2, ?, '16:9', '5', ?, TRUE)`,
+      [
+        id, name, desc, !!i2v, !!firstLast, !!ref, img, video, total,
+        res, speed, res >= 1080 ? '1080P' : '720P', 20 + i
+      ]
+    )
+  }
+
+  await query(
+    `INSERT INTO meta (\`key\`, \`value\`) VALUES ('kling_api_v2', NOW())
+     ON DUPLICATE KEY UPDATE \`value\` = NOW()`
+  )
+  console.log(`[link-fix] 可灵已迁移到新版 API（${Number(r.affectedRows ?? 0)} 行更新）`)
+}

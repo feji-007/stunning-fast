@@ -537,7 +537,7 @@ export const useStore = create<AppState>()(
               url: p.url || '',
               apiBaseUrl: p.api_base_url || undefined,
               apiKeyUrl: p.api_key_url || undefined,
-              protocol: ['dashscope', 'ark', 'kling', 'minimax', 'zhipu', 'runway', 'luma', 'openai', 'pika', 'google', 'heygen', 'synthesia', 'd-id']
+              protocol: ['dashscope', 'ark', 'kling', 'kling-v2', 'minimax', 'zhipu', 'runway', 'luma', 'openai', 'pika', 'google', 'heygen', 'synthesia', 'd-id']
                 .includes(String(p.protocol))
                 ? (p.protocol as VideoProtocol)
                 : undefined,
@@ -776,7 +776,7 @@ export const useStore = create<AppState>()(
             keyHint: String(p.keyHint ?? ''),
             url: String(p.url ?? ''),
             apiBaseUrl: p.apiBaseUrl ? String(p.apiBaseUrl) : undefined,
-            protocol: ['dashscope', 'ark', 'kling', 'minimax', 'zhipu', 'runway', 'luma', 'openai', 'pika', 'google', 'heygen', 'synthesia', 'd-id'].includes(String(p.protocol))
+            protocol: ['dashscope', 'ark', 'kling', 'kling-v2', 'minimax', 'zhipu', 'runway', 'luma', 'openai', 'pika', 'google', 'heygen', 'synthesia', 'd-id'].includes(String(p.protocol))
               ? (p.protocol as VideoProtocol)
               : undefined,
             submitPath: p.submitPath ? String(p.submitPath) : undefined,
